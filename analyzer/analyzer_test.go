@@ -15,21 +15,10 @@ const tgosrc = `package main
 
 import "github.com/mateusz834/tgo"
 
-func test(a string) error { <div>"hello"</div>; return nil }
-
 func test(a string) error {
-	<div>"hello"; i := 3 </div>
-	a := 3
-	<div>"hello"</div>
-	<div>"hello"; foo(); i:=3 </div>
-
-	<span @hello="lol" @test="test \{a}">
-		<div>"hello"</div>
-		<div>"hello \{a+a+"test"}"</div>
-		<div>"hello \{func() string { if a == "test" {return "testing"}; return a}()}"</div>
-	</span>
-	<div>func() string { if a == "test" {return "testing"}; return a}()</div>
-	<div>a:=2; a:=3;</div>
+	"hello \{ /*c*/ sth}"
+	/*test*/ "hello \{ /*c*/ sth}"
+	/*test*/ "hello \{ /*c*/ sth}"
 }
 `
 
