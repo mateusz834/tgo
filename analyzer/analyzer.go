@@ -2,23 +2,21 @@ package analyzer
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/mateusz834/tgoast/ast"
 	"github.com/mateusz834/tgoast/token"
 )
 
-// TODO: matching tags <div> has corresponding close + void tags
-
 func Analyze(fs *token.FileSet, f *ast.File) error {
-	a := &analyzer{
-		context: contextNotTgo,
-		ctx: &analyzerContext{
-			fs: fs,
-		},
+	ctx := &analyzerContext{
+		fs: fs,
 	}
-	ast.Walk(a, f)
-	if len(a.ctx.errors) != 0 {
-		return a.ctx.errors
+	ast.Walk(&contextAnalyzer{context: contextNotTgo, ctx: ctx}, f)
+	ast.Walk(&tagPairsAnalyzer{ctx: ctx}, f)
+
+	if len(ctx.errors) != 0 {
+		return ctx.errors
 	}
 	return nil
 }
@@ -57,23 +55,23 @@ const (
 	contextTgoTag
 )
 
-type analyzer struct {
+type contextAnalyzer struct {
 	context context
 	ctx     *analyzerContext
 }
 
-func (f *analyzer) Visit(node ast.Node) ast.Visitor {
+func (f *contextAnalyzer) Visit(node ast.Node) ast.Visitor {
 	switch n := node.(type) {
 	case *ast.FuncDecl:
 		if len(n.Type.Params.List) == 0 {
-			return &analyzer{context: contextNotTgo, ctx: f.ctx}
+			return &contextAnalyzer{context: contextNotTgo, ctx: f.ctx}
 		}
-		return &analyzer{context: contextTgoBody, ctx: f.ctx}
+		return &contextAnalyzer{context: contextTgoBody, ctx: f.ctx}
 	case *ast.FuncLit:
 		if len(n.Type.Params.List) == 0 {
-			return &analyzer{context: contextNotTgo, ctx: f.ctx}
+			return &contextAnalyzer{context: contextNotTgo, ctx: f.ctx}
 		}
-		return &analyzer{context: contextTgoBody, ctx: f.ctx}
+		return &contextAnalyzer{context: contextTgoBody, ctx: f.ctx}
 	case *ast.BlockStmt, *ast.IfStmt,
 		*ast.SwitchStmt, *ast.CaseClause,
 		*ast.ForStmt, *ast.SelectStmt,
@@ -83,25 +81,25 @@ func (f *analyzer) Visit(node ast.Node) ast.Visitor {
 	case *ast.TemplateLiteralExpr:
 		if f.context != contextTgoBody {
 			f.ctx.errors = append(f.ctx.errors, AnalyzeError{
-				Message:  "Template literal is not allowed in this context",
+				Message:  "template literal is not allowed in this context",
 				StartPos: f.ctx.fs.Position(n.Pos()),
 				EndPos:   f.ctx.fs.Position(n.End()),
 			})
 		}
-		return &analyzer{context: contextNotTgo, ctx: f.ctx}
+		return &contextAnalyzer{context: contextNotTgo, ctx: f.ctx}
 	case *ast.OpenTagStmt:
 		if f.context != contextTgoBody {
 			f.ctx.errors = append(f.ctx.errors, AnalyzeError{
-				Message:  "Open Tag is not allowed in this context",
+				Message:  "open tag is not allowed in this context",
 				StartPos: f.ctx.fs.Position(n.Pos()),
 				EndPos:   f.ctx.fs.Position(n.End()),
 			})
 		}
-		return &analyzer{context: contextTgoTag, ctx: f.ctx}
+		return &contextAnalyzer{context: contextTgoTag, ctx: f.ctx}
 	case *ast.EndTagStmt:
 		if f.context != contextTgoBody {
 			f.ctx.errors = append(f.ctx.errors, AnalyzeError{
-				Message:  "End Tag is not allowed in this context",
+				Message:  "end tag is not allowed in this context",
 				StartPos: f.ctx.fs.Position(n.Pos()),
 				EndPos:   f.ctx.fs.Position(n.End()),
 			})
@@ -110,19 +108,86 @@ func (f *analyzer) Visit(node ast.Node) ast.Visitor {
 	case *ast.AttributeStmt:
 		if f.context != contextTgoTag {
 			f.ctx.errors = append(f.ctx.errors, AnalyzeError{
-				Message:  "Attribute is not allowed in this context",
+				Message:  "attribute is not allowed in this context",
 				StartPos: f.ctx.fs.Position(n.Pos()),
 				EndPos:   f.ctx.fs.Position(n.End()),
 			})
 		}
 		if v, ok := n.Value.(*ast.TemplateLiteralExpr); ok {
-			a := &analyzer{context: contextNotTgo, ctx: f.ctx}
+			a := &contextAnalyzer{context: contextNotTgo, ctx: f.ctx}
 			for _, v := range v.Parts {
 				ast.Walk(a, v)
 			}
 		}
 		return nil
 	default:
-		return &analyzer{context: contextNotTgo, ctx: f.ctx}
+		return &contextAnalyzer{context: contextNotTgo, ctx: f.ctx}
 	}
+}
+
+type tagPairsAnalyzer struct {
+	ctx *analyzerContext
+}
+
+func (f *tagPairsAnalyzer) Visit(node ast.Node) ast.Visitor {
+	switch n := node.(type) {
+	case *ast.BlockStmt:
+		f.ctx.errors = f.checkTagPairs(f.ctx.errors, n.List)
+	case *ast.OpenTagStmt:
+		f.ctx.errors = f.checkTagPairs(f.ctx.errors, n.Body)
+	case *ast.CaseClause:
+		f.ctx.errors = f.checkTagPairs(f.ctx.errors, n.Body)
+	case *ast.CommClause:
+		f.ctx.errors = f.checkTagPairs(f.ctx.errors, n.Body)
+	}
+	return f
+}
+
+func (f *tagPairsAnalyzer) checkTagPairs(a []AnalyzeError, stmt []ast.Stmt) []AnalyzeError {
+	type namePos struct {
+		name       string
+		start, end token.Pos
+	}
+	deep := make([]namePos, 0, 16)
+
+	for _, v := range stmt {
+		switch n := v.(type) {
+		case *ast.OpenTagStmt:
+			// TODO(mateusz834): void elements
+			deep = append(deep, namePos{
+				name:  n.Name.Name,
+				start: v.Pos(),
+				end:   v.End() - 1,
+			})
+		case *ast.EndTagStmt:
+			if len(deep) == 0 {
+				a = append(a, AnalyzeError{
+					Message:  "missing open tag",
+					StartPos: f.ctx.fs.Position(n.OpenPos),
+					EndPos:   f.ctx.fs.Position(n.ClosePos),
+				})
+				continue
+			}
+			last := deep[len(deep)-1]
+			deep = deep[:len(deep)-1]
+			if !strings.EqualFold(last.name, n.Name.Name) {
+				a = append(a, AnalyzeError{
+					Message:  fmt.Sprintf("unexpected close tag: %q, want: %q", n.Name.Name, last.name),
+					StartPos: f.ctx.fs.Position(n.OpenPos),
+					EndPos:   f.ctx.fs.Position(n.ClosePos),
+				})
+				continue
+			}
+		}
+	}
+
+	for _, v := range deep {
+		a = append(a, AnalyzeError{
+			Message:  "unclosed tag",
+			StartPos: f.ctx.fs.Position(v.start),
+			EndPos:   f.ctx.fs.Position(v.end),
+		})
+	}
+
+	return a
 }

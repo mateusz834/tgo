@@ -16,9 +16,11 @@ const tgosrc = `package main
 import "github.com/mateusz834/tgo"
 
 func test(a string) error {
-	"hello \{ /*c*/ sth}"
-	/*test*/ "hello \{ /*c*/ sth}"
-	/*test*/ "hello \{ /*c*/ sth}"
+	<
+		div
+		/*test*/ @attr
+	>
+	</div>
 }
 `
 
