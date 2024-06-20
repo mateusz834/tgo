@@ -132,18 +132,18 @@ type tagPairsAnalyzer struct {
 func (f *tagPairsAnalyzer) Visit(node ast.Node) ast.Visitor {
 	switch n := node.(type) {
 	case *ast.BlockStmt:
-		f.ctx.errors = f.checkTagPairs(f.ctx.errors, n.List)
+		f.checkTagPairs(n.List)
 	case *ast.OpenTagStmt:
-		f.ctx.errors = f.checkTagPairs(f.ctx.errors, n.Body)
+		f.checkTagPairs(n.Body)
 	case *ast.CaseClause:
-		f.ctx.errors = f.checkTagPairs(f.ctx.errors, n.Body)
+		f.checkTagPairs(n.Body)
 	case *ast.CommClause:
-		f.ctx.errors = f.checkTagPairs(f.ctx.errors, n.Body)
+		f.checkTagPairs(n.Body)
 	}
 	return f
 }
 
-func (f *tagPairsAnalyzer) checkTagPairs(a []AnalyzeError, stmt []ast.Stmt) []AnalyzeError {
+func (f *tagPairsAnalyzer) checkTagPairs(stmt []ast.Stmt) {
 	type namePos struct {
 		name       string
 		start, end token.Pos
@@ -161,7 +161,7 @@ func (f *tagPairsAnalyzer) checkTagPairs(a []AnalyzeError, stmt []ast.Stmt) []An
 			})
 		case *ast.EndTagStmt:
 			if len(deep) == 0 {
-				a = append(a, AnalyzeError{
+				f.ctx.errors = append(f.ctx.errors, AnalyzeError{
 					Message:  "missing open tag",
 					StartPos: f.ctx.fs.Position(n.OpenPos),
 					EndPos:   f.ctx.fs.Position(n.ClosePos),
@@ -171,7 +171,7 @@ func (f *tagPairsAnalyzer) checkTagPairs(a []AnalyzeError, stmt []ast.Stmt) []An
 			last := deep[len(deep)-1]
 			deep = deep[:len(deep)-1]
 			if !strings.EqualFold(last.name, n.Name.Name) {
-				a = append(a, AnalyzeError{
+				f.ctx.errors = append(f.ctx.errors, AnalyzeError{
 					Message:  fmt.Sprintf("unexpected close tag: %q, want: %q", n.Name.Name, last.name),
 					StartPos: f.ctx.fs.Position(n.OpenPos),
 					EndPos:   f.ctx.fs.Position(n.ClosePos),
@@ -182,12 +182,10 @@ func (f *tagPairsAnalyzer) checkTagPairs(a []AnalyzeError, stmt []ast.Stmt) []An
 	}
 
 	for _, v := range deep {
-		a = append(a, AnalyzeError{
+		f.ctx.errors = append(f.ctx.errors, AnalyzeError{
 			Message:  "unclosed tag",
 			StartPos: f.ctx.fs.Position(v.start),
 			EndPos:   f.ctx.fs.Position(v.end),
 		})
 	}
-
-	return a
 }
