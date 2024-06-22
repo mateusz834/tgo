@@ -14,7 +14,6 @@ func Analyze(fs *token.FileSet, f *ast.File) error {
 	}
 	ast.Walk(&contextAnalyzer{context: contextNotTgo, ctx: ctx}, f)
 	ast.Walk(&tagPairsAnalyzer{ctx: ctx}, f)
-
 	if len(ctx.errors) != 0 {
 		return ctx.errors
 	}
