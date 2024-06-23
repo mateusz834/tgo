@@ -56,95 +56,86 @@ func (t *transpiler) transpile() {
 }
 
 func (t *transpiler) transpileDecl(d ast.Decl) {
-	ast.Inspect(d, t.inspect)
+	t.inspect(d)
 }
 
 func inspectNodes[T ast.Node](t *transpiler, prevEndPos token.Pos, nodes []T) {
 	for _, v := range nodes {
 		t.fromSource(prevEndPos, v.Pos())
-		ast.Inspect(v, t.inspect)
+		t.inspect(v)
 		prevEndPos = v.End()
 	}
 }
 
-func (t *transpiler) inspect(n ast.Node) bool {
+func (t *transpiler) inspect(n ast.Node) {
 	switch n := n.(type) {
 	case *ast.Ident:
 		t.fromSource(n.Pos(), n.End())
-		return false
 	case *ast.Ellipsis:
 		panic("here")
 	case *ast.BasicLit:
 		t.fromSource(n.Pos(), n.End())
-		return false
 	case *ast.FuncLit:
 		t.fromSource(n.Pos(), n.Body.Lbrace)
-		ast.Inspect(n.Body, t.inspect)
-		return false
+		t.inspect(n.Body)
 	case *ast.CompositeLit:
 		start := n.Pos()
 		if n.Type != nil {
-			ast.Inspect(n.Type, t.inspect)
+			t.inspect(n.Type)
 			t.fromSource(n.Type.End(), n.Lbrace+1)
 			start = n.Lbrace + 1
 		}
 		if len(n.Elts) == 0 {
 			t.fromSource(start, n.Rbrace+1)
-			return false
+			return
 		}
 		inspectNodes(t, start, n.Elts)
 		t.fromSource(n.Elts[len(n.Elts)-1].End(), n.Rbrace+1)
-		return false
 	case *ast.ParenExpr:
 		t.fromSource(n.Lparen, n.X.Pos())
-		ast.Inspect(n.X, t.inspect)
+		t.inspect(n.X)
 		t.fromSource(n.X.End(), n.Rparen+1)
-		return false
 	case *ast.SelectorExpr:
-		ast.Inspect(n.X, t.inspect)
+		t.inspect(n.X)
 		t.fromSource(n.X.End(), n.End())
-		return false
 	case *ast.IndexExpr:
-		ast.Inspect(n.X, t.inspect)
+		t.inspect(n.X)
 		t.fromSource(n.X.End(), n.Index.Pos())
-		ast.Inspect(n.Index, t.inspect)
+		t.inspect(n.Index)
 		t.fromSource(n.Index.End(), n.Rbrack+1)
-		return false
 	case *ast.IndexListExpr:
 		panic("todo")
 	case *ast.SliceExpr:
-		ast.Inspect(n.X, t.inspect)
+		t.inspect(n.X)
 		t.fromSource(n.X.End(), n.Lbrack+1)
 		lastEnd := n.Lbrack + 1
 		if n.Low != nil {
 			t.fromSource(lastEnd, n.Low.Pos())
-			ast.Inspect(n.Low, t.inspect)
+			t.inspect(n.Low)
 			lastEnd = n.Low.End()
 		}
 		if n.High != nil {
 			t.fromSource(lastEnd, n.High.Pos())
-			ast.Inspect(n.High, t.inspect)
+			t.inspect(n.High)
 			lastEnd = n.High.End()
 		}
 		if n.Max != nil {
 			t.fromSource(lastEnd, n.Max.Pos())
-			ast.Inspect(n.Max, t.inspect)
+			t.inspect(n.Max)
 			lastEnd = n.Max.End()
 		}
 		t.fromSource(lastEnd, n.Rbrack+1)
-		return false
 	case *ast.TypeAssertExpr:
-		ast.Inspect(n.X, t.inspect)
+		t.inspect(n.X)
 		if n.Type == nil {
 			t.fromSource(n.X.End(), n.Rparen+1)
-			return false
+			return
 		}
 		t.fromSource(n.X.End(), n.Type.Pos())
-		ast.Inspect(n.Type, t.inspect)
+		t.inspect(n.Type)
 		t.fromSource(n.Type.End(), n.Rparen+1)
-		return false
 	case *ast.CallExpr:
-		ast.Inspect(n.Fun, t.inspect)
+		t.inspect(n.Fun)
 		if len(n.Args) != 0 {
 			t.fromSource(n.Fun.End(), n.Lparen+1)
 			inspectNodes(t, n.Lparen+1, n.Args)
@@ -152,127 +143,106 @@ func (t *transpiler) inspect(n ast.Node) bool {
 		} else {
 			t.fromSource(n.Fun.End(), n.End())
 		}
-		return false
 	case *ast.StarExpr:
 		t.fromSource(n.Star, n.X.Pos())
-		ast.Inspect(n.X, t.inspect)
-		return false
+		t.inspect(n.X)
 	case *ast.UnaryExpr:
 		t.fromSource(n.OpPos, n.X.Pos())
-		ast.Inspect(n.X, t.inspect)
-		return false
+		t.inspect(n.X)
 	case *ast.BinaryExpr:
-		ast.Inspect(n.X, t.inspect)
+		t.inspect(n.X)
 		t.fromSource(n.X.End(), n.Y.Pos())
-		ast.Inspect(n.Y, t.inspect)
-		return false
+		t.inspect(n.Y)
 	case *ast.KeyValueExpr:
-		ast.Inspect(n.Key, t.inspect)
+		t.inspect(n.Key)
 		t.fromSource(n.Key.End(), n.Value.Pos())
-		ast.Inspect(n.Value, t.inspect)
-		return false
+		t.inspect(n.Value)
 
 	case *ast.GenDecl:
 		if n.Tok != token.VAR {
 			t.fromSource(n.Pos(), n.End())
-			return false
+			return
 		}
 		t.fromSource(n.Pos(), n.Specs[0].Pos())
 		for i, v := range n.Specs {
-			ast.Inspect(v, t.inspect)
+			t.inspect(v)
 			if i+1 != len(n.Specs) {
 				t.fromSource(v.End(), n.Specs[i+1].Pos())
 			}
 		}
 		t.fromSource(n.Specs[len(n.Specs)-1].End(), n.End())
-		return false
 	case *ast.ValueSpec:
 		t.fromSource(n.Pos(), n.Names[len(n.Names)-1].End())
 		start := n.Names[len(n.Names)-1].End()
 		if n.Type != nil {
 			t.fromSource(start, n.Type.Pos())
-			ast.Inspect(n.Type, t.inspect)
+			t.inspect(n.Type)
 			start = n.Type.End()
 		}
 		inspectNodes(t, start, n.Values)
-		return false
 	case *ast.FuncDecl:
 		t.fromSource(n.Pos(), n.Body.Lbrace)
-		ast.Inspect(n.Body, t.inspect)
-		return false
+		t.inspect(n.Body)
 
 	case *ast.DeclStmt:
-		ast.Inspect(n.Decl, t.inspect)
-		return false
+		t.inspect(n.Decl)
 	case *ast.EmptyStmt:
 		t.fromSource(n.Pos(), n.End())
-		return false
 	case *ast.LabeledStmt:
-		ast.Inspect(n.Label, t.inspect)
+		t.inspect(n.Label)
 		t.fromSource(n.Label.End(), n.Stmt.Pos())
-		ast.Inspect(n.Stmt, t.inspect)
-		return false
+		t.inspect(n.Stmt)
 	case *ast.ExprStmt:
-		ast.Inspect(n.X, t.inspect)
-		return false
+		t.inspect(n.X)
 	case *ast.SendStmt:
-		ast.Inspect(n.Chan, t.inspect)
+		t.inspect(n.Chan)
 		t.fromSource(n.Chan.End(), n.Value.Pos())
-		ast.Inspect(n.Value, t.inspect)
-		return false
+		t.inspect(n.Value)
 	case *ast.IncDecStmt:
-		ast.Inspect(n.X, t.inspect)
+		t.inspect(n.X)
 		t.fromSource(n.X.End(), n.End())
-		return false
 	case *ast.AssignStmt:
 		inspectNodes(t, n.Pos(), n.Lhs)
 		t.fromSource(n.Lhs[len(n.Lhs)-1].End(), n.Rhs[0].Pos())
 		inspectNodes(t, n.Rhs[0].Pos(), n.Rhs)
-		return false
 	case *ast.GoStmt:
 		t.fromSource(n.Pos(), n.Call.Pos())
-		ast.Inspect(n.Call, t.inspect)
-		return false
+		t.inspect(n.Call)
 	case *ast.DeferStmt:
 		t.fromSource(n.Pos(), n.Call.Pos())
-		ast.Inspect(n.Call, t.inspect)
-		return false
+		t.inspect(n.Call)
 	case *ast.ReturnStmt:
 		if len(n.Results) != 0 {
 			t.fromSource(n.Pos(), n.Results[0].Pos())
 			inspectNodes(t, n.Results[0].Pos(), n.Results)
-			return false
+			return
 		}
 		t.fromSource(n.Pos(), n.End())
-		return false
 	case *ast.BranchStmt:
 		t.fromSource(n.Pos(), n.End())
-		return false
 	case *ast.BlockStmt:
 		if len(n.List) != 0 {
 			t.fromSource(n.Pos(), n.List[0].Pos())
 			inspectNodes(t, n.List[0].Pos(), n.List)
 			t.fromSource(n.List[len(n.List)-1].End(), n.End())
-			return false
+			return
 		}
 		t.fromSource(n.Pos(), n.End())
-		return false
 	case *ast.IfStmt:
 		start := n.Pos()
 		if n.Init != nil {
 			t.fromSource(n.Pos(), n.Init.Pos())
-			ast.Inspect(n.Init, t.inspect)
+			t.inspect(n.Init)
 			start = n.Init.End()
 		}
 		t.fromSource(start, n.Cond.Pos())
-		ast.Inspect(n.Cond, t.inspect)
+		t.inspect(n.Cond)
 		t.fromSource(n.Cond.End(), n.Body.Pos())
-		ast.Inspect(n.Body, t.inspect)
+		t.inspect(n.Body)
 		if n.Else != nil {
 			t.fromSource(n.Body.End(), n.Else.Pos())
-			ast.Inspect(n.Else, t.inspect)
+			t.inspect(n.Else)
 		}
-		return false
 	case *ast.CaseClause:
 		if len(n.List) != 0 {
 			t.fromSource(n.Pos(), n.List[0].Pos())
@@ -285,38 +255,35 @@ func (t *transpiler) inspect(n ast.Node) bool {
 			t.fromSource(n.Colon+1, n.Body[0].Pos())
 			inspectNodes(t, n.Body[0].Pos(), n.Body)
 		}
-		return false
 	case *ast.SwitchStmt:
 		start := n.Pos()
 		if n.Init != nil {
 			t.fromSource(n.Pos(), n.Init.Pos())
-			ast.Inspect(n.Init, t.inspect)
+			t.inspect(n.Init)
 			start = n.Init.End()
 		}
 		if n.Tag != nil {
 			t.fromSource(start, n.Tag.Pos())
-			ast.Inspect(n.Tag, t.inspect)
+			t.inspect(n.Tag)
 			start = n.Tag.End()
 		}
 		t.fromSource(start, n.Body.Pos())
-		ast.Inspect(n.Body, t.inspect)
-		return false
+		t.inspect(n.Body)
 	case *ast.TypeSwitchStmt:
 		start := n.Pos()
 		if n.Init != nil {
 			t.fromSource(n.Pos(), n.Init.Pos())
-			ast.Inspect(n.Init, t.inspect)
+			t.inspect(n.Init)
 			start = n.Init.End()
 		}
 		t.fromSource(start, n.Assign.Pos())
-		ast.Inspect(n.Assign, t.inspect)
+		t.inspect(n.Assign)
 		t.fromSource(n.Assign.End(), n.Body.Pos())
-		ast.Inspect(n.Body, t.inspect)
-		return false
+		t.inspect(n.Body)
 	case *ast.CommClause:
 		if n.Comm != nil {
 			t.fromSource(n.Pos(), n.Comm.Pos())
-			ast.Inspect(n.Comm, t.inspect)
+			t.inspect(n.Comm)
 			t.fromSource(n.Comm.End(), n.Colon+1)
 		} else {
 			t.fromSource(n.Pos(), n.Colon+1)
@@ -325,56 +292,50 @@ func (t *transpiler) inspect(n ast.Node) bool {
 			t.fromSource(n.Colon+1, n.Body[0].Pos())
 			inspectNodes(t, n.Body[0].Pos(), n.Body)
 		}
-		return false
 	case *ast.SelectStmt:
 		t.fromSource(n.Pos(), n.Body.Pos())
-		ast.Inspect(n.Body, t.inspect)
-		return false
+		t.inspect(n.Body)
 	case *ast.ForStmt:
 		start := n.Pos()
 		if n.Init != nil {
 			t.fromSource(start, n.Init.Pos())
-			ast.Inspect(n.Init, t.inspect)
+			t.inspect(n.Init)
 			start = n.Init.End()
 		}
 		if n.Cond != nil {
 			t.fromSource(start, n.Cond.Pos())
-			ast.Inspect(n.Cond, t.inspect)
+			t.inspect(n.Cond)
 			start = n.Cond.End()
 		}
 		if n.Post != nil {
 			t.fromSource(start, n.Post.Pos())
-			ast.Inspect(n.Post, t.inspect)
+			t.inspect(n.Post)
 			start = n.Post.End()
 		}
 		t.fromSource(start, n.Body.Pos())
-		ast.Inspect(n.Body, t.inspect)
-		return false
+		t.inspect(n.Body)
 	case *ast.RangeStmt:
 		start := n.Pos()
 		if n.Key != nil {
 			t.fromSource(start, n.Key.Pos())
-			ast.Inspect(n.Key, t.inspect)
+			t.inspect(n.Key)
 			start = n.Key.End()
 		}
 		if n.Value != nil {
 			t.fromSource(start, n.Value.Pos())
-			ast.Inspect(n.Value, t.inspect)
+			t.inspect(n.Value)
 			start = n.Value.End()
 		}
 		t.fromSource(start, n.X.Pos())
-		ast.Inspect(n.X, t.inspect)
+		t.inspect(n.X)
 		t.fromSource(n.X.End(), n.Body.Pos())
-		ast.Inspect(n.Body, t.inspect)
-		return false
+		t.inspect(n.Body)
 
 	case *ast.ArrayType, *ast.StructType,
 		*ast.FuncType, *ast.InterfaceType,
 		*ast.MapType, *ast.ChanType:
 		t.fromSource(n.Pos(), n.End())
-		return false
 	case nil:
-		return false
 	default:
 		panic("unexpected type: " + fmt.Sprintf("%T", n))
 	}
