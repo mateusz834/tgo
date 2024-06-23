@@ -50,13 +50,9 @@ func (t *transpiler) transpile() {
 	for _, v := range t.f.Decls {
 		t.fromSource(prevDeclEnd, v.Pos())
 		prevDeclEnd = v.End()
-		t.transpileDecl(v)
+		t.inspect(v)
 	}
 	t.fromSource(prevDeclEnd, t.f.FileEnd)
-}
-
-func (t *transpiler) transpileDecl(d ast.Decl) {
-	t.inspect(d)
 }
 
 func inspectNodes[T ast.Node](t *transpiler, prevEndPos token.Pos, nodes []T) {
@@ -164,12 +160,7 @@ func (t *transpiler) inspect(n ast.Node) {
 			return
 		}
 		t.fromSource(n.Pos(), n.Specs[0].Pos())
-		for i, v := range n.Specs {
-			t.inspect(v)
-			if i+1 != len(n.Specs) {
-				t.fromSource(v.End(), n.Specs[i+1].Pos())
-			}
-		}
+		inspectNodes(t, n.Specs[0].Pos(), n.Specs)
 		t.fromSource(n.Specs[len(n.Specs)-1].End(), n.End())
 	case *ast.ValueSpec:
 		t.fromSource(n.Pos(), n.Names[len(n.Names)-1].End())
