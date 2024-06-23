@@ -21,6 +21,10 @@ func test(a string) error {
 		/*test*/ @attr
 	>
 	</div>
+	<div> // lol
+	<span> // lol
+	</span> // lol
+	</div> // lol
 }
 `
 

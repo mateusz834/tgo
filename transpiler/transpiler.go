@@ -63,8 +63,58 @@ func inspectNodes[T ast.Node](t *transpiler, prevEndPos token.Pos, nodes []T) {
 	}
 }
 
+func (t *transpiler) staticWriteCall(indentPos token.Pos, s string) {
+	indent := t.indentAt(indentPos)
+	t.out.WriteString("if err := __tgo.Write(`")
+	t.out.WriteString(s)
+	t.out.WriteString("`); err != nil {")
+	t.out.WriteString("\n")
+	t.out.WriteString(indent)
+	t.out.WriteString("\treturn err\n")
+	t.out.WriteString(indent)
+	t.out.WriteString("}")
+}
+
+func (t *transpiler) indentAt(pos token.Pos) string {
+	beforePos := t.source[:pos-1]
+	i := max(strings.LastIndexByte(beforePos, '\n')+1, 0)
+	for j, v := range beforePos[i:] {
+		if v == ' ' || v == '\t' {
+			continue
+		}
+		return beforePos[i : i+j]
+	}
+	return beforePos[i:]
+}
+
 func (t *transpiler) inspect(n ast.Node) {
 	switch n := n.(type) {
+
+	case *ast.OpenTagStmt:
+		t.staticWriteCall(n.OpenPos, "<")
+		t.staticWriteCall(n.OpenPos, n.Name.Name)
+		t.staticWriteCall(n.OpenPos, ">")
+		if len(n.Body) != 0 {
+			indentOpen := t.indentAt(n.OpenPos)
+			indentEnd := t.indentAt(n.ClosePos)
+			indentBody := t.indentAt(n.Body[0].Pos())
+			t.out.WriteString("\n")
+			t.out.WriteString(indentOpen)
+			t.out.WriteString("{")
+			t.out.WriteString("\n")
+			t.out.WriteString(indentBody)
+			inspectNodes(t, n.Body[0].Pos(), n.Body)
+			t.out.WriteString("\n")
+			t.out.WriteString(indentEnd)
+			t.out.WriteString("}")
+		}
+	case *ast.EndTagStmt:
+		t.staticWriteCall(n.OpenPos, "</")
+		t.staticWriteCall(n.OpenPos, n.Name.Name)
+		t.staticWriteCall(n.OpenPos, ">")
+	case *ast.TemplateLiteralExpr:
+	case *ast.AttributeStmt:
+
 	case *ast.Ident:
 		t.fromSource(n.Pos(), n.End())
 	case *ast.Ellipsis:
@@ -327,6 +377,7 @@ func (t *transpiler) inspect(n ast.Node) {
 		*ast.MapType, *ast.ChanType:
 		t.fromSource(n.Pos(), n.End())
 	case nil:
+		// TODO: panic?
 	default:
 		panic("unexpected type: " + fmt.Sprintf("%T", n))
 	}

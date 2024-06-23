@@ -16,94 +16,14 @@ import (
 
 const tgosrc = `package templates
 
-import "sth"
-
-var a = "lol"
-
-var a, b = "lol", "dkf"
-
-var (
-	a string = "test"
-	a = "test"
-)
-
-var a = sth[0][1](  s,  sdjf  )
-
-var a = a {a: 3}
-
-var a = a {
-	a: (3),
-	a: 3,
-	a: 3,
-	a: 3,
-}
-
-var xd = x[:]
-var xd = x[:dkj]
-var xd = x[aa:]
-
-var xd = x[ : ]
-var xd = x[ : dkj ]
-var xd = x[  aa : ]
-
-var xd = x[:dkj:df]
-var xd = x[a:dkj:df]
-var xd = x[ a : dkj : df ]
-
-var a = a.(type)
-var a = a.(*lol)
-
-var c = + a
-
-var c = kdj + a
-
-func a() { }
-
-func a() {
-	func() {
-		b(a)
-	}
-	a(a)
-
-	if a:=3;a<3 {
-	} else {
-		dfj
-	}
-
-	switch a {
-	case 1:
-		"lol"
-	case 2:
-	case 2:
-	case 2:
-	}
-
-	select {
-		case <-a:
-	}
-
-	for i:=0;true;i<2 {
-		a(d)
-	}
-
-	for true {
-		a(d)
-	}
-
-	for range a {
-		a(d)
-	}
-
-	for a := range a {
-		a(d)
-	}
-
-	for b, a := range a {
-		a(d)
-	}
-
-	a = [55]int{}
-	a := map[string]int{}
+func test(sth string) {
+	<div
+		kzjd
+		kdfj
+		dkfj
+	>
+	kdfj
+	</div>
 }
 
 `
