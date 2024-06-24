@@ -52,8 +52,8 @@ func (t *transpiler) transpile() {
 	prevDeclEnd := t.f.FileStart
 	for _, v := range t.f.Decls {
 		t.fromSource(prevDeclEnd, v.Pos())
-		prevDeclEnd = v.End()
 		t.inspect(v)
+		prevDeclEnd = v.End()
 	}
 	t.fromSource(prevDeclEnd, t.f.FileEnd)
 }
@@ -94,25 +94,24 @@ func (t *transpiler) indentAt(pos token.Pos) string {
 	return beforePos[i:]
 }
 
-func (t *transpiler) inspect(n ast.Node) {
+func (t *transpiler) inspect(n ast.Node) bool {
 	switch n := n.(type) {
 
 	case *ast.OpenTagStmt:
 		t.staticData(n.OpenPos, "<")
 		t.staticData(n.OpenPos, n.Name.Name)
-		t.staticData(n.OpenPos, ">")
 		if len(n.Body) != 0 {
-			t.out.WriteByte('{')
 			inspectNodes(t, n.Body[0].Pos(), n.Body)
 			t.fromSource(n.Body[len(n.Body)-1].End(), n.ClosePos)
 			t.out.WriteByte('}')
 		}
-		return
+		t.staticData(n.OpenPos, ">")
+		return true
 	case *ast.EndTagStmt:
 		t.staticData(n.OpenPos, "</")
 		t.staticData(n.OpenPos, n.Name.Name)
 		t.staticData(n.OpenPos, ">")
-		return
+		return true
 	case *ast.TemplateLiteralExpr:
 	case *ast.AttributeStmt:
 	}
@@ -138,7 +137,7 @@ func (t *transpiler) inspect(n ast.Node) {
 		}
 		if len(n.Elts) == 0 {
 			t.fromSource(start, n.Rbrace+1)
-			return
+			return false
 		}
 		inspectNodes(t, start, n.Elts)
 		t.fromSource(n.Elts[len(n.Elts)-1].End(), n.Rbrace+1)
@@ -180,7 +179,7 @@ func (t *transpiler) inspect(n ast.Node) {
 		t.inspect(n.X)
 		if n.Type == nil {
 			t.fromSource(n.X.End(), n.Rparen+1)
-			return
+			return false
 		}
 		t.fromSource(n.X.End(), n.Type.Pos())
 		t.inspect(n.Type)
@@ -212,7 +211,7 @@ func (t *transpiler) inspect(n ast.Node) {
 	case *ast.GenDecl:
 		if n.Tok != token.VAR {
 			t.fromSource(n.Pos(), n.End())
-			return
+			return false
 		}
 		t.fromSource(n.Pos(), n.Specs[0].Pos())
 		inspectNodes(t, n.Specs[0].Pos(), n.Specs)
@@ -261,7 +260,7 @@ func (t *transpiler) inspect(n ast.Node) {
 		if len(n.Results) != 0 {
 			t.fromSource(n.Pos(), n.Results[0].Pos())
 			inspectNodes(t, n.Results[0].Pos(), n.Results)
-			return
+			return false
 		}
 		t.fromSource(n.Pos(), n.End())
 	case *ast.BranchStmt:
@@ -271,7 +270,7 @@ func (t *transpiler) inspect(n ast.Node) {
 			t.fromSource(n.Pos(), n.List[0].Pos())
 			inspectNodes(t, n.List[0].Pos(), n.List)
 			t.fromSource(n.List[len(n.List)-1].End(), n.End())
-			return
+			return false
 		}
 		t.fromSource(n.Pos(), n.End())
 	case *ast.IfStmt:
@@ -386,12 +385,16 @@ func (t *transpiler) inspect(n ast.Node) {
 	default:
 		panic("unexpected type: " + fmt.Sprintf("%T", n))
 	}
+	return false
 }
 
 func inspectNodes[T ast.Node](t *transpiler, prevEndPos token.Pos, nodes []T) {
+	ignoreNext := false
 	for _, v := range nodes {
-		t.fromSource(prevEndPos, v.Pos())
-		t.inspect(v)
+		if !ignoreNext {
+			t.fromSource(prevEndPos, v.Pos())
+		}
+		ignoreNext = t.inspect(v)
 		prevEndPos = v.End()
 	}
 	t.writeStaticData()

@@ -17,8 +17,12 @@ import (
 const tgosrc = `package templates
 
 func test(sth string) {
-	<div>
-	</div>
+	<div
+		//kdjfkdjfksljfklsdjk
+		hello
+		dkfj
+	><span>
+	</span></div>
 }
 
 `
