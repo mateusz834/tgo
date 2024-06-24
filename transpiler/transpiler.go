@@ -29,6 +29,9 @@ type transpiler struct {
 	out strings.Builder
 
 	lastSourcePos token.Pos
+
+	staticDataFirstPos token.Pos
+	staticDataWrite    []string
 }
 
 func (t *transpiler) fromSource(i, j token.Pos) {
@@ -55,24 +58,28 @@ func (t *transpiler) transpile() {
 	t.fromSource(prevDeclEnd, t.f.FileEnd)
 }
 
-func inspectNodes[T ast.Node](t *transpiler, prevEndPos token.Pos, nodes []T) {
-	for _, v := range nodes {
-		t.fromSource(prevEndPos, v.Pos())
-		t.inspect(v)
-		prevEndPos = v.End()
+func (t *transpiler) staticData(indentPos token.Pos, s string) {
+	if len(t.staticDataWrite) == 0 {
+		t.staticDataFirstPos = indentPos
 	}
+	t.staticDataWrite = append(t.staticDataWrite, s)
 }
 
-func (t *transpiler) staticWriteCall(indentPos token.Pos, s string) {
-	indent := t.indentAt(indentPos)
-	t.out.WriteString("if err := __tgo.Write(`")
-	t.out.WriteString(s)
-	t.out.WriteString("`); err != nil {")
-	t.out.WriteString("\n")
-	t.out.WriteString(indent)
-	t.out.WriteString("\treturn err\n")
-	t.out.WriteString(indent)
-	t.out.WriteString("}")
+func (t *transpiler) writeStaticData() {
+	if len(t.staticDataWrite) != 0 {
+		indent := t.indentAt(t.staticDataFirstPos)
+		t.out.WriteString("if err := __tgo.Write(`")
+		for _, v := range t.staticDataWrite {
+			t.out.WriteString(v)
+		}
+		t.out.WriteString("`); err != nil {")
+		t.out.WriteString("\n")
+		t.out.WriteString(indent)
+		t.out.WriteString("\treturn err\n")
+		t.out.WriteString(indent)
+		t.out.WriteString("}")
+	}
+	t.staticDataWrite = t.staticDataWrite[:0]
 }
 
 func (t *transpiler) indentAt(pos token.Pos) string {
@@ -91,30 +98,28 @@ func (t *transpiler) inspect(n ast.Node) {
 	switch n := n.(type) {
 
 	case *ast.OpenTagStmt:
-		t.staticWriteCall(n.OpenPos, "<")
-		t.staticWriteCall(n.OpenPos, n.Name.Name)
-		t.staticWriteCall(n.OpenPos, ">")
+		t.staticData(n.OpenPos, "<")
+		t.staticData(n.OpenPos, n.Name.Name)
+		t.staticData(n.OpenPos, ">")
 		if len(n.Body) != 0 {
-			indentOpen := t.indentAt(n.OpenPos)
-			indentEnd := t.indentAt(n.ClosePos)
-			indentBody := t.indentAt(n.Body[0].Pos())
-			t.out.WriteString("\n")
-			t.out.WriteString(indentOpen)
-			t.out.WriteString("{")
-			t.out.WriteString("\n")
-			t.out.WriteString(indentBody)
+			t.out.WriteByte('{')
 			inspectNodes(t, n.Body[0].Pos(), n.Body)
-			t.out.WriteString("\n")
-			t.out.WriteString(indentEnd)
-			t.out.WriteString("}")
+			t.fromSource(n.Body[len(n.Body)-1].End(), n.ClosePos)
+			t.out.WriteByte('}')
 		}
+		return
 	case *ast.EndTagStmt:
-		t.staticWriteCall(n.OpenPos, "</")
-		t.staticWriteCall(n.OpenPos, n.Name.Name)
-		t.staticWriteCall(n.OpenPos, ">")
+		t.staticData(n.OpenPos, "</")
+		t.staticData(n.OpenPos, n.Name.Name)
+		t.staticData(n.OpenPos, ">")
+		return
 	case *ast.TemplateLiteralExpr:
 	case *ast.AttributeStmt:
+	}
 
+	t.writeStaticData()
+
+	switch n := n.(type) {
 	case *ast.Ident:
 		t.fromSource(n.Pos(), n.End())
 	case *ast.Ellipsis:
@@ -381,4 +386,13 @@ func (t *transpiler) inspect(n ast.Node) {
 	default:
 		panic("unexpected type: " + fmt.Sprintf("%T", n))
 	}
+}
+
+func inspectNodes[T ast.Node](t *transpiler, prevEndPos token.Pos, nodes []T) {
+	for _, v := range nodes {
+		t.fromSource(prevEndPos, v.Pos())
+		t.inspect(v)
+		prevEndPos = v.End()
+	}
+	t.writeStaticData()
 }

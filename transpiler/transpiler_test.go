@@ -17,12 +17,7 @@ import (
 const tgosrc = `package templates
 
 func test(sth string) {
-	<div
-		kzjd
-		kdfj
-		dkfj
-	>
-	kdfj
+	<div>
 	</div>
 }
 
