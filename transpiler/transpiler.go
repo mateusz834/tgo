@@ -1,7 +1,6 @@
 package transpiler
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/mateusz834/tgoast/ast"
@@ -25,8 +24,7 @@ type transpiler struct {
 	fs  *token.FileSet
 	src string
 
-	b   strings.Builder
-	tmp string
+	b strings.Builder
 
 	lastSourcePosWritten token.Pos
 
@@ -34,6 +32,7 @@ type transpiler struct {
 	indentPos          token.Pos
 
 	lastWrittenPos token.Pos
+	braceBeforeEnd bool // TODO: should be a s stack
 }
 
 func (t *transpiler) transpile() {
@@ -45,11 +44,10 @@ func (t *transpiler) Visit(n ast.Node) ast.Visitor {
 	switch n := n.(type) {
 	case *ast.BlockStmt:
 		if len(n.List) != 0 {
-			switch v := n.List[0].(type) {
+			switch n.List[0].(type) {
 			// TODO: more ofc:
 			case *ast.OpenTagStmt, *ast.EndTagStmt:
-				t.tmp = t.src[n.Pos()-1 : v.Pos()-1]
-				fmt.Printf("t.tmp: %q\n", t.tmp)
+				t.braceBeforeEnd = true
 			}
 		}
 	case *ast.OpenTagStmt:
@@ -79,10 +77,6 @@ func (t *transpiler) Visit(n ast.Node) ast.Visitor {
 		}
 	default:
 		t.endStatic()
-		if t.tmp != "" {
-			t.b.WriteString("{")
-		}
-		t.tmp = ""
 	}
 	return t
 }
@@ -113,6 +107,10 @@ func (t *transpiler) endStatic() {
 		t.b.WriteString(indent)
 		t.staticStartWritten = false
 	}
+	if t.braceBeforeEnd {
+		t.b.WriteString("{")
+	}
+	t.braceBeforeEnd = false
 }
 
 func (t *transpiler) indentAt(pos token.Pos) string {
