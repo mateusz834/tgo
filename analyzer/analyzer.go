@@ -14,6 +14,7 @@ func Analyze(fs *token.FileSet, f *ast.File) error {
 	}
 	ast.Walk(&contextAnalyzer{context: contextNotTgo, ctx: ctx}, f)
 	ast.Walk(&tagPairsAnalyzer{ctx: ctx}, f)
+	checkDirectives(ctx, f)
 	if len(ctx.errors) != 0 {
 		return ctx.errors
 	}
@@ -186,5 +187,20 @@ func (f *tagPairsAnalyzer) checkTagPairs(stmt []ast.Stmt) {
 			StartPos: f.ctx.fs.Position(v.start),
 			EndPos:   f.ctx.fs.Position(v.end),
 		})
+	}
+}
+
+func checkDirectives(ctx *analyzerContext, f *ast.File) {
+	for _, v := range f.Comments {
+		for _, v := range v.List {
+			// TODO: better detection (it has to start directly after newline and require a file)?
+			if strings.HasPrefix(v.Text[2:], "line") {
+				ctx.errors = append(ctx.errors, AnalyzeError{
+					Message:  "line directive is not allowed inside of the tgo file",
+					StartPos: ctx.fs.Position(v.Pos()),
+					EndPos:   ctx.fs.Position(v.End()),
+				})
+			}
+		}
 	}
 }
