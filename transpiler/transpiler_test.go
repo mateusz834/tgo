@@ -20,7 +20,9 @@ func test(sth string) {
 	<div @xd="lol">
 	</div>
 	{
-		<span></span>
+		<span>
+			a:=2
+		</span>
 		a := 2
 	}
 }

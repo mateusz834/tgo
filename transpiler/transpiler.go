@@ -1,11 +1,14 @@
 package transpiler
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/mateusz834/tgoast/ast"
 	"github.com/mateusz834/tgoast/token"
 )
+
+const transpilerDebug = true
 
 func Transpile(f *ast.File, fs *token.FileSet, src string) string {
 	t := transpiler{
@@ -24,7 +27,8 @@ type transpiler struct {
 	fs  *token.FileSet
 	src string
 
-	b strings.Builder
+	b   strings.Builder
+	tmp []byte
 
 	lastSourcePosWritten token.Pos
 
@@ -32,23 +36,19 @@ type transpiler struct {
 	indentPos          token.Pos
 
 	lastWrittenPos token.Pos
-	braceBeforeEnd bool // TODO: should be a s stack
 }
 
 func (t *transpiler) transpile() {
 	ast.Walk(t, t.f)
-	t.b.WriteString(t.src[t.lastSourcePosWritten-1:])
+	t.appendString(t.src[t.lastSourcePosWritten-1:])
 }
 
 func (t *transpiler) Visit(n ast.Node) ast.Visitor {
 	switch n := n.(type) {
 	case *ast.BlockStmt:
-		if len(n.List) != 0 {
-			switch n.List[0].(type) {
-			// TODO: more ofc:
-			case *ast.OpenTagStmt, *ast.EndTagStmt:
-				t.braceBeforeEnd = true
-			}
+		if t.staticStartWritten {
+			t.tmp = append(t.tmp, []byte(t.src[t.lastSourcePosWritten-1:n.Pos()])...)
+			t.lastSourcePosWritten = n.Pos() + 1
 		}
 	case *ast.OpenTagStmt:
 		if len(n.Body) == 0 {
@@ -81,36 +81,40 @@ func (t *transpiler) Visit(n ast.Node) ast.Visitor {
 	return t
 }
 
+func (t *transpiler) appendString(s string) {
+	if transpilerDebug {
+		fmt.Printf("t.appendString(%q)\n", s)
+	}
+	t.b.WriteString(s)
+}
+
 func (t *transpiler) writeStatic(indentPos token.Pos, strs ...string) {
 	if !t.staticStartWritten {
 		if indentPos > t.lastSourcePosWritten {
-			t.b.WriteString(t.src[t.lastSourcePosWritten-1 : indentPos-1])
+			t.appendString(t.src[t.lastSourcePosWritten-1 : indentPos-1])
 			t.lastSourcePosWritten = indentPos
 			t.indentPos = indentPos
 		}
-		t.b.WriteString(`if err := __tgo_ctx.WriteString("`)
+		t.appendString(`if err := __tgo_ctx.WriteString("`)
 		t.staticStartWritten = true
 	}
 	for _, v := range strs {
-		t.b.WriteString(v)
+		t.appendString(v)
 	}
 }
 
 func (t *transpiler) endStatic() {
 	if t.staticStartWritten {
 		indent := t.indentAt(t.indentPos)
-		t.b.WriteString("\"); err != nil {\n")
-		t.b.WriteString(indent)
-		t.b.WriteString("\treturn err\n")
-		t.b.WriteString(indent)
-		t.b.WriteString("}")
-		t.b.WriteString(indent)
-		t.staticStartWritten = false
+		t.appendString("\"); err != nil {\n")
+		t.appendString(indent)
+		t.appendString("\treturn err\n")
+		t.appendString(indent)
+		t.appendString("}")
+		t.appendString(string(t.tmp))
+		t.tmp = nil
 	}
-	if t.braceBeforeEnd {
-		t.b.WriteString("{")
-	}
-	t.braceBeforeEnd = false
+	t.staticStartWritten = false
 }
 
 func (t *transpiler) indentAt(pos token.Pos) string {
