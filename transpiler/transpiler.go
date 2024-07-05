@@ -47,6 +47,25 @@ func (t *transpiler) Visit(n ast.Node) ast.Visitor {
 	switch n := n.(type) {
 	case *ast.BlockStmt:
 		if t.staticStartWritten {
+			// TODO: also end of a block stmt should wait?
+			/* like:
+			 {
+					{
+						sth = 2
+						"test"
+					}
+					"test"
+			 }
+
+			 {
+				 <div
+					sth="test"
+					@attr="value"
+				 >
+					"test"
+				 </div>
+			 }
+			*/
 			t.tmp = append(t.tmp, []byte(t.src[t.lastSourcePosWritten-1:n.Pos()])...)
 			t.lastSourcePosWritten = n.Pos() + 1
 		}
