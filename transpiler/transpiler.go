@@ -2,6 +2,7 @@ package transpiler
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/mateusz834/tgoast/ast"
@@ -36,6 +37,9 @@ type transpiler struct {
 	indentPos          token.Pos
 
 	lastWrittenPos token.Pos
+
+	addedIndent       int
+	staticAddedIndent int
 }
 
 func (t *transpiler) transpile() {
@@ -47,28 +51,40 @@ func (t *transpiler) Visit(n ast.Node) ast.Visitor {
 	switch n := n.(type) {
 	case *ast.BlockStmt:
 		if t.staticStartWritten {
-			// TODO: also end of a block stmt should wait?
-			/* like:
-			 {
-					{
-						sth = 2
-						"test"
-					}
-					"test"
-			 }
-
-			 {
-				 <div
-					sth="test"
-					@attr="value"
-				 >
-					"test"
-				 </div>
-			 }
-			*/
 			t.tmp = append(t.tmp, []byte(t.src[t.lastSourcePosWritten-1:n.Pos()])...)
 			t.lastSourcePosWritten = n.Pos() + 1
 		}
+		for i, v := range n.List {
+			ast.Walk(t, v)
+			switch v := v.(type) {
+			case *ast.OpenTagStmt:
+				t.writeSource("\n")
+				t.writeSource(t.indentAt(v.OpenPos))
+				next := n.List[i+1]
+				nextLine := t.fs.Position(next.Pos()).Line
+				curLine := t.fs.Position(v.End()).Line
+				if nextLine != curLine {
+					t.writeSource("{\n")
+					t.writeSource("//line new.tgo:")
+					t.writeSource(strconv.FormatInt(int64(n.Pos()), 10))
+				} else {
+					t.writeSource("{ /*line new.tgo:")
+					t.writeSource(strconv.FormatInt(int64(n.Pos()), 10))
+					t.writeSource("*/ ")
+				}
+				t.addedIndent++
+			case *ast.EndTagStmt:
+				t.writeSource("\n")
+				t.writeSource(t.indentAt(v.OpenPos))
+				t.writeSource("}")
+				t.addedIndent--
+			}
+		}
+		if t.staticStartWritten {
+			t.tmp = append(t.tmp, []byte(t.src[t.lastSourcePosWritten-1:n.End()])...)
+			t.lastSourcePosWritten = n.End() + 1
+		}
+		return nil
 	case *ast.OpenTagStmt:
 		if len(n.Body) == 0 {
 			t.writeStatic(n.Pos(), "<", n.Name.Name, ">")
@@ -76,9 +92,19 @@ func (t *transpiler) Visit(n ast.Node) ast.Visitor {
 		} else {
 			t.writeStatic(n.Pos(), "<", n.Name.Name)
 			t.lastSourcePosWritten = n.Name.End()
+
+			//t.writeSource("\n")
+			//t.writeSource(t.indentAt(n.OpenPos))
+			//t.writeSource("{")
+
 			for _, n := range n.Body {
 				ast.Walk(t, n)
 			}
+
+			//t.writeSource("\n")
+			//t.writeSource(t.indentAt(n.OpenPos))
+			//t.writeSource("}")
+
 			t.writeStatic(n.Pos(), ">")
 		}
 		return nil
@@ -90,19 +116,36 @@ func (t *transpiler) Visit(n ast.Node) ast.Visitor {
 		t.writeStatic(n.Pos(), " ", n.AttrName.(*ast.Ident).Name, "=", n.Value.(*ast.BasicLit).Value)
 		return nil
 	case *ast.ExprStmt:
-		switch n.X.(type) {
+		switch n := n.X.(type) {
 		case *ast.BasicLit:
+			if n.Kind == token.STRING {
+				t.writeStatic(n.Pos(), n.Value)
+				return nil
+			}
 		case *ast.TemplateLiteralExpr:
+			panic("here")
 		}
-	default:
-		t.endStatic()
 	}
+
+	t.endStatic()
 	return t
+}
+
+func (t *transpiler) writeSource(s string) {
+	if transpilerDebug {
+		fmt.Printf("t.writeSource(%q)\n", s)
+	}
+	if t.staticStartWritten {
+		t.tmp = append(t.tmp, s...)
+	} else {
+		t.appendString(s)
+	}
 }
 
 func (t *transpiler) appendString(s string) {
 	if transpilerDebug {
 		fmt.Printf("t.appendString(%q)\n", s)
+		//fmt.Printf("%s\n", debug.Stack())
 	}
 	t.b.WriteString(s)
 }
@@ -114,6 +157,10 @@ func (t *transpiler) writeStatic(indentPos token.Pos, strs ...string) {
 			t.lastSourcePosWritten = indentPos
 			t.indentPos = indentPos
 		}
+		for range t.addedIndent {
+			t.appendString("\t")
+		}
+		t.staticAddedIndent = t.addedIndent
 		t.appendString(`if err := __tgo_ctx.WriteString("`)
 		t.staticStartWritten = true
 	}
@@ -127,13 +174,21 @@ func (t *transpiler) endStatic() {
 		indent := t.indentAt(t.indentPos)
 		t.appendString("\"); err != nil {\n")
 		t.appendString(indent)
+		for range t.staticAddedIndent {
+			t.appendString("\t")
+		}
 		t.appendString("\treturn err\n")
 		t.appendString(indent)
+		for range t.staticAddedIndent {
+			t.appendString("\t")
+		}
 		t.appendString("}")
+
 		t.appendString(string(t.tmp))
-		t.tmp = nil
+
+		t.tmp = t.tmp[:0]
+		t.staticStartWritten = false
 	}
-	t.staticStartWritten = false
 }
 
 func (t *transpiler) indentAt(pos token.Pos) string {
