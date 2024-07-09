@@ -40,11 +40,54 @@ type transpiler struct {
 
 	addedIndent       int
 	staticAddedIndent int
+
+	lastIgnored bool
 }
 
 func (t *transpiler) transpile() {
 	ast.Walk(t, t.f)
 	t.appendString(t.src[t.lastSourcePosWritten-1:])
+}
+
+func (t *transpiler) transpileBlock(openPos, closePos token.Pos, list []ast.Stmt) {
+	singlelineLineDirective := false
+	if len(list) != 0 {
+		firstPos := list[0].Pos()
+		openLine := t.fs.Position(openPos).Line
+		if openLine == t.fs.Position(firstPos).Line {
+			singlelineLineDirective = true
+		} else {
+			for _, v := range t.f.Comments {
+				if v.Pos() > openPos && v.End() < firstPos {
+					if openLine == t.fs.Position(v.Pos()).Line {
+						singlelineLineDirective = true
+						break
+					}
+				}
+			}
+		}
+	}
+
+	if singlelineLineDirective {
+		t.writeSource("{ /*line")
+		t.writeSource("file.tgo:11:22")
+		t.writeSource("*/ ")
+	} else {
+		t.writeSource("{\n")
+		t.writeSource("//line file.tgo:11:22")
+	}
+
+	lastWhitePos := openPos
+
+	l := t.lastIgnored
+	for _, v := range list {
+		t.writeSource(t.src[lastWhitePos-1 : v.Pos()-1])
+		lastWhitePos = v.End()
+		t.lastIgnored = false
+		ast.Walk(t, v)
+	}
+	t.lastIgnored = l
+
 }
 
 func (t *transpiler) Visit(n ast.Node) ast.Visitor {
