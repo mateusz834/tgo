@@ -17,15 +17,20 @@ import (
 const tgosrc = `package templates
 
 func test(sth string) {
-	<div @xd="lol"></div>
-	<span>
-	a:=3;</span>
-	<span>
-		a := 2
-	</span>
-	<span>
-		lol
-	</span>
+	hello
+}
+`
+
+var _ = `
+	//<div @xd="lol"></div>
+	//<span>
+	//a:=3;</span>
+	//<span>
+	//	a := 2
+	//</span>
+	//<span>
+	//	lol
+	//</span>
 }
 
 `

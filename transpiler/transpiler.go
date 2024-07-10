@@ -2,7 +2,7 @@ package transpiler
 
 import (
 	"fmt"
-	"strconv"
+	"slices"
 	"strings"
 
 	"github.com/mateusz834/tgoast/ast"
@@ -18,17 +18,24 @@ func Transpile(f *ast.File, fs *token.FileSet, src string) string {
 		src:                  src,
 		lastSourcePosWritten: 1,
 	}
-	t.b.Grow(len(src) * 2)
+	t.out = slices.Grow([]byte{}, len(src)*2)
 	t.transpile()
-	return t.b.String()
+	if len(t.tmp) != 0 {
+		panic("unreachable")
+	}
+	return string(t.out)
 }
+
+// TODO: track line mapping?
+// TODO: and then make a function that automatically inserts the line comment
+// only when it is needed.
 
 type transpiler struct {
 	f   *ast.File
 	fs  *token.FileSet
 	src string
 
-	b   strings.Builder
+	out []byte
 	tmp []byte
 
 	lastSourcePosWritten token.Pos
@@ -68,6 +75,9 @@ func (t *transpiler) transpileBlock(openPos, closePos token.Pos, list []ast.Stmt
 		}
 	}
 
+	t.writeSource(t.src[t.lastSourcePosWritten-1 : openPos-1])
+	t.lastSourcePosWritten = openPos
+
 	if singlelineLineDirective {
 		t.writeSource("{ /*line")
 		t.writeSource("file.tgo:11:22")
@@ -77,57 +87,79 @@ func (t *transpiler) transpileBlock(openPos, closePos token.Pos, list []ast.Stmt
 		t.writeSource("//line file.tgo:11:22")
 	}
 
-	lastWhitePos := openPos
+	defer func(v bool) {
+		t.lastIgnored = v
+	}(t.lastIgnored)
 
-	l := t.lastIgnored
+	var (
+		lastWhitePos = openPos + 1
+		lastOut      = t.out
+		lastTmp      = t.tmp
+	)
+
 	for _, v := range list {
 		t.writeSource(t.src[lastWhitePos-1 : v.Pos()-1])
-		lastWhitePos = v.End()
+
 		t.lastIgnored = false
 		ast.Walk(t, v)
-	}
-	t.lastIgnored = l
+		if t.lastIgnored {
+			t.out = lastOut
+			t.tmp = lastTmp
+		}
 
+		lastOut = t.out
+		lastTmp = t.tmp
+		lastWhitePos = v.End()
+	}
+
+	if len(list) == 0 {
+		t.writeSource(t.src[openPos:closePos])
+	} else {
+		t.writeSource(t.src[list[len(list)-1].Pos():closePos])
+	}
+	t.lastSourcePosWritten = closePos
 }
 
 func (t *transpiler) Visit(n ast.Node) ast.Visitor {
 	switch n := n.(type) {
 	case *ast.BlockStmt:
-		if t.staticStartWritten {
-			t.tmp = append(t.tmp, []byte(t.src[t.lastSourcePosWritten-1:n.Pos()])...)
-			t.lastSourcePosWritten = n.Pos() + 1
-		}
-		for i, v := range n.List {
-			ast.Walk(t, v)
-			switch v := v.(type) {
-			case *ast.OpenTagStmt:
-				t.writeSource("\n")
-				t.writeSource(t.indentAt(v.OpenPos))
-				next := n.List[i+1]
-				nextLine := t.fs.Position(next.Pos()).Line
-				curLine := t.fs.Position(v.End()).Line
-				if nextLine != curLine {
-					t.writeSource("{\n")
-					t.writeSource("//line new.tgo:")
-					t.writeSource(strconv.FormatInt(int64(n.Pos()), 10))
-				} else {
-					t.writeSource("{ /*line new.tgo:")
-					t.writeSource(strconv.FormatInt(int64(n.Pos()), 10))
-					t.writeSource("*/ ")
-				}
-				t.addedIndent++
-			case *ast.EndTagStmt:
-				t.writeSource("\n")
-				t.writeSource(t.indentAt(v.OpenPos))
-				t.writeSource("}")
-				t.addedIndent--
-			}
-		}
-		if t.staticStartWritten {
-			t.tmp = append(t.tmp, []byte(t.src[t.lastSourcePosWritten-1:n.End()])...)
-			t.lastSourcePosWritten = n.End() + 1
-		}
+		t.transpileBlock(n.Pos(), n.End(), n.List)
 		return nil
+		//if t.staticStartWritten {
+		//	t.tmp = append(t.tmp, []byte(t.src[t.lastSourcePosWritten-1:n.Pos()])...)
+		//	t.lastSourcePosWritten = n.Pos() + 1
+		//}
+		//for i, v := range n.List {
+		//	ast.Walk(t, v)
+		//	switch v := v.(type) {
+		//	case *ast.OpenTagStmt:
+		//		t.writeSource("\n")
+		//		t.writeSource(t.indentAt(v.OpenPos))
+		//		next := n.List[i+1]
+		//		nextLine := t.fs.Position(next.Pos()).Line
+		//		curLine := t.fs.Position(v.End()).Line
+		//		if nextLine != curLine {
+		//			t.writeSource("{\n")
+		//			t.writeSource("//line new.tgo:")
+		//			t.writeSource(strconv.FormatInt(int64(n.Pos()), 10))
+		//		} else {
+		//			t.writeSource("{ /*line new.tgo:")
+		//			t.writeSource(strconv.FormatInt(int64(n.Pos()), 10))
+		//			t.writeSource("*/ ")
+		//		}
+		//		t.addedIndent++
+		//	case *ast.EndTagStmt:
+		//		t.writeSource("\n")
+		//		t.writeSource(t.indentAt(v.OpenPos))
+		//		t.writeSource("}")
+		//		t.addedIndent--
+		//	}
+		//}
+		//if t.staticStartWritten {
+		//	t.tmp = append(t.tmp, []byte(t.src[t.lastSourcePosWritten-1:n.End()])...)
+		//	t.lastSourcePosWritten = n.End() + 1
+		//}
+		//return nil
 	case *ast.OpenTagStmt:
 		if len(n.Body) == 0 {
 			t.writeStatic(n.Pos(), "<", n.Name.Name, ">")
@@ -190,7 +222,7 @@ func (t *transpiler) appendString(s string) {
 		fmt.Printf("t.appendString(%q)\n", s)
 		//fmt.Printf("%s\n", debug.Stack())
 	}
-	t.b.WriteString(s)
+	t.out = append(t.out, s...)
 }
 
 func (t *transpiler) writeStatic(indentPos token.Pos, strs ...string) {
