@@ -30,6 +30,19 @@ func Transpile(f *ast.File, fs *token.FileSet, src string) string {
 // TODO: and then make a function that automatically inserts the line comment
 // only when it is needed.
 
+type lineDirectiveState struct {
+	lastPos    token.Pos
+	lastTgoPos token.Pos
+}
+
+func (l *lineDirectiveState) shouldAddLineDirective(curGoFilePos, curTgoFilePos token.Pos) bool {
+	calcTgoPos := l.lastTgoPos + (l.lastPos - curGoFilePos)
+	if calcTgoPos < curTgoFilePos {
+		panic("unreachable")
+	}
+	return calcTgoPos > curTgoFilePos
+}
+
 type transpiler struct {
 	f   *ast.File
 	fs  *token.FileSet
@@ -49,6 +62,13 @@ type transpiler struct {
 	staticAddedIndent int
 
 	lastIgnored bool
+
+	lds lineDirectiveState
+}
+
+func (t *transpiler) addLineDirective(tgoPos token.Pos) {
+	if t.lds.shouldAddLineDirective(token.Pos(len(t.out))+1, tgoPos) {
+	}
 }
 
 func (t *transpiler) transpile() {
