@@ -43,6 +43,11 @@ func (l *lineDirectiveState) shouldAddLineDirective(curGoFilePos, curTgoFilePos 
 	return calcTgoPos > curTgoFilePos
 }
 
+func (l *lineDirectiveState) lineAdded(curGoFilePos, curTgoFilePos token.Pos) {
+	l.lastPos = curGoFilePos
+	l.lastTgoPos = curTgoFilePos
+}
+
 type transpiler struct {
 	f   *ast.File
 	fs  *token.FileSet
@@ -67,7 +72,8 @@ type transpiler struct {
 }
 
 func (t *transpiler) addLineDirective(tgoPos token.Pos) {
-	if t.lds.shouldAddLineDirective(token.Pos(len(t.out))+1, tgoPos) {
+	if t.lds.shouldAddLineDirective(token.Pos(len(t.out)+1), tgoPos) {
+		t.lds.lineAdded(token.Pos(len(t.out)+1), tgoPos)
 	}
 }
 
