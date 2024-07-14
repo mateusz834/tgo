@@ -3,6 +3,7 @@ package transpiler
 import (
 	"fmt"
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/mateusz834/tgoast/ast"
@@ -68,63 +69,76 @@ type transpiler struct {
 
 	lastIgnored bool
 
-	lds lineDirectiveState
+	//lds lineDirectiveState
 }
 
-func (t *transpiler) addLineDirective(tgoPos token.Pos) {
-	if t.lds.shouldAddLineDirective(token.Pos(len(t.out)+1), tgoPos) {
-		t.lds.lineAdded(token.Pos(len(t.out)+1), tgoPos)
+//func (t *transpiler) addLineDirective(tgoPos token.Pos) {
+//	if t.lds.shouldAddLineDirective(token.Pos(len(t.out)+1), tgoPos) {
+//		t.writeLineDirective(tgoPos)
+//		t.lds.lineAdded(token.Pos(len(t.out)+1), tgoPos)
+//	}
+//}
+
+func (t *transpiler) writeLineDirective(pos token.Pos) {
+	singleLine := false
+	switch t.src[pos] {
+	//case '\t', ' ':
+	case '\n':
+		pos += 2
+	default:
+		singleLine = true
+	}
+
+	p := t.fs.Position(pos)
+
+	if singleLine {
+		//if p.Column == 0 {
+		//	panic("unreachable")
+		//}
+		//p.Column--
+		t.writeSource(" /*line ")
+	} else {
+		t.writeSource("\n//line ")
+	}
+
+	t.writeSource(t.fs.File(pos).Name())
+	t.writeSource(":")
+	t.writeSource(strconv.FormatInt(int64(p.Line), 10))
+	t.writeSource(":")
+	t.writeSource(strconv.FormatInt(int64(p.Column), 10))
+
+	if singleLine {
+		t.writeSource("*/ ")
 	}
 }
 
 func (t *transpiler) transpile() {
+	t.writeSource("//line ")
+	t.writeSource(t.fs.File(t.f.Pos()).Name())
+	t.writeSource(":1:1\n")
 	ast.Walk(t, t.f)
 	t.appendString(t.src[t.lastSourcePosWritten-1:])
 }
 
 func (t *transpiler) transpileBlock(openPos, closePos token.Pos, list []ast.Stmt) {
-	singlelineLineDirective := false
-	if len(list) != 0 {
-		firstPos := list[0].Pos()
-		openLine := t.fs.Position(openPos).Line
-		if openLine == t.fs.Position(firstPos).Line {
-			singlelineLineDirective = true
-		} else {
-			for _, v := range t.f.Comments {
-				if v.Pos() > openPos && v.End() < firstPos {
-					if openLine == t.fs.Position(v.Pos()).Line {
-						singlelineLineDirective = true
-						break
-					}
-				}
-			}
-		}
-	}
-
 	t.writeSource(t.src[t.lastSourcePosWritten-1 : openPos-1])
 	t.lastSourcePosWritten = openPos
-
-	if singlelineLineDirective {
-		t.writeSource("{ /*line")
-		t.writeSource("file.tgo:11:22")
-		t.writeSource("*/ ")
-	} else {
-		t.writeSource("{\n")
-		t.writeSource("//line file.tgo:11:22")
-	}
 
 	defer func(v bool) {
 		t.lastIgnored = v
 	}(t.lastIgnored)
 
 	var (
-		lastWhitePos = openPos + 1
+		lastWhitePos = openPos
 		lastOut      = t.out
 		lastTmp      = t.tmp
 	)
 
+	lastEndPos := openPos
 	for _, v := range list {
-		t.writeSource(t.src[lastWhitePos-1 : v.Pos()-1])
+		t.writeSource(t.src[lastWhitePos-1 : lastEndPos])
+		t.writeLineDirective(lastEndPos)
+		t.writeSource(t.src[lastWhitePos : v.Pos()-1])
 
 		t.lastIgnored = false
 		ast.Walk(t, v)
@@ -136,6 +150,7 @@ func (t *transpiler) transpileBlock(openPos, closePos token.Pos, list []ast.Stmt
 		lastOut = t.out
 		lastTmp = t.tmp
 		lastWhitePos = v.End()
+		lastEndPos = v.End()
 	}
 
 	if len(list) == 0 {

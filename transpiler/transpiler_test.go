@@ -18,6 +18,8 @@ const tgosrc = `package templates
 
 func test(sth string) {
 	hello
+
+	df
 }
 `
 
