@@ -9,6 +9,7 @@ import (
 
 	"github.com/mateusz834/tgo/analyzer"
 	"github.com/mateusz834/tgoast/ast"
+	"github.com/mateusz834/tgoast/format"
 	"github.com/mateusz834/tgoast/parser"
 	"github.com/mateusz834/tgoast/scanner"
 	"github.com/mateusz834/tgoast/token"
@@ -17,9 +18,13 @@ import (
 const tgosrc = `package templates
 
 func test(sth string) {
-	hello
-
-	df
+	</*lol*/div @attr="test"; skfj;
+	ksj;
+	>
+		kdjfksdjf
+		kdjf
+		"lol"
+	</div>
 }
 `
 
@@ -62,8 +67,31 @@ func TestTranspiler(t *testing.T) {
 		t.Fatalf("%v", err)
 	}
 
+	ast.Inspect(f, func(n ast.Node) bool {
+		switch n := n.(type) {
+		case *ast.OpenTagStmt:
+			t.Logf("%q", tgosrc[n.Pos()-1:n.End()-1])
+		}
+		return true
+	})
+
 	out := Transpile(f, fs, tgosrc)
 	t.Log("\n" + out)
+
+	fs = token.NewFileSet()
+	f, err = parser.ParseFile(fs, "test.go", out, parser.SkipObjectResolution|parser.ParseComments)
+	if err != nil {
+		if v, ok := err.(scanner.ErrorList); ok {
+			for _, err := range v {
+				t.Errorf("%v", err)
+			}
+		}
+		t.Fatalf("%v", err)
+	}
+
+	var o strings.Builder
+	format.Node(&o, fs, f)
+	t.Log("\n" + o.String())
 
 	// ff := fileTranspiler{f: f}
 	// ff.transpile()

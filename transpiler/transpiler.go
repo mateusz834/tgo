@@ -3,8 +3,6 @@ package transpiler
 import (
 	"fmt"
 	"slices"
-	"strconv"
-	"strings"
 
 	"github.com/mateusz834/tgoast/ast"
 	"github.com/mateusz834/tgoast/token"
@@ -14,63 +12,156 @@ const transpilerDebug = true
 
 func Transpile(f *ast.File, fs *token.FileSet, src string) string {
 	t := transpiler{
-		f:                    f,
-		fs:                   fs,
-		src:                  src,
-		lastSourcePosWritten: 1,
+		f:   f,
+		fs:  fs,
+		src: src,
 	}
 	t.out = slices.Grow([]byte{}, len(src)*2)
 	t.transpile()
-	if len(t.tmp) != 0 {
-		panic("unreachable")
-	}
 	return string(t.out)
-}
-
-// TODO: track line mapping?
-// TODO: and then make a function that automatically inserts the line comment
-// only when it is needed.
-
-type lineDirectiveState struct {
-	lastPos    token.Pos
-	lastTgoPos token.Pos
-}
-
-func (l *lineDirectiveState) shouldAddLineDirective(curGoFilePos, curTgoFilePos token.Pos) bool {
-	calcTgoPos := l.lastTgoPos + (l.lastPos - curGoFilePos)
-	if calcTgoPos < curTgoFilePos {
-		panic("unreachable")
-	}
-	return calcTgoPos > curTgoFilePos
-}
-
-func (l *lineDirectiveState) lineAdded(curGoFilePos, curTgoFilePos token.Pos) {
-	l.lastPos = curGoFilePos
-	l.lastTgoPos = curTgoFilePos
 }
 
 type transpiler struct {
 	f   *ast.File
 	fs  *token.FileSet
 	src string
-
 	out []byte
-	tmp []byte
 
-	lastSourcePosWritten token.Pos
-
-	staticStartWritten bool
-	indentPos          token.Pos
-
-	lastWrittenPos token.Pos
-
-	addedIndent       int
-	staticAddedIndent int
-
-	lastIgnored bool
-
-	//lds lineDirectiveState
+	lastPosWritten token.Pos
 }
+
+func (t *transpiler) appendString(s string) {
+	if transpilerDebug {
+		fmt.Printf("t.appendString(%q)\n", s)
+	}
+	t.out = append(t.out, s...)
+}
+
+func (t *transpiler) appendFromSource(end token.Pos) {
+	if transpilerDebug {
+		fmt.Printf("t.appendFromSource(%v) -> ", end)
+	}
+	t.appendString(t.src[t.lastPosWritten-1 : end-1])
+	t.lastPosWritten = end
+}
+
+func (t *transpiler) transpile() {
+	t.lastPosWritten = 1
+	ast.Inspect(t.f, t.inspect)
+	t.appendFromSource(t.f.End())
+}
+
+func (t *transpiler) inspect(n ast.Node) bool {
+	switch n := n.(type) {
+	case *ast.BlockStmt:
+		t.appendFromSource(n.Lbrace)
+		t.transpileList(n.List)
+		t.appendFromSource(n.Rbrace)
+		return false
+	}
+	return true
+}
+
+func (t *transpiler) transpileList(list []ast.Stmt) {
+	for _, n := range list {
+		t.appendFromSource(n.Pos())
+		switch n := n.(type) {
+		case *ast.OpenTagStmt:
+			t.staticWrite("<" + n.Name.Name)
+
+			t.appendString("{")
+			//t.lastPosWritten = n.OpenPos + 1
+			//t.appendFromSource(n.Name.Pos())
+			t.lastPosWritten = n.Name.End()
+			t.transpileList(n.Body)
+			t.appendFromSource(n.End() - 1)
+			t.appendString("}")
+
+			t.staticWrite(">")
+			t.appendString("{")
+		case *ast.EndTagStmt:
+			t.appendString("}")
+			t.staticWrite("</" + n.Name.Name + ">")
+		case *ast.AttributeStmt:
+			t.staticWrite(" " + n.AttrName.(*ast.Ident).Name)
+			if n.Value != nil {
+				switch x := n.Value.(type) {
+				case *ast.BasicLit:
+					if x.Kind == token.STRING {
+						t.staticWrite(`=` + x.Value)
+					}
+				case *ast.TemplateLiteralExpr:
+					panic("TODO")
+				}
+			}
+		case *ast.ExprStmt:
+			if x, ok := n.X.(*ast.BasicLit); ok && x.Kind == token.STRING {
+				t.staticWrite(x.Value)
+			} else if x, ok := n.X.(*ast.TemplateLiteralExpr); ok {
+				_ = x
+				panic("TODO")
+			} else {
+				ast.Inspect(n, t.inspect)
+				t.appendFromSource(n.End())
+			}
+		default:
+			ast.Inspect(n, t.inspect)
+			t.appendFromSource(n.End())
+		}
+		t.lastPosWritten = n.End()
+	}
+}
+
+func (t *transpiler) staticWrite(s string) {
+	t.appendString("\nif err := __tgo_ctx.WriteString(`")
+	t.appendString(s)
+	t.appendString("`); err != nil {\nreturn err\n}\n")
+}
+
+// TODO: track line mapping?
+// TODO: and then make a function that automatically inserts the line comment
+// only when it is needed.
+
+//type lineDirectiveState struct {
+//	lastPos    token.Pos
+//	lastTgoPos token.Pos
+//}
+//
+//func (l *lineDirectiveState) shouldAddLineDirective(curGoFilePos, curTgoFilePos token.Pos) bool {
+//	calcTgoPos := l.lastTgoPos + (l.lastPos - curGoFilePos)
+//	if calcTgoPos < curTgoFilePos {
+//		panic("unreachable")
+//	}
+//	return calcTgoPos > curTgoFilePos
+//}
+//
+//func (l *lineDirectiveState) lineAdded(curGoFilePos, curTgoFilePos token.Pos) {
+//	l.lastPos = curGoFilePos
+//	l.lastTgoPos = curTgoFilePos
+//}
+
+//type transpiler struct {
+//	f   *ast.File
+//	fs  *token.FileSet
+//	src string
+//
+//	out []byte
+//	//tmp []byte
+//
+//	//lastSourcePosWritten token.Pos
+//
+//	//staticStartWritten bool
+//	//indentPos          token.Pos
+//
+//	//lastWrittenPos token.Pos
+//
+//	//addedIndent       int
+//	//staticAddedIndent int
+//
+//	//lastIgnored bool
+//
+//	//lds lineDirectiveState
+//}
 
 //func (t *transpiler) addLineDirective(tgoPos token.Pos) {
 //	if t.lds.shouldAddLineDirective(token.Pos(len(t.out)+1), tgoPos) {
@@ -79,247 +170,251 @@ type transpiler struct {
 //	}
 //}
 
-func (t *transpiler) writeLineDirective(pos token.Pos) {
-	singleLine := false
-	switch t.src[pos] {
-	//case '\t', ' ':
-	case '\n':
-		pos += 2
-	default:
-		singleLine = true
-	}
+/*
+	<div @class="bg-red">; a := 2; <div>
+*/
 
-	p := t.fs.Position(pos)
-
-	if singleLine {
-		//if p.Column == 0 {
-		//	panic("unreachable")
-		//}
-		//p.Column--
-		t.writeSource(" /*line ")
-	} else {
-		t.writeSource("\n//line ")
-	}
-
-	t.writeSource(t.fs.File(pos).Name())
-	t.writeSource(":")
-	t.writeSource(strconv.FormatInt(int64(p.Line), 10))
-	t.writeSource(":")
-	t.writeSource(strconv.FormatInt(int64(p.Column), 10))
-
-	if singleLine {
-		t.writeSource("*/ ")
-	}
-}
-
-func (t *transpiler) transpile() {
-	t.writeSource("//line ")
-	t.writeSource(t.fs.File(t.f.Pos()).Name())
-	t.writeSource(":1:1\n")
-	ast.Walk(t, t.f)
-	t.appendString(t.src[t.lastSourcePosWritten-1:])
-}
-
-func (t *transpiler) transpileBlock(openPos, closePos token.Pos, list []ast.Stmt) {
-	t.writeSource(t.src[t.lastSourcePosWritten-1 : openPos-1])
-	t.lastSourcePosWritten = openPos
-
-	defer func(v bool) {
-		t.lastIgnored = v
-	}(t.lastIgnored)
-
-	var (
-		lastWhitePos = openPos
-		lastOut      = t.out
-		lastTmp      = t.tmp
-	)
-
-	lastEndPos := openPos
-	for _, v := range list {
-		t.writeSource(t.src[lastWhitePos-1 : lastEndPos])
-		t.writeLineDirective(lastEndPos)
-		t.writeSource(t.src[lastWhitePos : v.Pos()-1])
-
-		t.lastIgnored = false
-		ast.Walk(t, v)
-		if t.lastIgnored {
-			t.out = lastOut
-			t.tmp = lastTmp
-		}
-
-		lastOut = t.out
-		lastTmp = t.tmp
-		lastWhitePos = v.End()
-		lastEndPos = v.End()
-	}
-
-	if len(list) == 0 {
-		t.writeSource(t.src[openPos:closePos])
-	} else {
-		t.writeSource(t.src[list[len(list)-1].Pos():closePos])
-	}
-	t.lastSourcePosWritten = closePos
-}
-
-func (t *transpiler) Visit(n ast.Node) ast.Visitor {
-	switch n := n.(type) {
-	case *ast.BlockStmt:
-		t.transpileBlock(n.Pos(), n.End(), n.List)
-		return nil
-		//if t.staticStartWritten {
-		//	t.tmp = append(t.tmp, []byte(t.src[t.lastSourcePosWritten-1:n.Pos()])...)
-		//	t.lastSourcePosWritten = n.Pos() + 1
-		//}
-		//for i, v := range n.List {
-		//	ast.Walk(t, v)
-		//	switch v := v.(type) {
-		//	case *ast.OpenTagStmt:
-		//		t.writeSource("\n")
-		//		t.writeSource(t.indentAt(v.OpenPos))
-		//		next := n.List[i+1]
-		//		nextLine := t.fs.Position(next.Pos()).Line
-		//		curLine := t.fs.Position(v.End()).Line
-		//		if nextLine != curLine {
-		//			t.writeSource("{\n")
-		//			t.writeSource("//line new.tgo:")
-		//			t.writeSource(strconv.FormatInt(int64(n.Pos()), 10))
-		//		} else {
-		//			t.writeSource("{ /*line new.tgo:")
-		//			t.writeSource(strconv.FormatInt(int64(n.Pos()), 10))
-		//			t.writeSource("*/ ")
-		//		}
-		//		t.addedIndent++
-		//	case *ast.EndTagStmt:
-		//		t.writeSource("\n")
-		//		t.writeSource(t.indentAt(v.OpenPos))
-		//		t.writeSource("}")
-		//		t.addedIndent--
-		//	}
-		//}
-		//if t.staticStartWritten {
-		//	t.tmp = append(t.tmp, []byte(t.src[t.lastSourcePosWritten-1:n.End()])...)
-		//	t.lastSourcePosWritten = n.End() + 1
-		//}
-		//return nil
-	case *ast.OpenTagStmt:
-		if len(n.Body) == 0 {
-			t.writeStatic(n.Pos(), "<", n.Name.Name, ">")
-			t.lastSourcePosWritten = n.End()
-		} else {
-			t.writeStatic(n.Pos(), "<", n.Name.Name)
-			t.lastSourcePosWritten = n.Name.End()
-
-			//t.writeSource("\n")
-			//t.writeSource(t.indentAt(n.OpenPos))
-			//t.writeSource("{")
-
-			for _, n := range n.Body {
-				ast.Walk(t, n)
-			}
-
-			//t.writeSource("\n")
-			//t.writeSource(t.indentAt(n.OpenPos))
-			//t.writeSource("}")
-
-			t.writeStatic(n.Pos(), ">")
-		}
-		return nil
-	case *ast.EndTagStmt:
-		t.writeStatic(n.Pos(), "</", n.Name.Name, ">")
-		t.lastSourcePosWritten = n.End()
-		return nil
-	case *ast.AttributeStmt:
-		t.writeStatic(n.Pos(), " ", n.AttrName.(*ast.Ident).Name, "=", n.Value.(*ast.BasicLit).Value)
-		return nil
-	case *ast.ExprStmt:
-		switch n := n.X.(type) {
-		case *ast.BasicLit:
-			if n.Kind == token.STRING {
-				t.writeStatic(n.Pos(), n.Value)
-				return nil
-			}
-		case *ast.TemplateLiteralExpr:
-			panic("here")
-		}
-	}
-
-	t.endStatic()
-	return t
-}
-
-func (t *transpiler) writeSource(s string) {
-	if transpilerDebug {
-		fmt.Printf("t.writeSource(%q)\n", s)
-	}
-	if t.staticStartWritten {
-		t.tmp = append(t.tmp, s...)
-	} else {
-		t.appendString(s)
-	}
-}
-
-func (t *transpiler) appendString(s string) {
-	if transpilerDebug {
-		fmt.Printf("t.appendString(%q)\n", s)
-		//fmt.Printf("%s\n", debug.Stack())
-	}
-	t.out = append(t.out, s...)
-}
-
-func (t *transpiler) writeStatic(indentPos token.Pos, strs ...string) {
-	if !t.staticStartWritten {
-		if indentPos > t.lastSourcePosWritten {
-			t.appendString(t.src[t.lastSourcePosWritten-1 : indentPos-1])
-			t.lastSourcePosWritten = indentPos
-			t.indentPos = indentPos
-		}
-		for range t.addedIndent {
-			t.appendString("\t")
-		}
-		t.staticAddedIndent = t.addedIndent
-		t.appendString(`if err := __tgo_ctx.WriteString("`)
-		t.staticStartWritten = true
-	}
-	for _, v := range strs {
-		t.appendString(v)
-	}
-}
-
-func (t *transpiler) endStatic() {
-	if t.staticStartWritten {
-		indent := t.indentAt(t.indentPos)
-		t.appendString("\"); err != nil {\n")
-		t.appendString(indent)
-		for range t.staticAddedIndent {
-			t.appendString("\t")
-		}
-		t.appendString("\treturn err\n")
-		t.appendString(indent)
-		for range t.staticAddedIndent {
-			t.appendString("\t")
-		}
-		t.appendString("}")
-
-		t.appendString(string(t.tmp))
-
-		t.tmp = t.tmp[:0]
-		t.staticStartWritten = false
-	}
-}
-
-func (t *transpiler) indentAt(pos token.Pos) string {
-	beforePos := t.src[:pos-1]
-	i := max(strings.LastIndexByte(beforePos, '\n')+1, 0)
-
-	for j, v := range beforePos[i:] {
-		if v == ' ' || v == '\t' {
-			continue
-		}
-		return beforePos[i : i+j]
-	}
-
-	return beforePos[i:]
-}
+//func (t *transpiler) writeLineDirective(pos token.Pos) {
+//	singleLine := false
+//	switch t.src[pos] {
+//	//case '\t', ' ':
+//	case '\n':
+//		pos += 2
+//	default:
+//		singleLine = true
+//	}
+//
+//	p := t.fs.Position(pos)
+//
+//	if singleLine {
+//		//if p.Column == 0 {
+//		//	panic("unreachable")
+//		//}
+//		//p.Column--
+//		t.writeSource(" /*line ")
+//	} else {
+//		t.writeSource("\n//line ")
+//	}
+//
+//	t.writeSource(t.fs.File(pos).Name())
+//	t.writeSource(":")
+//	t.writeSource(strconv.FormatInt(int64(p.Line), 10))
+//	t.writeSource(":")
+//	t.writeSource(strconv.FormatInt(int64(p.Column), 10))
+//
+//	if singleLine {
+//		t.writeSource("*/ ")
+//	}
+//}
+//
+//func (t *transpiler) transpile() {
+//	t.writeSource("//line ")
+//	t.writeSource(t.fs.File(t.f.Pos()).Name())
+//	t.writeSource(":1:1\n")
+//	ast.Walk(t, t.f)
+//	t.appendString(t.src[t.lastSourcePosWritten-1:])
+//}
+//
+//func (t *transpiler) transpileBlock(openPos, closePos token.Pos, list []ast.Stmt) {
+//	t.writeSource(t.src[t.lastSourcePosWritten-1 : openPos-1])
+//	t.lastSourcePosWritten = openPos
+//
+//	defer func(v bool) {
+//		t.lastIgnored = v
+//	}(t.lastIgnored)
+//
+//	var (
+//		lastWhitePos = openPos
+//		lastOut      = t.out
+//		lastTmp      = t.tmp
+//	)
+//
+//	lastEndPos := openPos
+//	for _, v := range list {
+//		t.writeSource(t.src[lastWhitePos-1 : lastEndPos])
+//		t.writeLineDirective(lastEndPos)
+//		t.writeSource(t.src[lastWhitePos : v.Pos()-1])
+//
+//		t.lastIgnored = false
+//		ast.Walk(t, v)
+//		if t.lastIgnored {
+//			t.out = lastOut
+//			t.tmp = lastTmp
+//		}
+//
+//		lastOut = t.out
+//		lastTmp = t.tmp
+//		lastWhitePos = v.End()
+//		lastEndPos = v.End()
+//	}
+//
+//	if len(list) == 0 {
+//		t.writeSource(t.src[openPos:closePos])
+//	} else {
+//		t.writeSource(t.src[list[len(list)-1].Pos():closePos])
+//	}
+//	t.lastSourcePosWritten = closePos
+//}
+//
+//func (t *transpiler) Visit(n ast.Node) ast.Visitor {
+//	switch n := n.(type) {
+//	case *ast.BlockStmt:
+//		t.transpileBlock(n.Pos(), n.End(), n.List)
+//		return nil
+//		//if t.staticStartWritten {
+//		//	t.tmp = append(t.tmp, []byte(t.src[t.lastSourcePosWritten-1:n.Pos()])...)
+//		//	t.lastSourcePosWritten = n.Pos() + 1
+//		//}
+//		//for i, v := range n.List {
+//		//	ast.Walk(t, v)
+//		//	switch v := v.(type) {
+//		//	case *ast.OpenTagStmt:
+//		//		t.writeSource("\n")
+//		//		t.writeSource(t.indentAt(v.OpenPos))
+//		//		next := n.List[i+1]
+//		//		nextLine := t.fs.Position(next.Pos()).Line
+//		//		curLine := t.fs.Position(v.End()).Line
+//		//		if nextLine != curLine {
+//		//			t.writeSource("{\n")
+//		//			t.writeSource("//line new.tgo:")
+//		//			t.writeSource(strconv.FormatInt(int64(n.Pos()), 10))
+//		//		} else {
+//		//			t.writeSource("{ /*line new.tgo:")
+//		//			t.writeSource(strconv.FormatInt(int64(n.Pos()), 10))
+//		//			t.writeSource("*/ ")
+//		//		}
+//		//		t.addedIndent++
+//		//	case *ast.EndTagStmt:
+//		//		t.writeSource("\n")
+//		//		t.writeSource(t.indentAt(v.OpenPos))
+//		//		t.writeSource("}")
+//		//		t.addedIndent--
+//		//	}
+//		//}
+//		//if t.staticStartWritten {
+//		//	t.tmp = append(t.tmp, []byte(t.src[t.lastSourcePosWritten-1:n.End()])...)
+//		//	t.lastSourcePosWritten = n.End() + 1
+//		//}
+//		//return nil
+//	case *ast.OpenTagStmt:
+//		if len(n.Body) == 0 {
+//			t.writeStatic(n.Pos(), "<", n.Name.Name, ">")
+//			t.lastSourcePosWritten = n.End()
+//		} else {
+//			t.writeStatic(n.Pos(), "<", n.Name.Name)
+//			t.lastSourcePosWritten = n.Name.End()
+//
+//			//t.writeSource("\n")
+//			//t.writeSource(t.indentAt(n.OpenPos))
+//			//t.writeSource("{")
+//
+//			for _, n := range n.Body {
+//				ast.Walk(t, n)
+//			}
+//
+//			//t.writeSource("\n")
+//			//t.writeSource(t.indentAt(n.OpenPos))
+//			//t.writeSource("}")
+//
+//			t.writeStatic(n.Pos(), ">")
+//		}
+//		return nil
+//	case *ast.EndTagStmt:
+//		t.writeStatic(n.Pos(), "</", n.Name.Name, ">")
+//		t.lastSourcePosWritten = n.End()
+//		return nil
+//	case *ast.AttributeStmt:
+//		t.writeStatic(n.Pos(), " ", n.AttrName.(*ast.Ident).Name, "=", n.Value.(*ast.BasicLit).Value)
+//		return nil
+//	case *ast.ExprStmt:
+//		switch n := n.X.(type) {
+//		case *ast.BasicLit:
+//			if n.Kind == token.STRING {
+//				t.writeStatic(n.Pos(), n.Value)
+//				return nil
+//			}
+//		case *ast.TemplateLiteralExpr:
+//			panic("here")
+//		}
+//	}
+//
+//	t.endStatic()
+//	return t
+//}
+//
+//func (t *transpiler) writeSource(s string) {
+//	if transpilerDebug {
+//		fmt.Printf("t.writeSource(%q)\n", s)
+//	}
+//	if t.staticStartWritten {
+//		t.tmp = append(t.tmp, s...)
+//	} else {
+//		t.appendString(s)
+//	}
+//}
+//
+//func (t *transpiler) appendString(s string) {
+//	if transpilerDebug {
+//		fmt.Printf("t.appendString(%q)\n", s)
+//		//fmt.Printf("%s\n", debug.Stack())
+//	}
+//	t.out = append(t.out, s...)
+//}
+//
+//func (t *transpiler) writeStatic(indentPos token.Pos, strs ...string) {
+//	if !t.staticStartWritten {
+//		if indentPos > t.lastSourcePosWritten {
+//			t.appendString(t.src[t.lastSourcePosWritten-1 : indentPos-1])
+//			t.lastSourcePosWritten = indentPos
+//			t.indentPos = indentPos
+//		}
+//		for range t.addedIndent {
+//			t.appendString("\t")
+//		}
+//		t.staticAddedIndent = t.addedIndent
+//		t.appendString(`if err := __tgo_ctx.WriteString("`)
+//		t.staticStartWritten = true
+//	}
+//	for _, v := range strs {
+//		t.appendString(v)
+//	}
+//}
+//
+//func (t *transpiler) endStatic() {
+//	if t.staticStartWritten {
+//		indent := t.indentAt(t.indentPos)
+//		t.appendString("\"); err != nil {\n")
+//		t.appendString(indent)
+//		for range t.staticAddedIndent {
+//			t.appendString("\t")
+//		}
+//		t.appendString("\treturn err\n")
+//		t.appendString(indent)
+//		for range t.staticAddedIndent {
+//			t.appendString("\t")
+//		}
+//		t.appendString("}")
+//
+//		t.appendString(string(t.tmp))
+//
+//		t.tmp = t.tmp[:0]
+//		t.staticStartWritten = false
+//	}
+//}
+//
+//func (t *transpiler) indentAt(pos token.Pos) string {
+//	beforePos := t.src[:pos-1]
+//	i := max(strings.LastIndexByte(beforePos, '\n')+1, 0)
+//
+//	for j, v := range beforePos[i:] {
+//		if v == ' ' || v == '\t' {
+//			continue
+//		}
+//		return beforePos[i : i+j]
+//	}
+//
+//	return beforePos[i:]
+//}
 
 //const debug = false
 //
