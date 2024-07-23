@@ -1,6 +1,7 @@
 package transpiler
 
 import (
+	"bytes"
 	"fmt"
 	"slices"
 
@@ -28,6 +29,38 @@ type transpiler struct {
 	out []byte
 
 	lastPosWritten token.Pos
+}
+
+func (t *transpiler) lastIndent() string {
+	i := max(bytes.LastIndexByte(t.out, '\n')+1, 0)
+
+	for j, v := range t.out[i:] {
+		if v == ' ' || v == '\t' {
+			continue
+		}
+		return string(t.out[i : i+j])
+	}
+
+	return string(t.out[i:])
+}
+
+func (t *transpiler) lastNewline() bool {
+	i := max(bytes.LastIndexByte(t.out, '\n')+1, 0)
+	for _, v := range t.out[i:] {
+		if v != ' ' && v != '\t' {
+			return false
+		}
+	}
+	return true
+}
+
+func (t *transpiler) newline() string {
+	indent := t.lastIndent()
+	if !t.lastNewline() {
+		t.appendString("\n")
+		t.appendString(indent)
+	}
+	return indent
 }
 
 func (t *transpiler) appendString(s string) {
@@ -68,16 +101,18 @@ func (t *transpiler) transpileList(list []ast.Stmt) {
 		switch n := n.(type) {
 		case *ast.OpenTagStmt:
 			t.staticWrite("<" + n.Name.Name)
+			t.newline()
 
 			t.appendString("{")
-			//t.lastPosWritten = n.OpenPos + 1
-			//t.appendFromSource(n.Name.Pos())
+			t.newline()
 			t.lastPosWritten = n.Name.End()
 			t.transpileList(n.Body)
 			t.appendFromSource(n.End() - 1)
-			t.appendString("}")
+			t.newline()
 
+			t.appendString("}")
 			t.staticWrite(">")
+			t.newline()
 			t.appendString("{")
 		case *ast.EndTagStmt:
 			t.appendString("}")
@@ -113,9 +148,14 @@ func (t *transpiler) transpileList(list []ast.Stmt) {
 }
 
 func (t *transpiler) staticWrite(s string) {
-	t.appendString("\nif err := __tgo_ctx.WriteString(`")
+	indent := t.newline()
+	t.appendString("if err := __tgo_ctx.WriteString(`")
 	t.appendString(s)
-	t.appendString("`); err != nil {\nreturn err\n}\n")
+	t.appendString("`); err != nil {\n")
+	t.appendString(indent)
+	t.appendString("\treturn err\n")
+	t.appendString(indent)
+	t.appendString("}")
 }
 
 // TODO: track line mapping?

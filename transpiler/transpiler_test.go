@@ -18,12 +18,12 @@ import (
 const tgosrc = `package templates
 
 func test(sth string) {
-	</*lol*/div @attr="test"; skfj;
-	ksj;
-	>
+	<div>
 		kdjfksdjf
 		kdjf
-		"lol"
+		for _,v := range sth {
+			"lol"
+		}
 	</div>
 }
 `
