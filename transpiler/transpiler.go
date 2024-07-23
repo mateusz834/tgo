@@ -54,7 +54,7 @@ func (t *transpiler) lastNewline() bool {
 	return true
 }
 
-func (t *transpiler) newline() string {
+func (t *transpiler) wantNewline() string {
 	indent := t.lastIndent()
 	if !t.lastNewline() {
 		t.appendString("\n")
@@ -101,18 +101,20 @@ func (t *transpiler) transpileList(list []ast.Stmt) {
 		switch n := n.(type) {
 		case *ast.OpenTagStmt:
 			t.staticWrite("<" + n.Name.Name)
-			t.newline()
+			t.wantNewline()
 
 			t.appendString("{")
-			t.newline()
+			t.wantNewline()
+
 			t.lastPosWritten = n.Name.End()
 			t.transpileList(n.Body)
 			t.appendFromSource(n.End() - 1)
-			t.newline()
 
+			t.wantNewline()
 			t.appendString("}")
+
 			t.staticWrite(">")
-			t.newline()
+			t.wantNewline()
 			t.appendString("{")
 		case *ast.EndTagStmt:
 			t.appendString("}")
@@ -126,7 +128,15 @@ func (t *transpiler) transpileList(list []ast.Stmt) {
 						t.staticWrite(`=` + x.Value)
 					}
 				case *ast.TemplateLiteralExpr:
-					panic("TODO")
+					t.lastPosWritten = x.Pos()
+					for i := range x.Parts {
+						t.staticWrite(x.Strings[i])
+						t.lastPosWritten += token.Pos(len(x.Strings[i])) + 2
+						t.dynamicWrite(x.Parts[i])
+						t.lastPosWritten = x.Parts[i].End()
+					}
+					t.staticWrite(x.Strings[len(x.Strings)-1])
+					t.lastPosWritten = x.End()
 				}
 			}
 		case *ast.ExprStmt:
@@ -147,8 +157,20 @@ func (t *transpiler) transpileList(list []ast.Stmt) {
 	}
 }
 
+func (t *transpiler) dynamicWrite(n ast.Expr) {
+	indent := t.wantNewline()
+	t.appendString("if err := __tgo.DynamicWrite(__tgo_ctx, ")
+	ast.Inspect(n, t.inspect)
+	t.appendFromSource(n.End())
+	t.appendString("); err != nil {\n")
+	t.appendString(indent)
+	t.appendString("\treturn err\n")
+	t.appendString(indent)
+	t.appendString("}")
+}
+
 func (t *transpiler) staticWrite(s string) {
-	indent := t.newline()
+	indent := t.wantNewline()
 	t.appendString("if err := __tgo_ctx.WriteString(`")
 	t.appendString(s)
 	t.appendString("`); err != nil {\n")

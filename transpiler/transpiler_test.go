@@ -18,12 +18,9 @@ import (
 const tgosrc = `package templates
 
 func test(sth string) {
-	<div>
-		kdjfksdjf
-		kdjf
-		for _,v := range sth {
-			"lol"
-		}
+	<div
+		@kdjf="lol \{sth} kdfjd"
+	>
 	</div>
 }
 `
