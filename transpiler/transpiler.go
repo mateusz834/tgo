@@ -143,8 +143,15 @@ func (t *transpiler) transpileList(list []ast.Stmt) {
 			if x, ok := n.X.(*ast.BasicLit); ok && x.Kind == token.STRING {
 				t.staticWrite(x.Value)
 			} else if x, ok := n.X.(*ast.TemplateLiteralExpr); ok {
-				_ = x
-				panic("TODO")
+				t.lastPosWritten = x.Pos()
+				for i := range x.Parts {
+					t.staticWrite(x.Strings[i])
+					t.lastPosWritten += token.Pos(len(x.Strings[i])) + 2
+					t.dynamicWrite(x.Parts[i])
+					t.lastPosWritten = x.Parts[i].End()
+				}
+				t.staticWrite(x.Strings[len(x.Strings)-1])
+				t.lastPosWritten = x.End()
 			} else {
 				ast.Inspect(n, t.inspect)
 				t.appendFromSource(n.End())

@@ -21,6 +21,7 @@ func test(sth string) {
 	<div
 		@kdjf="lol \{sth} kdfjd"
 	>
+		"hello \{sth}test"
 	</div>
 }
 `
