@@ -20,6 +20,9 @@ const tgosrc = `package templates
 func test(sth string) {
 	<div
 		@kdjf="lol \{sth} kdfjd"
+		@test="test \{func(a strin) {
+			<div></div>
+		}()}"
 	>
 		"hello \{sth}test"
 	</div>
@@ -90,6 +93,11 @@ func TestTranspiler(t *testing.T) {
 	var o strings.Builder
 	format.Node(&o, fs, f)
 	t.Log("\n" + o.String())
+
+	if o.String() != out {
+		t.Log(gitDiff(t.TempDir(), o.String(), out))
+		t.Fatal("difference found")
+	}
 
 	// ff := fileTranspiler{f: f}
 	// ff.transpile()

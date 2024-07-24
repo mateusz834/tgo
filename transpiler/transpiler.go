@@ -117,6 +117,7 @@ func (t *transpiler) transpileList(list []ast.Stmt) {
 			t.wantNewline()
 			t.appendString("{")
 		case *ast.EndTagStmt:
+			t.wantNewline()
 			t.appendString("}")
 			t.staticWrite("</" + n.Name.Name + ">")
 		case *ast.AttributeStmt:
