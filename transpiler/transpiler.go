@@ -104,12 +104,9 @@ func (t *transpiler) transpileList(list []ast.Stmt) {
 			t.wantNewline()
 
 			t.appendString("{")
-			t.wantNewline()
-
 			t.lastPosWritten = n.Name.End()
 			t.transpileList(n.Body)
 			t.appendFromSource(n.End() - 1)
-
 			t.wantNewline()
 			t.appendString("}")
 
