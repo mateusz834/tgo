@@ -87,9 +87,9 @@ func (t *transpiler) transpile() {
 func (t *transpiler) inspect(n ast.Node) bool {
 	switch n := n.(type) {
 	case *ast.BlockStmt:
-		t.appendFromSource(n.Lbrace)
+		t.appendFromSource(n.Lbrace + 1)
 		t.transpileList(n.List)
-		t.appendFromSource(n.Rbrace)
+		t.appendFromSource(n.Rbrace + 1)
 		return false
 	}
 	return true

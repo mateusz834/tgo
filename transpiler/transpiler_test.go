@@ -18,12 +18,15 @@ import (
 const tgosrc = `package templates
 
 func test(sth string) {
+	test = 2
 	<div
+		test = 2
 		@kdjf="lol \{sth} kdfjd"
 		@test="test \{func(a strin) {
 			<div></div>
 		}()}"
 	>
+		test = 2
 		"hello \{sth}test"
 	</div>
 }
