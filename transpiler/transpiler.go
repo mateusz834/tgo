@@ -81,7 +81,7 @@ func (t *transpiler) appendFromSource(end token.Pos) {
 func (t *transpiler) transpile() {
 	t.lastPosWritten = 1
 	ast.Inspect(t.f, t.inspect)
-	t.appendFromSource(t.f.End())
+	t.appendFromSource(t.f.FileEnd)
 }
 
 func (t *transpiler) inspect(n ast.Node) bool {
