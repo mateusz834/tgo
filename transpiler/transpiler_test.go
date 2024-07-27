@@ -23,7 +23,9 @@ func test(sth string) {
 		test = 2
 		@kdjf="lol \{sth} kdfjd"
 		@test="test \{func(a strin) {
-			<div></div>
+			<div>
+				"hello world :)"; tu
+			</div>
 		}()}"
 	>
 		test = 2
@@ -44,7 +46,7 @@ var _ = `
 	//</span>
 }
 
-`
+	`
 
 func TestTranspiler(t *testing.T) {
 	fs := token.NewFileSet()

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"slices"
+	"strconv"
 
 	"github.com/mateusz834/tgoast/ast"
 	"github.com/mateusz834/tgoast/token"
@@ -95,8 +96,45 @@ func (t *transpiler) inspect(n ast.Node) bool {
 	return true
 }
 
+func (t *transpiler) writeLineDirective() {
+	pos := t.lastPosWritten + 1
+
+	singleLine := false
+	for _, v := range t.src[pos-2:] {
+		fmt.Printf("v: %q\n", v)
+		if v == '\t' || v == ' ' {
+			continue
+		} else if v == '\n' {
+			break
+		} else {
+			singleLine = true
+			break
+		}
+	}
+
+	if singleLine {
+		pos--
+	}
+
+	p := t.fs.Position(pos)
+	if singleLine {
+		t.appendString(" /*line ")
+	} else {
+		t.appendString("\n//line ")
+	}
+	t.appendString(p.Filename)
+	t.appendString(":")
+	t.appendString(strconv.FormatInt(int64(p.Line), 10))
+	t.appendString(":")
+	t.appendString(strconv.FormatInt(int64(p.Column), 10))
+	if singleLine {
+		t.appendString("*/")
+	}
+}
+
 func (t *transpiler) transpileList(list []ast.Stmt) {
 	for _, n := range list {
+		t.writeLineDirective()
 		t.appendFromSource(n.Pos())
 		switch n := n.(type) {
 		case *ast.OpenTagStmt:
