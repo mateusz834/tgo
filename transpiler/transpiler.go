@@ -101,15 +101,11 @@ func (t *transpiler) writeLineDirective() {
 
 	singleLine := false
 	for _, v := range t.src[pos-2:] {
-		fmt.Printf("v: %q\n", v)
 		if v == '\t' || v == ' ' {
 			continue
-		} else if v == '\n' {
-			break
-		} else {
-			singleLine = true
-			break
 		}
+		singleLine = v != '\n'
+		break
 	}
 
 	if singleLine {

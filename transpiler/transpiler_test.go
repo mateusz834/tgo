@@ -24,13 +24,15 @@ func test(sth string) {
 		@kdjf="lol \{sth} kdfjd"
 		@test="test \{func(a strin) {
 			<div>
-				"hello world :)"; tu
+				"hello world :)"
 			</div>
 		}()}"
 	>
 		test = 2
 		"hello \{sth}test"
 	</div>
+
+	<div>"hello world"</div>
 }
 `
 
