@@ -20,7 +20,8 @@ const tgosrc = `package templates
 func test(sth string) {
 	test = 2
 	<div
-		test = 2
+		test = 2 //;
+		kdfj
 		@kdjf="lol \{sth} kdfjd"
 		@test="test \{func(a strin) {
 			<div>
@@ -32,7 +33,11 @@ func test(sth string) {
 		"hello \{sth}test"
 	</div>
 
-	<div>"hello world"</div>
+	<span>
+		<div><div>"hello world"</div></div>
+	</span>
+
+	<div><span>"test"</span></div>
 }
 `
 
