@@ -18,7 +18,7 @@ import (
 const tgosrc = `package templates
 
 func test(sth string) {
-	<div;
+	<div
 		testi() //;
 		kdfj
 		@kdjf="lol \{sth} kdfjd"
@@ -37,6 +37,8 @@ func test(sth string) {
 	</span>
 
 	<div><span>"test\{sth}aa\{sth2}bb\{sth3}"</span></div>
+
+	<div@class="test"@class="test"><div>"lol"</div></div>
 }
 `
 

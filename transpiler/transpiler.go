@@ -109,7 +109,7 @@ func (t *transpiler) inspect(n ast.Node) bool {
 	switch n := n.(type) {
 	case *ast.BlockStmt:
 		t.appendFromSource(n.Lbrace + 1)
-		t.transpileList(n.List)
+		t.transpileList(0, -1, n.List)
 		t.appendFromSource(n.Rbrace + 1)
 		return false
 	}
@@ -207,11 +207,11 @@ func (t *transpiler) writeLineDirective(pos token.Pos, list []ast.Stmt) {
 	}
 }
 
-func (t *transpiler) transpileList(list []ast.Stmt) {
-	var (
-		implicitIndentTabCount = 0
-		implicitIndentLine     = -1
-	)
+func (t *transpiler) transpileList(implicitIndentTabCount int, implicitIndentLine int, list []ast.Stmt) {
+	//	var (
+	//		implicitIndentTabCount = 0
+	//		implicitIndentLine     = -1
+	//	)
 
 	for i, n := range list {
 		t.writeLineDirective(t.lastPosWritten, list[i:])
@@ -222,13 +222,18 @@ func (t *transpiler) transpileList(list []ast.Stmt) {
 				implicitIndentTabCount = 0
 				implicitIndentLine = -1
 			}
+			implicitIndentLine = t.fs.Position(n.Pos()).Line
 
 			t.staticWriteIndent(implicitIndentTabCount, "<"+n.Name.Name)
 			t.wantNewlineIndent(implicitIndentTabCount)
 
 			t.appendString("{")
 			t.lastPosWritten = n.Name.End()
-			t.transpileList(n.Body)
+
+			implicitIndentTabCount++
+			t.transpileList(implicitIndentTabCount, implicitIndentLine, n.Body)
+			implicitIndentTabCount--
+
 			t.appendFromSource(n.End() - 1)
 			t.wantNewlineIndent(implicitIndentTabCount)
 			t.appendString("}")
@@ -237,29 +242,32 @@ func (t *transpiler) transpileList(list []ast.Stmt) {
 			t.wantNewlineIndent(implicitIndentTabCount)
 			t.appendString("{")
 			implicitIndentTabCount++
-			implicitIndentLine = t.fs.Position(n.Pos()).Line
 		case *ast.EndTagStmt:
 			implicitIndentTabCount = max(implicitIndentTabCount-1, 0)
 			t.wantNewlineIndent(implicitIndentTabCount)
 			t.appendString("}")
 			t.staticWriteIndent(implicitIndentTabCount, "</"+n.Name.Name+">")
 		case *ast.AttributeStmt:
-			t.staticWrite(" " + n.AttrName.(*ast.Ident).Name)
+			if t.fs.Position(n.Pos()).Line != implicitIndentLine {
+				implicitIndentLine = -1
+				implicitIndentTabCount = 0
+			}
+			t.staticWriteIndent(implicitIndentTabCount, " "+n.AttrName.(*ast.Ident).Name)
 			if n.Value != nil {
 				switch x := n.Value.(type) {
 				case *ast.BasicLit:
 					if x.Kind == token.STRING {
-						t.staticWrite(`=` + x.Value)
+						t.staticWriteIndent(implicitIndentTabCount, `=`+x.Value)
 					}
 				case *ast.TemplateLiteralExpr:
 					t.lastPosWritten = x.Pos()
 					for i := range x.Parts {
-						t.staticWrite(x.Strings[i])
+						t.staticWriteIndent(implicitIndentTabCount, x.Strings[i])
 						t.lastPosWritten += token.Pos(len(x.Strings[i])) + 2
-						t.dynamicWrite(x.Parts[i])
+						t.dynamicWriteIndent(implicitIndentTabCount, x.Parts[i])
 						t.lastPosWritten = x.Parts[i].End()
 					}
-					t.staticWrite(x.Strings[len(x.Strings)-1])
+					t.staticWriteIndent(implicitIndentTabCount, x.Strings[len(x.Strings)-1])
 					t.lastPosWritten = x.End()
 				}
 			}
