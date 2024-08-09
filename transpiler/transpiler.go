@@ -124,6 +124,7 @@ const (
 	directiveNormal
 )
 
+// TODO: list can be a next ast.Node, not a slice
 func (t *transpiler) directive(curPos token.Pos, list []ast.Stmt) directive {
 	if len(list) == 0 {
 		panic("unreachable")
@@ -142,31 +143,41 @@ func (t *transpiler) directive(curPos token.Pos, list []ast.Stmt) directive {
 		if v.Pos() > firstElPos {
 			break
 		}
-		if t.fs.Position(v.Pos()).Line == curPosLine {
+		if t.fs.Position(v.Pos()).Line == curPosLine || t.semiBetween(curPos, v.Pos()) {
 			return directiveOneline
 		}
 		return directiveNormal
 	}
 
-	for _, v := range list {
-		switch v := v.(type) {
-		case *ast.OpenTagStmt, *ast.EndTagStmt,
-			*ast.AttributeStmt:
+	v := list[0]
+	switch v := v.(type) {
+	case *ast.OpenTagStmt, *ast.EndTagStmt,
+		*ast.AttributeStmt:
+		return directiveIgnore
+	case *ast.ExprStmt:
+		if x, ok := v.X.(*ast.BasicLit); ok && x.Kind == token.STRING {
 			return directiveIgnore
-		case *ast.ExprStmt:
-			if x, ok := v.X.(*ast.BasicLit); ok && x.Kind == token.STRING {
-				return directiveIgnore
-			} else if _, ok := v.X.(*ast.TemplateLiteralExpr); ok {
-				return directiveIgnore
-			}
+		} else if _, ok := v.X.(*ast.TemplateLiteralExpr); ok {
+			return directiveIgnore
 		}
-		if t.fs.Position(v.Pos()).Line == curPosLine {
-			return directiveOneline
-		}
-		return directiveNormal
 	}
+	if t.fs.Position(v.Pos()).Line == curPosLine || t.semiBetween(curPos, v.Pos()) {
+		return directiveOneline
+	}
+	return directiveNormal
+}
 
-	panic("unreachable")
+func (t *transpiler) semiBetween(start, end token.Pos) bool {
+	for _, v := range t.src[start-1 : end-1] {
+		if v == ';' {
+			return true
+		}
+		if v == ' ' || v == '\t' || v == '\r' || v == '\n' {
+			continue
+		}
+		panic("unreachable")
+	}
+	return false
 }
 
 func (t *transpiler) writeLineDirective(pos token.Pos, list []ast.Stmt) {
