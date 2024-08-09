@@ -264,10 +264,13 @@ func (t *transpiler) transpileList(list []ast.Stmt) {
 				for i := range x.Parts {
 					t.staticWriteIndent(implicitIndentTabCount, x.Strings[i])
 					t.lastPosWritten += token.Pos(len(x.Strings[i])) + 2
+					if i > 0 {
+						t.lastPosWritten++
+					}
 					t.dynamicWriteIndent(implicitIndentTabCount, x.Parts[i])
 					t.lastPosWritten = x.Parts[i].End()
 				}
-				t.staticWrite(x.Strings[len(x.Strings)-1])
+				t.staticWriteIndent(implicitIndentTabCount, x.Strings[len(x.Strings)-1])
 				t.lastPosWritten = x.End()
 			} else {
 				ast.Inspect(n, t.inspect)
@@ -296,6 +299,7 @@ func (t *transpiler) dynamicWriteIndent(additionalIndent int, n ast.Expr) {
 	}
 	t.appendString(strings.Repeat("\t", additionalIndent))
 	t.appendString("if err := __tgo.DynamicWrite(__tgo_ctx, ")
+
 	ast.Inspect(n, t.inspect)
 	t.appendFromSource(n.End())
 	t.appendString("); err != nil {\n")

@@ -37,7 +37,7 @@ func test(sth string) {
 		<div><div>"hello world"</div></div>
 	</span>
 
-	<div><span>"test"</span></div>
+	<div><span>"test\{sth}aa\{sth2}bb\{sth3}"</span></div>
 }
 `
 
