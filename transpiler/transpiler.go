@@ -18,8 +18,6 @@ func Transpile(f *ast.File, fs *token.FileSet, src string) string {
 		f:   f,
 		fs:  fs,
 		src: src,
-
-		lineDirectiveMangled: true,
 	}
 	t.out = slices.Grow([]byte{}, len(src)*2)
 	t.transpile()
@@ -101,6 +99,9 @@ func (t *transpiler) appendFromSource(end token.Pos) {
 
 func (t *transpiler) transpile() {
 	t.lastPosWritten = 1
+	t.appendString("//line ")
+	t.appendString(t.fs.Position(t.f.FileStart).Filename)
+	t.appendString(":1:1\n")
 	ast.Inspect(t.f, t.inspect)
 	t.appendFromSource(t.f.FileEnd)
 }
@@ -290,14 +291,6 @@ func (t *transpiler) transpileList(implicitIndentTabCount int, implicitIndentLin
 		}
 		t.lastPosWritten = n.End()
 	}
-}
-
-func (t *transpiler) dynamicWrite(n ast.Expr) {
-	t.dynamicWriteIndent(0, n)
-}
-
-func (t *transpiler) staticWrite(s string) {
-	t.staticWriteIndent(0, s)
 }
 
 func (t *transpiler) dynamicWriteIndent(additionalIndent int, n ast.Expr) {

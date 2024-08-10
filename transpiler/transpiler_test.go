@@ -7,6 +7,10 @@ import (
 	"strings"
 	"testing"
 
+	goformat "go/format"
+	goparser "go/parser"
+	gotoken "go/token"
+
 	"github.com/mateusz834/tgo/analyzer"
 	"github.com/mateusz834/tgoast/ast"
 	"github.com/mateusz834/tgoast/format"
@@ -18,44 +22,45 @@ import (
 const tgosrc = `package templates
 
 func test(sth string) {
+	a = 3
 	<div>
 		"test"
 		<div>"test"</div>
 	</div>
 
-	<div
-		testi() //;
-		kdfj
-		@kdjf="lol \{sth} kdfjd"
-		@test="test \{func(a strin) {
-			<div>
-				"hello world :)"
-			</div>
-		}()}"
-	>
-		test = 2
-		"hello \{sth}test"
-	</div>
+	//<div
+	//	testi() //;
+	//	kdfj
+	//	@kdjf="lol \{sth} kdfjd"
+	//	@test="test \{func(a strin) {
+	//		<div>
+	//			"hello world :)"
+	//		</div>
+	//	}()}"
+	//>
+	//	test = 2
+	//	"hello \{sth}test"
+	//</div>
 
-	<span>
-		<div><div>"hello world"</div></div>
-	</span>
+	//<span>
+	//	<div><div>"hello world"</div></div>
+	//</span>
 
-	<div><span>"test\{sth}aa\{sth2}bb\{sth3}"</span></div>
+	//<div><span>"test\{sth}aa\{sth2}bb\{sth3}"</span></div>
 
-	<div@class="test"@class="test"><div>"lol"</div></div>
+	//<div@class="test"@class="test"><div>"lol"</div></div>
 
-	// TODO: ignore spaces between div name and attr and between attr and attr.
-	// TODO: comments?
-	<div
-		@class="test"
-		@class="testingg"
-		@class="test"
-		@class="testingg"
-		a = 3
-	>
-		"test"
-	</div>
+	//// TODO: ignore spaces between div name and attr and between attr and attr.
+	//// TODO: comments?
+	//<div
+	//	@class="test"
+	//	@class="testingg"
+	//	@class="test"
+	//	@class="testingg"
+	//	a = 3
+	//>
+	//	"test"
+	//</div>
 }
 `
 
@@ -125,40 +130,7 @@ func TestTranspiler(t *testing.T) {
 		t.Log(gitDiff(t.TempDir(), o.String(), out))
 		t.Fatal("difference found")
 	}
-
-	// ff := fileTranspiler{f: f}
-	// ff.transpile()
-	// ast.Print(fs, f)
 }
-
-//func TestGoSourceUnchanged(t *testing.T) {
-//	files, err := filepath.Glob("../../tgoast/parser/*.go")
-//	if err != nil {
-//		t.Error(err)
-//	}
-//
-//	for _, file := range files {
-//		c, err := os.ReadFile(file)
-//		if err != nil {
-//			t.Error(err)
-//		}
-//		fs := token.NewFileSet()
-//		f, err := parser.ParseFile(fs, file, c, parser.SkipObjectResolution|parser.ParseComments)
-//		if err != nil {
-//			t.Errorf("failed while parsing %q: %v", file, err)
-//		}
-//		out := Transpile(fs, f, string(c))
-//		if out != string(c) {
-//			t.Errorf("unexpected tranform of  %v", files)
-//			d, err := gitDiff(t.TempDir(), string(c), out)
-//			if err == nil {
-//				t.Logf("\n%v", d)
-//			}
-//		}
-//		t.Logf("\n%v", out)
-//
-//	}
-//}
 
 func gitDiff(tmpDir string, got, expect string) (string, error) {
 	gotPath := filepath.Join(tmpDir, "got")
@@ -190,40 +162,34 @@ func gitDiff(tmpDir string, got, expect string) (string, error) {
 	return out.String(), nil
 }
 
-//func TestFileToIr(t *testing.T) {
-//	cases := []struct {
-//		src string
-//		out ir.File
-//	}{
-//		{
-//			src: `package main
-//func test() {
-//	<div> /* lol
-//	*/
-//	</div>
-//}
-//`,
-//			out: ir.File{
-//				&ir.Source{Source: "package main\nfunc test() {\n\t"},
-//				&ir.StaticWrite{Strings: []string{"<", "div", ">", "</", "div", ">"}},
-//				&ir.Source{Source: "\n}"},
-//			},
-//		},
-//		{
-//			src: `package main
-//func test(sth string) { <div></div>
-//	<div>
-//		sth = "test"
-//	</div>
-//}
-//`,
-//			out: ir.File{
-//				&ir.Source{Source: "package main\nfunc test(sth string) {\n\t"},
-//				&ir.StaticWrite{Strings: []string{"<", "div", ">"}},
-//				&ir.Source{Source: "\n\t\tsth = \"test\"}\n\t"},
-//				&ir.StaticWrite{Strings: []string{"</", "div", ">"}},
-//				&ir.Source{Source: "\n}"},
-//			},
-//		},
-//	}
-//}
+func FuzzFormattedTgoProducesFormattedGoSource(t *testing.F) {
+	t.Fuzz(func(t *testing.T, src string) {
+		t.Logf("source:\n%v", src)
+
+		fs := token.NewFileSet()
+		f, err := parser.ParseFile(fs, "file.tgo", src, parser.ParseComments|parser.SkipObjectResolution)
+		if err != nil {
+			return
+		}
+
+		out := Transpile(f, fs, src)
+		t.Logf("transpiled output:\n%v", out)
+
+		fsgo := gotoken.NewFileSet()
+		fgo, err := goparser.ParseFile(fsgo, "file.go", src, goparser.ParseComments|goparser.SkipObjectResolution)
+		if err != nil {
+			t.Fatalf("goparser.ParseFile() = %v; want <nil>", err)
+		}
+
+		var outFmt strings.Builder
+		if err := goformat.Node(&outFmt, fsgo, fgo); err != nil {
+			t.Fatalf("goformat.Node() = %v; want <nil>", err)
+		}
+		t.Logf("formatted output:\n%v", outFmt)
+
+		if outFmt.String() != out {
+			t.Log(gitDiff(t.TempDir(), outFmt.String(), out))
+			t.Fatal("difference found")
+		}
+	})
+}
