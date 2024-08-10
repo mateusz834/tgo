@@ -18,6 +18,11 @@ import (
 const tgosrc = `package templates
 
 func test(sth string) {
+	<div>
+		"test"
+		<div>"test"</div>
+	</div>
+
 	<div
 		testi() //;
 		kdfj
@@ -39,6 +44,18 @@ func test(sth string) {
 	<div><span>"test\{sth}aa\{sth2}bb\{sth3}"</span></div>
 
 	<div@class="test"@class="test"><div>"lol"</div></div>
+
+	// TODO: ignore spaces between div name and attr and between attr and attr.
+	// TODO: comments?
+	<div
+		@class="test"
+		@class="testingg"
+		@class="test"
+		@class="testingg"
+		a = 3
+	>
+		"test"
+	</div>
 }
 `
 
@@ -81,13 +98,10 @@ func TestTranspiler(t *testing.T) {
 		t.Fatalf("%v", err)
 	}
 
-	ast.Inspect(f, func(n ast.Node) bool {
-		switch n := n.(type) {
-		case *ast.OpenTagStmt:
-			t.Logf("%q", tgosrc[n.Pos()-1:n.End()-1])
-		}
-		return true
-	})
+	fmted, err := format.Source([]byte(tgosrc))
+	if err == nil {
+		t.Log("\n" + string(fmted))
+	}
 
 	out := Transpile(f, fs, tgosrc)
 	t.Log("\n" + out)
