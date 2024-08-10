@@ -124,15 +124,10 @@ const (
 	directiveNormal
 )
 
-// TODO: list can be a next ast.Node, not a slice
-func (t *transpiler) directive(curPos token.Pos, list []ast.Stmt) directive {
-	if len(list) == 0 {
-		panic("unreachable")
-	}
-
+func (t *transpiler) directive(curPos token.Pos, nextNode ast.Node) directive {
 	var (
-		curPosLine = t.fs.Position(curPos).Line
-		firstElPos = list[0].Pos()
+		curPosLine  = t.fs.Position(curPos).Line
+		nextNodePos = nextNode.Pos()
 	)
 
 	for _, v := range t.f.Comments {
@@ -140,7 +135,7 @@ func (t *transpiler) directive(curPos token.Pos, list []ast.Stmt) directive {
 			// TODO: we can cache the pos to which we previously continued.
 			continue
 		}
-		if v.Pos() > firstElPos {
+		if v.Pos() > nextNodePos {
 			break
 		}
 		if t.fs.Position(v.Pos()).Line == curPosLine || t.semiBetween(curPos, v.Pos()) {
@@ -149,19 +144,18 @@ func (t *transpiler) directive(curPos token.Pos, list []ast.Stmt) directive {
 		return directiveNormal
 	}
 
-	v := list[0]
-	switch v := v.(type) {
+	switch nextNode := nextNode.(type) {
 	case *ast.OpenTagStmt, *ast.EndTagStmt,
 		*ast.AttributeStmt:
 		return directiveIgnore
 	case *ast.ExprStmt:
-		if x, ok := v.X.(*ast.BasicLit); ok && x.Kind == token.STRING {
+		if x, ok := nextNode.X.(*ast.BasicLit); ok && x.Kind == token.STRING {
 			return directiveIgnore
-		} else if _, ok := v.X.(*ast.TemplateLiteralExpr); ok {
+		} else if _, ok := nextNode.X.(*ast.TemplateLiteralExpr); ok {
 			return directiveIgnore
 		}
 	}
-	if t.fs.Position(v.Pos()).Line == curPosLine || t.semiBetween(curPos, v.Pos()) {
+	if t.fs.Position(nextNodePos).Line == curPosLine || t.semiBetween(curPos, nextNodePos) {
 		return directiveOneline
 	}
 	return directiveNormal
@@ -180,8 +174,8 @@ func (t *transpiler) semiBetween(start, end token.Pos) bool {
 	return false
 }
 
-func (t *transpiler) writeLineDirective(pos token.Pos, list []ast.Stmt) {
-	d := t.directive(pos, list)
+func (t *transpiler) writeLineDirective(pos token.Pos, next ast.Node) {
+	d := t.directive(pos, next)
 	if d == directiveIgnore {
 		t.lineDirectiveMangled = true
 		return
@@ -208,8 +202,8 @@ func (t *transpiler) writeLineDirective(pos token.Pos, list []ast.Stmt) {
 }
 
 func (t *transpiler) transpileList(implicitIndentTabCount int, implicitIndentLine int, list []ast.Stmt) {
-	for i, n := range list {
-		t.writeLineDirective(t.lastPosWritten, list[i:])
+	for _, n := range list {
+		t.writeLineDirective(t.lastPosWritten, n)
 		t.appendFromSource(n.Pos())
 		switch n := n.(type) {
 		case *ast.OpenTagStmt:
