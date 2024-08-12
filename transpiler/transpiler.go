@@ -216,9 +216,7 @@ func (t *transpiler) transpileList(implicitIndentTabCount int, implicitIndentLin
 			t.appendString("{")
 			t.lastPosWritten = n.Name.End()
 
-			implicitIndentTabCount++
-			t.transpileList(implicitIndentTabCount, implicitIndentLine, n.Body)
-			implicitIndentTabCount--
+			t.transpileList(implicitIndentTabCount+1, implicitIndentLine, n.Body)
 
 			t.appendFromSource(n.End() - 1)
 			t.wantNewlineIndent(implicitIndentTabCount)
