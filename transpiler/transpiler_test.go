@@ -25,7 +25,7 @@ func test(sth string) {
 	a = 3
 	<div>
 		"test"
-		<div>"test"</div>
+		<span><div>"test \{sth}"</div></span>
 	</div>
 
 	//<div

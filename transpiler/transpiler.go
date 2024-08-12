@@ -65,10 +65,6 @@ func (t *transpiler) lastNewline() bool {
 	return true
 }
 
-func (t *transpiler) wantNewline() string {
-	return t.wantNewlineIndent(0)
-}
-
 func (t *transpiler) wantNewlineIndent(additionalIndent int) string {
 	indent := t.lastIndent()
 	if additionalIndent != 0 && t.lastIndentMangled == "" {
@@ -294,13 +290,8 @@ func (t *transpiler) transpileList(implicitIndentTabCount int, implicitIndentLin
 }
 
 func (t *transpiler) dynamicWriteIndent(additionalIndent int, n ast.Expr) {
-	indent := t.wantNewline()
-	if additionalIndent != 0 && t.lastIndentMangled == "" {
-		t.lastIndentMangled = indent
-	}
-	t.appendString(strings.Repeat("\t", additionalIndent))
+	indent := t.wantNewlineIndent(additionalIndent)
 	t.appendString("if err := __tgo.DynamicWrite(__tgo_ctx, ")
-
 	ast.Inspect(n, t.inspect)
 	t.appendFromSource(n.End())
 	t.appendString("); err != nil {\n")
@@ -313,11 +304,7 @@ func (t *transpiler) dynamicWriteIndent(additionalIndent int, n ast.Expr) {
 }
 
 func (t *transpiler) staticWriteIndent(additionalIndent int, s string) {
-	indent := t.wantNewline()
-	if additionalIndent != 0 && t.lastIndentMangled == "" {
-		t.lastIndentMangled = indent
-	}
-	t.appendString(strings.Repeat("\t", additionalIndent))
+	indent := t.wantNewlineIndent(additionalIndent)
 	t.appendString("if err := __tgo_ctx.WriteString(`")
 	t.appendString(s)
 	t.appendString("`); err != nil {\n")
