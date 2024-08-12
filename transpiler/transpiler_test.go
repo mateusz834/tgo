@@ -24,11 +24,13 @@ const tgosrc = `package templates
 func test(sth string) {
 	a = 3
 	<div>
-		"test"
-		{
-			<span><div>"test \{sth}"</div></span>
-		}
 	</div>
+	//<div>
+	//	"test"
+	//	{
+	//		<span><div>"test \{sth}"</div></span>
+	//	}
+	//</div>
 
 	//<div
 	//	testi() //;

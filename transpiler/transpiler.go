@@ -34,6 +34,11 @@ type transpiler struct {
 
 	lineDirectiveMangled bool
 	lastIndentMangled    string
+
+	inStaticWrite                  bool
+	endStaticWriteIndent           string
+	endStaticWriteAdditionalIndent int
+	staticWriteTmp                 []byte
 }
 
 func (t *transpiler) lastIndent() string {
@@ -82,6 +87,10 @@ func (t *transpiler) appendString(s string) {
 	if transpilerDebug {
 		fmt.Printf("t.appendString(%q)\n", s)
 	}
+	if t.inStaticWrite {
+		t.staticWriteTmp = append(t.staticWriteTmp, s...)
+		return
+	}
 	t.out = append(t.out, s...)
 }
 
@@ -107,6 +116,7 @@ func (t *transpiler) inspect(n ast.Node) bool {
 	case *ast.BlockStmt:
 		t.appendFromSource(n.Lbrace + 1)
 		t.transpileList(0, -1, n.List)
+		t.endStaticWrite(nil)
 		t.appendFromSource(n.Rbrace + 1)
 		return false
 	}
@@ -201,6 +211,7 @@ func (t *transpiler) writeLineDirective(pos token.Pos, next ast.Node) {
 func (t *transpiler) transpileList(implicitIndentTabCount int, implicitIndentLine int, list []ast.Stmt) {
 	for _, n := range list {
 		t.writeLineDirective(t.lastPosWritten, n)
+		t.endStaticWrite(n)
 		t.appendFromSource(n.Pos())
 		switch n := n.(type) {
 		case *ast.OpenTagStmt:
@@ -287,6 +298,32 @@ func (t *transpiler) transpileList(implicitIndentTabCount int, implicitIndentLin
 	}
 }
 
+func (t *transpiler) endStaticWrite(next ast.Node) {
+	if t.inStaticWrite {
+		switch next := next.(type) {
+		case *ast.OpenTagStmt, *ast.EndTagStmt,
+			*ast.AttributeStmt:
+			return
+		case *ast.ExprStmt:
+			if x, ok := next.X.(*ast.BasicLit); ok && x.Kind == token.STRING {
+				return
+			} else if _, ok := next.X.(*ast.TemplateLiteralExpr); ok {
+				return
+			}
+		}
+		t.inStaticWrite = false
+		t.appendString("`); err != nil {\n")
+		t.appendString(t.endStaticWriteIndent)
+		t.appendString(strings.Repeat("\t", t.endStaticWriteAdditionalIndent))
+		t.appendString("\treturn err\n")
+		t.appendString(t.endStaticWriteIndent)
+		t.appendString(strings.Repeat("\t", t.endStaticWriteAdditionalIndent))
+		t.appendString("}")
+		t.appendString(string(t.staticWriteTmp))
+		t.staticWriteTmp = t.staticWriteTmp[:0]
+	}
+}
+
 func (t *transpiler) dynamicWriteIndent(additionalIndent int, n ast.Expr) {
 	indent := t.wantNewlineIndent(additionalIndent)
 	t.appendString("if err := __tgo.DynamicWrite(__tgo_ctx, ")
@@ -302,14 +339,15 @@ func (t *transpiler) dynamicWriteIndent(additionalIndent int, n ast.Expr) {
 }
 
 func (t *transpiler) staticWriteIndent(additionalIndent int, s string) {
-	indent := t.wantNewlineIndent(additionalIndent)
+	if t.inStaticWrite {
+		t.inStaticWrite = false
+		t.appendString(s)
+		t.inStaticWrite = true
+		return
+	}
+	t.endStaticWriteAdditionalIndent = additionalIndent
+	t.endStaticWriteIndent = t.wantNewlineIndent(additionalIndent)
 	t.appendString("if err := __tgo_ctx.WriteString(`")
 	t.appendString(s)
-	t.appendString("`); err != nil {\n")
-	t.appendString(indent)
-	t.appendString(strings.Repeat("\t", additionalIndent))
-	t.appendString("\treturn err\n")
-	t.appendString(indent)
-	t.appendString(strings.Repeat("\t", additionalIndent))
-	t.appendString("}")
+	t.inStaticWrite = true
 }
