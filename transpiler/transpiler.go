@@ -11,6 +11,8 @@ import (
 	"github.com/mateusz834/tgoast/token"
 )
 
+//TODO: ten blad co jest teraz, to jest dlatego, że wantNewline i te inne indent nie widza co jest w staticWriteTmp
+
 const transpilerDebug = true
 
 func Transpile(f *ast.File, fs *token.FileSet, src string) string {
