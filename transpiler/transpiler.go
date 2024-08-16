@@ -178,7 +178,7 @@ func (t *transpiler) semiBetween(start, end token.Pos) bool {
 	return false
 }
 
-func (t *transpiler) writeLineDirective(pos token.Pos, next ast.Node) {
+func (t *transpiler) writeLineDirective(pos token.Pos, prev, next ast.Node) {
 	d := t.directive(pos, next)
 	if d == directiveIgnore {
 		t.lineDirectiveMangled = true
@@ -189,6 +189,12 @@ func (t *transpiler) writeLineDirective(pos token.Pos, next ast.Node) {
 	}
 	t.inStaticWrite = false
 	t.lineDirectiveMangled = false
+
+	if v, ok := prev.(*ast.EndTagStmt); ok {
+		if t.fs.Position(v.Pos()).Line == t.fs.Position(next.Pos()).Line {
+			t.appendString(";")
+		}
+	}
 
 	p := t.fs.Position(pos + 1)
 	if d == directiveOneline {
@@ -207,8 +213,12 @@ func (t *transpiler) writeLineDirective(pos token.Pos, next ast.Node) {
 }
 
 func (t *transpiler) transpileList(implicitIndentTabCount int, implicitIndentLine int, list []ast.Stmt) {
-	for _, n := range list {
-		t.writeLineDirective(t.lastPosWritten, n)
+	for i, n := range list {
+		var prev ast.Node
+		if i != 0 {
+			prev = list[i-1]
+		}
+		t.writeLineDirective(t.lastPosWritten, prev, n)
 		t.appendFromSource(n.Pos())
 		switch n := n.(type) {
 		case *ast.OpenTagStmt:

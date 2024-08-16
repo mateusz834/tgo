@@ -10,7 +10,6 @@ import (
 
 	goformat "go/format"
 	goparser "go/parser"
-	"go/scanner"
 	goscanner "go/scanner"
 	gotoken "go/token"
 
@@ -18,28 +17,35 @@ import (
 	"github.com/mateusz834/tgoast/ast"
 	"github.com/mateusz834/tgoast/format"
 	"github.com/mateusz834/tgoast/parser"
+	"github.com/mateusz834/tgoast/scanner"
 	"github.com/mateusz834/tgoast/token"
 )
 
 const tgosrc = `package templates
 
-func test(sth string) {
-	<div
-		@class="test \{sth}"
-		@class2="test"
-		@class3="\{"lol"}"
-	>
-		"test"
-		"testing"
-		<div>"sth\{test}"</div>
-		{
-			<test></test>
-		}
-		<test></test>
-		for _, v := range a {
-			<test></test>
-		}
+func test(a string) {
+	<div>
 	</div>
+	34
+}
+
+func test(sth string) {
+	//<div
+	//	@class="test \{sth}"
+	//	@class2="test"
+	//	@class3="\{"lol"}"
+	//>
+	//	"test"
+	//	"testing"
+	//	<div>"sth\{test}"</div>
+	//	{
+	//		<test></test>
+	//	}
+	//	<test></test>
+	//	for _, v := range a {
+	//		<test></test>
+	//	}
+	//</div>
 
 	//<div>
 	//	"test"
@@ -255,12 +261,28 @@ func fuzzAddDir(f *testing.F, testdata string) {
 func FuzzFormattedTgoProducesFormattedGoSource111(f *testing.F) {
 	fuzzAddDir(f, "../../tgoast/printer/testdata/tgo")
 	fuzzAddDir(f, "../../tgoast/parser/testdata/tgo")
+	fuzzAddDir(f, "../../tgoast/printer")
+	fuzzAddDir(f, "../../tgoast/printer/testdata")
 	fuzzAddDir(f, "../../tgoast/parser")
+	fuzzAddDir(f, "../../tgoast/parser/testdata")
 	f.Fuzz(func(t *testing.T, name string, src string) {
 		t.Logf("source:\n%v", src)
 		fs := token.NewFileSet()
 		f, err := parser.ParseFile(fs, name, src, parser.ParseComments|parser.SkipObjectResolution)
 		if err != nil {
+			return
+		}
+
+		if _, err = parser.ParseFile(
+			token.NewFileSet(),
+			name,
+			"//line "+name+":1:1\npackage main",
+			parser.ParseComments|parser.SkipObjectResolution,
+		); err != nil {
+			return
+		}
+
+		if analyzer.Analyze(fs, f) != nil {
 			return
 		}
 
@@ -288,7 +310,7 @@ func FuzzFormattedTgoProducesFormattedGoSource111(f *testing.F) {
 					t.Logf("%v", v)
 				}
 			}
-			t.Fatalf("goparser.ParseFile() = %#v; want <nil>", err)
+			t.Fatalf("goparser.ParseFile() = %v; want <nil>", err)
 		}
 
 		var tgoFmt strings.Builder
