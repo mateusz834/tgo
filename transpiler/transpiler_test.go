@@ -1,6 +1,7 @@
 package transpiler
 
 import (
+	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -9,13 +10,14 @@ import (
 
 	goformat "go/format"
 	goparser "go/parser"
+	"go/scanner"
+	goscanner "go/scanner"
 	gotoken "go/token"
 
 	"github.com/mateusz834/tgo/analyzer"
 	"github.com/mateusz834/tgoast/ast"
 	"github.com/mateusz834/tgoast/format"
 	"github.com/mateusz834/tgoast/parser"
-	"github.com/mateusz834/tgoast/scanner"
 	"github.com/mateusz834/tgoast/token"
 )
 
@@ -180,10 +182,128 @@ func gitDiff(tmpDir string, got, expect string) (string, error) {
 	return out.String(), nil
 }
 
-func FuzzFormattedTgoProducesFormattedGoSource(t *testing.F) {
-	t.Fuzz(func(t *testing.T, src string) {
-		t.Logf("source:\n%v", src)
+func TestTranspile(t *testing.T) {
+	const testdata = "./testdata"
+	files, err := os.ReadDir(testdata)
+	if err != nil {
+		t.Fatal(err)
+	}
 
+	for _, v := range files {
+		ext := filepath.Ext(v.Name())
+		if ext != ".tgo" {
+			continue
+		}
+
+		testFile := filepath.Join(testdata, v.Name())
+		expectFileName := filepath.Join(testdata, v.Name()[:len(v.Name())-len(".tgo")]+".go")
+		t.Run(testFile, func(t *testing.T) {
+			content, err := os.ReadFile(testFile)
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Logf("%v:\n%s", testFile, content)
+
+			fs := token.NewFileSet()
+			f, err := parser.ParseFile(fs, testFile, content, parser.ParseComments|parser.SkipObjectResolution)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			out := Transpile(f, fs, string(content))
+			t.Logf("transpiled %v:\n%s", testFile, out)
+
+			expect, err := os.ReadFile(expectFileName)
+			if err != nil {
+				if errors.Is(err, os.ErrNotExist) {
+					if err := os.WriteFile(expectFileName, []byte(out), 06660); err != nil {
+						t.Fatal(err)
+					}
+					return
+				}
+				t.Fatal(err)
+			}
+
+			if out != string(expect) {
+				t.Log("make following changes to make this test pass:")
+				t.Log(gitDiff(t.TempDir(), out, string(expect)))
+				t.Fatal("difference found")
+			}
+		})
+	}
+}
+
+var (
+	staticTokens = []string{
+		"+", "-", "*", "/", "%",
+		"&", "|", "^", "<<", ">>", "&^",
+		"+=", "-=", "*=", "/=", "%=",
+		"&=", "|=", "^=", "<<=", ">>=", "&^=",
+		"&&", "||", "<-", "++", "--",
+		"==", "<", ">", "=", "!",
+		"!=", "<=", ">=", ":=", "...",
+		"(", "[", "{", ",", ".",
+		")", "]", "}", ";", ":",
+		"break", "case", "chan", "const", "continue",
+		"default", "defer", "else", "fallthrough", "for",
+		"func", "go", "goto", "if", "import",
+		"interface", "map", "package", "range", "return",
+		"select", "struct", "switch", "type", "var",
+		"~", "</", "@",
+	}
+
+	dynamicTokens = []string{
+		"//test",        // comment
+		"/*test*/",      // comment
+		"test",          // ident
+		"123",           // int
+		"123.123",       // float
+		"123i",          // imag
+		"'a'",           // char
+		`"test"`,        // string
+		`"test \{sth}"`, // template literal
+	}
+
+	whiteTokens = []string{"\n", "\t", " "}
+
+	tgoParts = []string{
+		"<div",
+		">",
+		"<div>",
+		"</div>",
+		"<span",
+		">",
+		"<span>",
+		"</span>",
+		`@attr1="value"`,
+		`@attr2="value \{sth}"`,
+		`"test"`,
+		`"test \{sth}"`,
+	}
+)
+
+func fuzzGenerateTgoSource(rand []byte) string {
+	var out strings.Builder
+	out.Grow(1024)
+	for len(rand) > 1 {
+		if rand[0] < 45 {
+			out.WriteString(staticTokens[int(rand[1])%len(staticTokens)])
+		} else if rand[0] < 100 {
+			out.WriteString(dynamicTokens[int(rand[1])%len(dynamicTokens)])
+		} else if rand[0] < 200 {
+			out.WriteString(tgoParts[int(rand[1])%len(tgoParts)])
+		} else {
+			out.WriteString(whiteTokens[int(rand[1])%len(whiteTokens)])
+		}
+		rand = rand[2:]
+	}
+	return out.String()
+}
+
+func FuzzFormattedTgoProducesFormattedGoSource(t *testing.F) {
+	t.Fuzz(func(t *testing.T, rand []byte) {
+		src := fuzzGenerateTgoSource(rand)
+		t.Logf("source:\n%v", src)
 		fs := token.NewFileSet()
 		f, err := parser.ParseFile(fs, "file.tgo", src, parser.ParseComments|parser.SkipObjectResolution)
 		if err != nil {
@@ -194,16 +314,105 @@ func FuzzFormattedTgoProducesFormattedGoSource(t *testing.F) {
 		t.Logf("transpiled output:\n%v", out)
 
 		fsgo := gotoken.NewFileSet()
-		fgo, err := goparser.ParseFile(fsgo, "file.go", src, goparser.ParseComments|goparser.SkipObjectResolution)
+		fgo, err := goparser.ParseFile(fsgo, "file.go", out, goparser.ParseComments|goparser.SkipObjectResolution)
 		if err != nil {
 			t.Fatalf("goparser.ParseFile() = %v; want <nil>", err)
+		}
+
+		var tgoFmt strings.Builder
+		if err := format.Node(&tgoFmt, fs, f); err != nil {
+			t.Fatalf("format.Node() = %v; want <nil>", err)
+		}
+
+		if tgoFmt.String() != src {
+			return
 		}
 
 		var outFmt strings.Builder
 		if err := goformat.Node(&outFmt, fsgo, fgo); err != nil {
 			t.Fatalf("goformat.Node() = %v; want <nil>", err)
 		}
-		t.Logf("formatted output:\n%v", outFmt)
+		t.Logf("formatted transpiled output:\n%v", outFmt.String())
+
+		if outFmt.String() != out {
+			t.Log(gitDiff(t.TempDir(), outFmt.String(), out))
+			t.Fatal("difference found")
+		}
+	})
+}
+
+func fuzzAddDir(f *testing.F, testdata string) {
+	files, err := os.ReadDir(testdata)
+	if err != nil {
+		f.Fatal(err)
+	}
+	for _, v := range files {
+		if v.IsDir() {
+			continue
+		}
+
+		testFile := filepath.Join(testdata, v.Name())
+		content, err := os.ReadFile(testFile)
+		if err != nil {
+			f.Fatal(err)
+		}
+		f.Add(testFile, string(content))
+	}
+}
+
+func FuzzFormattedTgoProducesFormattedGoSource111(f *testing.F) {
+	fuzzAddDir(f, "../../tgoast/printer/testdata/tgo")
+	fuzzAddDir(f, "../../tgoast/parser/testdata/tgo")
+	fuzzAddDir(f, "../../tgoast/parser")
+	f.Fuzz(func(t *testing.T, name string, src string) {
+		t.Logf("source:\n%v", src)
+		fs := token.NewFileSet()
+		f, err := parser.ParseFile(fs, name, src, parser.ParseComments|parser.SkipObjectResolution)
+		if err != nil {
+			return
+		}
+
+		if len(f.Comments) > 0 {
+			t.Skip()
+		}
+		ast.Inspect(f, func(n ast.Node) bool {
+			switch n.(type) {
+			case *ast.SwitchStmt:
+				t.Skip()
+			case *ast.SelectStmt:
+				t.Skip()
+			}
+			return true
+		})
+
+		out := Transpile(f, fs, src)
+		t.Logf("transpiled output:\n%v", out)
+
+		fsgo := gotoken.NewFileSet()
+		fgo, err := goparser.ParseFile(fsgo, name, out, goparser.ParseComments|goparser.SkipObjectResolution)
+		if err != nil {
+			if v, ok := err.(goscanner.ErrorList); ok {
+				for _, v := range v {
+					t.Logf("%v", v)
+				}
+			}
+			t.Fatalf("goparser.ParseFile() = %#v; want <nil>", err)
+		}
+
+		var tgoFmt strings.Builder
+		if err := format.Node(&tgoFmt, fs, f); err != nil {
+			t.Fatalf("format.Node() = %v; want <nil>", err)
+		}
+
+		if tgoFmt.String() != src {
+			return
+		}
+
+		var outFmt strings.Builder
+		if err := goformat.Node(&outFmt, fsgo, fgo); err != nil {
+			t.Fatalf("goformat.Node() = %v; want <nil>", err)
+		}
+		t.Logf("formatted transpiled output:\n%v", outFmt.String())
 
 		if outFmt.String() != out {
 			t.Log(gitDiff(t.TempDir(), outFmt.String(), out))

@@ -110,7 +110,6 @@ func (t *transpiler) inspect(n ast.Node) bool {
 	defer func() {
 		t.inStaticWrite = false
 	}()
-
 	switch n := n.(type) {
 	case *ast.BlockStmt:
 		t.appendFromSource(n.Lbrace + 1)
