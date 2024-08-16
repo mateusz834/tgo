@@ -214,7 +214,7 @@ func (t *transpiler) transpileList(implicitIndentTabCount int, implicitIndentLin
 			}
 			implicitIndentLine = t.fs.Position(n.Pos()).Line
 
-			t.staticWriteIndent(implicitIndentTabCount, "<"+n.Name.Name)
+			t.staticWriteIndentNoClearNewline(implicitIndentTabCount, "<"+n.Name.Name)
 			t.wantNewlineIndent(implicitIndentTabCount)
 
 			t.appendString("{")

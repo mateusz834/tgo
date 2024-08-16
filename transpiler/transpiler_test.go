@@ -29,9 +29,7 @@ func test(sth string) {
 	>
 		"test"
 		"testing"
-		{
-			<div>"sth\{test}"</div>
-		}
+		<div>"sth\{test}"</div>
 	</div>
 
 	//<div>
