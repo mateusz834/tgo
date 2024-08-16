@@ -22,9 +22,18 @@ import (
 const tgosrc = `package templates
 
 func test(sth string) {
-	a = 3
-	<div>
+	<div
+		@class="test \{sth}"
+		@class2="test"
+		@class3="\{"lol"}"
+	>
+		"test"
+		"testing"
+		{
+			<div>"sth\{test}"</div>
+		}
 	</div>
+
 	//<div>
 	//	"test"
 	//	{

@@ -11,8 +11,6 @@ import (
 	"github.com/mateusz834/tgoast/token"
 )
 
-//TODO: ten blad co jest teraz, to jest dlatego, że wantNewline i te inne indent nie widza co jest w staticWriteTmp
-
 const transpilerDebug = true
 
 func Transpile(f *ast.File, fs *token.FileSet, src string) string {
@@ -37,10 +35,8 @@ type transpiler struct {
 	lineDirectiveMangled bool
 	lastIndentMangled    string
 
-	inStaticWrite                  bool
-	endStaticWriteIndent           string
-	endStaticWriteAdditionalIndent int
-	staticWriteTmp                 []byte
+	inStaticWrite  bool
+	staticWritePos int
 }
 
 func (t *transpiler) lastIndent() string {
@@ -89,10 +85,6 @@ func (t *transpiler) appendString(s string) {
 	if transpilerDebug {
 		fmt.Printf("t.appendString(%q)\n", s)
 	}
-	if t.inStaticWrite {
-		t.staticWriteTmp = append(t.staticWriteTmp, s...)
-		return
-	}
 	t.out = append(t.out, s...)
 }
 
@@ -118,7 +110,6 @@ func (t *transpiler) inspect(n ast.Node) bool {
 	case *ast.BlockStmt:
 		t.appendFromSource(n.Lbrace + 1)
 		t.transpileList(0, -1, n.List)
-		t.endStaticWrite(nil)
 		t.appendFromSource(n.Rbrace + 1)
 		return false
 	}
@@ -192,6 +183,7 @@ func (t *transpiler) writeLineDirective(pos token.Pos, next ast.Node) {
 	if !t.lineDirectiveMangled {
 		return
 	}
+	t.inStaticWrite = false
 	t.lineDirectiveMangled = false
 
 	p := t.fs.Position(pos + 1)
@@ -213,7 +205,6 @@ func (t *transpiler) writeLineDirective(pos token.Pos, next ast.Node) {
 func (t *transpiler) transpileList(implicitIndentTabCount int, implicitIndentLine int, list []ast.Stmt) {
 	for _, n := range list {
 		t.writeLineDirective(t.lastPosWritten, n)
-		t.endStaticWrite(n)
 		t.appendFromSource(n.Pos())
 		switch n := n.(type) {
 		case *ast.OpenTagStmt:
@@ -249,24 +240,28 @@ func (t *transpiler) transpileList(implicitIndentTabCount int, implicitIndentLin
 				implicitIndentLine = -1
 				implicitIndentTabCount = 0
 			}
-			t.staticWriteIndent(implicitIndentTabCount, " "+n.AttrName.(*ast.Ident).Name)
 			if n.Value != nil {
 				switch x := n.Value.(type) {
 				case *ast.BasicLit:
+					t.staticWriteIndent(implicitIndentTabCount, " "+n.AttrName.(*ast.Ident).Name+"=")
 					if x.Kind == token.STRING {
-						t.staticWriteIndent(implicitIndentTabCount, `=`+x.Value)
+						t.staticWriteIndent(implicitIndentTabCount, x.Value)
 					}
 				case *ast.TemplateLiteralExpr:
+					t.staticWriteIndentNoClearNewline(implicitIndentTabCount, " "+n.AttrName.(*ast.Ident).Name+"=")
 					t.lastPosWritten = x.Pos()
 					for i := range x.Parts {
-						t.staticWriteIndent(implicitIndentTabCount, x.Strings[i])
+						t.staticWriteIndentNoClearNewline(implicitIndentTabCount, x.Strings[i])
 						t.lastPosWritten += token.Pos(len(x.Strings[i])) + 2
+						t.inStaticWrite = false
 						t.dynamicWriteIndent(implicitIndentTabCount, x.Parts[i])
 						t.lastPosWritten = x.Parts[i].End()
 					}
-					t.staticWriteIndent(implicitIndentTabCount, x.Strings[len(x.Strings)-1])
+					t.staticWriteIndentNoClearNewline(implicitIndentTabCount, x.Strings[len(x.Strings)-1])
 					t.lastPosWritten = x.End()
 				}
+			} else {
+				t.staticWriteIndent(implicitIndentTabCount, " "+n.AttrName.(*ast.Ident).Name)
 			}
 		case *ast.ExprStmt:
 			if t.fs.Position(n.Pos()).Line != implicitIndentLine {
@@ -278,15 +273,16 @@ func (t *transpiler) transpileList(implicitIndentTabCount int, implicitIndentLin
 			} else if x, ok := n.X.(*ast.TemplateLiteralExpr); ok {
 				t.lastPosWritten = x.Pos()
 				for i := range x.Parts {
-					t.staticWriteIndent(implicitIndentTabCount, x.Strings[i])
+					t.staticWriteIndentNoClearNewline(implicitIndentTabCount, x.Strings[i])
 					t.lastPosWritten += token.Pos(len(x.Strings[i])) + 2
 					if i > 0 {
 						t.lastPosWritten++
 					}
+					t.inStaticWrite = false
 					t.dynamicWriteIndent(implicitIndentTabCount, x.Parts[i])
 					t.lastPosWritten = x.Parts[i].End()
 				}
-				t.staticWriteIndent(implicitIndentTabCount, x.Strings[len(x.Strings)-1])
+				t.staticWriteIndentNoClearNewline(implicitIndentTabCount, x.Strings[len(x.Strings)-1])
 				t.lastPosWritten = x.End()
 			} else {
 				ast.Inspect(n, t.inspect)
@@ -297,32 +293,6 @@ func (t *transpiler) transpileList(implicitIndentTabCount int, implicitIndentLin
 			t.appendFromSource(n.End())
 		}
 		t.lastPosWritten = n.End()
-	}
-}
-
-func (t *transpiler) endStaticWrite(next ast.Node) {
-	if t.inStaticWrite {
-		switch next := next.(type) {
-		case *ast.OpenTagStmt, *ast.EndTagStmt,
-			*ast.AttributeStmt:
-			return
-		case *ast.ExprStmt:
-			if x, ok := next.X.(*ast.BasicLit); ok && x.Kind == token.STRING {
-				return
-			} else if _, ok := next.X.(*ast.TemplateLiteralExpr); ok {
-				return
-			}
-		}
-		t.inStaticWrite = false
-		t.appendString("`); err != nil {\n")
-		t.appendString(t.endStaticWriteIndent)
-		t.appendString(strings.Repeat("\t", t.endStaticWriteAdditionalIndent))
-		t.appendString("\treturn err\n")
-		t.appendString(t.endStaticWriteIndent)
-		t.appendString(strings.Repeat("\t", t.endStaticWriteAdditionalIndent))
-		t.appendString("}")
-		t.appendString(string(t.staticWriteTmp))
-		t.staticWriteTmp = t.staticWriteTmp[:0]
 	}
 }
 
@@ -342,14 +312,52 @@ func (t *transpiler) dynamicWriteIndent(additionalIndent int, n ast.Expr) {
 
 func (t *transpiler) staticWriteIndent(additionalIndent int, s string) {
 	if t.inStaticWrite {
-		t.inStaticWrite = false
-		t.appendString(s)
-		t.inStaticWrite = true
+		t.clearWithPrevNewline()
+		t.out = slices.Insert(t.out, t.staticWritePos, []byte(s)...)
+		t.staticWritePos += len(s)
 		return
 	}
-	t.endStaticWriteAdditionalIndent = additionalIndent
-	t.endStaticWriteIndent = t.wantNewlineIndent(additionalIndent)
+
+	t.inStaticWrite = true
+	indent := t.wantNewlineIndent(additionalIndent)
 	t.appendString("if err := __tgo_ctx.WriteString(`")
 	t.appendString(s)
+	t.staticWritePos = len(t.out)
+	t.appendString("`); err != nil {\n")
+	t.appendString(indent)
+	t.appendString(strings.Repeat("\t", additionalIndent))
+	t.appendString("\treturn err\n")
+	t.appendString(indent)
+	t.appendString(strings.Repeat("\t", additionalIndent))
+	t.appendString("}")
+}
+
+func (t *transpiler) staticWriteIndentNoClearNewline(additionalIndent int, s string) {
+	if t.inStaticWrite {
+		t.out = slices.Insert(t.out, t.staticWritePos, []byte(s)...)
+		t.staticWritePos += len(s)
+		return
+	}
+
 	t.inStaticWrite = true
+	indent := t.wantNewlineIndent(additionalIndent)
+	t.appendString("if err := __tgo_ctx.WriteString(`")
+	t.appendString(s)
+	t.staticWritePos = len(t.out)
+	t.appendString("`); err != nil {\n")
+	t.appendString(indent)
+	t.appendString(strings.Repeat("\t", additionalIndent))
+	t.appendString("\treturn err\n")
+	t.appendString(indent)
+	t.appendString(strings.Repeat("\t", additionalIndent))
+	t.appendString("}")
+}
+
+func (t *transpiler) clearWithPrevNewline() {
+	if t.lastNewline() {
+		i := bytes.LastIndexByte(t.out, '\n')
+		if i > 0 {
+			t.out = t.out[:i]
+		}
+	}
 }
