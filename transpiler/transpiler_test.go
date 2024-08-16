@@ -30,6 +30,13 @@ func test(sth string) {
 		"test"
 		"testing"
 		<div>"sth\{test}"</div>
+		{
+			<test></test>
+		}
+		<test></test>
+		for _, v := range a {
+			<test></test>
+		}
 	</div>
 
 	//<div>

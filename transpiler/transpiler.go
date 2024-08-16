@@ -106,6 +106,11 @@ func (t *transpiler) transpile() {
 }
 
 func (t *transpiler) inspect(n ast.Node) bool {
+	t.inStaticWrite = false
+	defer func() {
+		t.inStaticWrite = false
+	}()
+
 	switch n := n.(type) {
 	case *ast.BlockStmt:
 		t.appendFromSource(n.Lbrace + 1)
