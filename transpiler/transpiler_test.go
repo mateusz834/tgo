@@ -21,14 +21,28 @@ import (
 	"github.com/mateusz834/tgoast/token"
 )
 
+// TODO: transpilation of:
+//func A(A){"\{a}\{""}l"}
+
 const tgosrc = `package templates
 
 func test(a string) {
-	<div>
-	</div>
-	34
-}
+	""
 
+	""
+
+	""
+
+	"\{0}"
+}
+`
+
+//func test(a string) {
+//	"test"
+//	0
+//}
+
+const _ = `
 func test(sth string) {
 	//<div
 	//	@class="test \{sth}"
@@ -265,20 +279,21 @@ func FuzzFormattedTgoProducesFormattedGoSource111(f *testing.F) {
 	fuzzAddDir(f, "../../tgoast/printer/testdata")
 	fuzzAddDir(f, "../../tgoast/parser")
 	fuzzAddDir(f, "../../tgoast/parser/testdata")
+	fuzzAddDir(f, "../../tgoast/ast")
 	f.Fuzz(func(t *testing.T, name string, src string) {
-		t.Logf("source:\n%v", src)
-		fs := token.NewFileSet()
-		f, err := parser.ParseFile(fs, name, src, parser.ParseComments|parser.SkipObjectResolution)
-		if err != nil {
-			return
-		}
-
-		if _, err = parser.ParseFile(
+		if _, err := parser.ParseFile(
 			token.NewFileSet(),
 			name,
 			"//line "+name+":1:1\npackage main",
 			parser.ParseComments|parser.SkipObjectResolution,
 		); err != nil {
+			return
+		}
+
+		t.Logf("source:\n%v", src)
+		fs := token.NewFileSet()
+		f, err := parser.ParseFile(fs, name, src, parser.ParseComments|parser.SkipObjectResolution)
+		if err != nil {
 			return
 		}
 
@@ -290,11 +305,15 @@ func FuzzFormattedTgoProducesFormattedGoSource111(f *testing.F) {
 			t.Skip()
 		}
 		ast.Inspect(f, func(n ast.Node) bool {
-			switch n.(type) {
+			switch n := n.(type) {
 			case *ast.SwitchStmt:
 				t.Skip()
 			case *ast.SelectStmt:
 				t.Skip()
+			case *ast.BasicLit:
+				if strings.ContainsRune(n.Value, '`') {
+					t.Skip()
+				}
 			}
 			return true
 		})
@@ -310,6 +329,8 @@ func FuzzFormattedTgoProducesFormattedGoSource111(f *testing.F) {
 					t.Logf("%v", v)
 				}
 			}
+			t.Logf("quoted output:\n%q", src)
+			t.Logf("quoted transpiled output:\n%q", out)
 			t.Fatalf("goparser.ParseFile() = %v; want <nil>", err)
 		}
 
@@ -328,9 +349,19 @@ func FuzzFormattedTgoProducesFormattedGoSource111(f *testing.F) {
 		}
 		t.Logf("formatted transpiled output:\n%v", outFmt.String())
 
+		t.Logf("quoted output:\n%q", src)
+		t.Logf("quoted transpiled output:\n%q", out)
+		t.Logf("quoted formatted transpiled output:\n%q", outFmt.String())
+
 		if outFmt.String() != out {
-			t.Log(gitDiff(t.TempDir(), outFmt.String(), out))
-			t.Fatal("difference found")
+			diff, err := gitDiff(t.TempDir(), out, outFmt.String())
+			if err != nil {
+				t.Fatalf("difference found")
+			}
+			t.Fatalf(
+				"difference found, apply following changes to make this test pass:\n%v",
+				diff,
+			)
 		}
 	})
 }

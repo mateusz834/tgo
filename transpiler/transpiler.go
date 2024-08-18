@@ -3,6 +3,7 @@ package transpiler
 import (
 	"bytes"
 	"fmt"
+	"iter"
 	"slices"
 	"strconv"
 	"strings"
@@ -178,8 +179,41 @@ func (t *transpiler) semiBetween(start, end token.Pos) bool {
 	return false
 }
 
-func (t *transpiler) writeLineDirective(pos token.Pos, prev, next ast.Node) {
-	d := t.directive(pos, next)
+func (t *transpiler) skipEmptyLines() {
+	t.lastIndentMangled = t.lastIndent()
+
+	lastNewlinePos := t.lastPosWritten
+	lastWrittenPos := lastNewlinePos
+	for _, v := range t.src[lastWrittenPos-1:] {
+		if v == ' ' || v == '\t' {
+			lastWrittenPos++
+			continue
+		}
+		if v == '\n' {
+			lastNewlinePos = lastWrittenPos
+			lastWrittenPos++
+			continue
+		}
+		break
+	}
+	t.lastPosWritten = lastNewlinePos
+
+	lastNewline := len(t.out)
+	for i, v := range slices.Backward(t.out) {
+		if v == ' ' || v == '\t' {
+			continue
+		}
+		if v == '\n' {
+			lastNewline = i
+			continue
+		}
+		break
+	}
+	t.out = t.out[:lastNewline]
+}
+
+func (t *transpiler) writeLineDirective(prev, next ast.Node) {
+	d := t.directive(t.lastPosWritten, next)
 	if d == directiveIgnore {
 		t.lineDirectiveMangled = true
 		return
@@ -187,16 +221,22 @@ func (t *transpiler) writeLineDirective(pos token.Pos, prev, next ast.Node) {
 	if !t.lineDirectiveMangled {
 		return
 	}
+
+	t.skipEmptyLines()
 	t.inStaticWrite = false
 	t.lineDirectiveMangled = false
 
 	if v, ok := prev.(*ast.EndTagStmt); ok {
-		if t.fs.Position(v.Pos()).Line == t.fs.Position(next.Pos()).Line {
+		if t.fs.Position(v.End()).Line == t.fs.Position(next.Pos()).Line {
+			t.appendString(";")
+		}
+	} else if v, ok := prev.(*ast.EndTagStmt); ok {
+		if t.fs.Position(v.End()).Line == t.fs.Position(next.Pos()).Line {
 			t.appendString(";")
 		}
 	}
 
-	p := t.fs.Position(pos + 1)
+	p := t.fs.Position(t.lastPosWritten + 1)
 	if d == directiveOneline {
 		t.appendString(" /*line ")
 	} else {
@@ -212,13 +252,47 @@ func (t *transpiler) writeLineDirective(pos token.Pos, prev, next ast.Node) {
 	}
 }
 
+func (t *transpiler) skipAllWhite() {
+	for _, v := range t.src[t.lastPosWritten-1:] {
+		if v == ' ' || v == '\t' {
+			t.lastPosWritten++
+			continue
+		}
+		break
+	}
+}
+
+func (t *transpiler) iterList(list []ast.Stmt) iter.Seq[any] {
+	return func(yield func(any) bool) {
+		prevPos := list[0].Pos()
+		for _, v := range list {
+			curPos := v.Pos()
+			for _, v := range t.f.Comments {
+				if v.Pos() < prevPos {
+					continue
+				}
+				if v.Pos() > curPos {
+					break
+				}
+				if !yield(v) {
+					return
+				}
+			}
+			if !yield(v) {
+				return
+			}
+			prevPos = v.End()
+		}
+	}
+}
+
 func (t *transpiler) transpileList(implicitIndentTabCount int, implicitIndentLine int, list []ast.Stmt) {
 	for i, n := range list {
 		var prev ast.Node
 		if i != 0 {
 			prev = list[i-1]
 		}
-		t.writeLineDirective(t.lastPosWritten, prev, n)
+		t.writeLineDirective(prev, n)
 		t.appendFromSource(n.Pos())
 		switch n := n.(type) {
 		case *ast.OpenTagStmt:
@@ -244,11 +318,15 @@ func (t *transpiler) transpileList(implicitIndentTabCount int, implicitIndentLin
 			t.wantNewlineIndent(implicitIndentTabCount)
 			t.appendString("{")
 			implicitIndentTabCount++
+			t.lastPosWritten = n.End()
+			t.skipAllWhite()
 		case *ast.EndTagStmt:
 			implicitIndentTabCount = max(implicitIndentTabCount-1, 0)
 			t.wantNewlineIndent(implicitIndentTabCount)
 			t.appendString("}")
 			t.staticWriteIndent(implicitIndentTabCount, "</"+n.Name.Name+">")
+			t.lastPosWritten = n.End()
+			t.skipAllWhite()
 		case *ast.AttributeStmt:
 			if t.fs.Position(n.Pos()).Line != implicitIndentLine {
 				implicitIndentLine = -1
@@ -262,11 +340,11 @@ func (t *transpiler) transpileList(implicitIndentTabCount int, implicitIndentLin
 						t.staticWriteIndent(implicitIndentTabCount, x.Value)
 					}
 				case *ast.TemplateLiteralExpr:
-					t.staticWriteIndentNoClearNewline(implicitIndentTabCount, " "+n.AttrName.(*ast.Ident).Name+"=")
+					t.staticWriteIndent(implicitIndentTabCount, " "+n.AttrName.(*ast.Ident).Name+"=")
 					t.lastPosWritten = x.Pos()
 					for i := range x.Parts {
 						t.staticWriteIndentNoClearNewline(implicitIndentTabCount, x.Strings[i])
-						t.lastPosWritten += token.Pos(len(x.Strings[i])) + 2
+						t.lastPosWritten = x.Parts[i].Pos()
 						t.inStaticWrite = false
 						t.dynamicWriteIndent(implicitIndentTabCount, x.Parts[i])
 						t.lastPosWritten = x.Parts[i].End()
@@ -277,6 +355,8 @@ func (t *transpiler) transpileList(implicitIndentTabCount int, implicitIndentLin
 			} else {
 				t.staticWriteIndent(implicitIndentTabCount, " "+n.AttrName.(*ast.Ident).Name)
 			}
+			t.lastPosWritten = n.End()
+			t.skipAllWhite()
 		case *ast.ExprStmt:
 			if t.fs.Position(n.Pos()).Line != implicitIndentLine {
 				implicitIndentLine = -1
@@ -284,29 +364,33 @@ func (t *transpiler) transpileList(implicitIndentTabCount int, implicitIndentLin
 			}
 			if x, ok := n.X.(*ast.BasicLit); ok && x.Kind == token.STRING {
 				t.staticWriteIndent(implicitIndentTabCount, x.Value)
+				t.lastPosWritten = n.End()
+				t.skipAllWhite()
 			} else if x, ok := n.X.(*ast.TemplateLiteralExpr); ok {
 				t.lastPosWritten = x.Pos()
 				for i := range x.Parts {
 					t.staticWriteIndentNoClearNewline(implicitIndentTabCount, x.Strings[i])
-					t.lastPosWritten += token.Pos(len(x.Strings[i])) + 2
-					if i > 0 {
-						t.lastPosWritten++
-					}
+					t.lastPosWritten = x.Parts[i].Pos()
 					t.inStaticWrite = false
 					t.dynamicWriteIndent(implicitIndentTabCount, x.Parts[i])
 					t.lastPosWritten = x.Parts[i].End()
 				}
 				t.staticWriteIndentNoClearNewline(implicitIndentTabCount, x.Strings[len(x.Strings)-1])
-				t.lastPosWritten = x.End()
+				t.lastPosWritten = n.End()
+				t.skipAllWhite()
 			} else {
 				ast.Inspect(n, t.inspect)
 				t.appendFromSource(n.End())
+				t.lastPosWritten = n.End()
 			}
 		default:
 			ast.Inspect(n, t.inspect)
 			t.appendFromSource(n.End())
+			t.lastPosWritten = n.End()
 		}
-		t.lastPosWritten = n.End()
+	}
+	if t.lineDirectiveMangled {
+		t.skipEmptyLines()
 	}
 }
 
