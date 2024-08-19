@@ -1,0 +1,10 @@
+package templates
+
+func template(a string) {
+	<div></div>
+}
+
+func template2(a string) {
+	<div>
+	</div>
+}

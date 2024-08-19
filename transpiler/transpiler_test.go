@@ -365,3 +365,55 @@ func FuzzFormattedTgoProducesFormattedGoSource111(f *testing.F) {
 		}
 	})
 }
+
+const tgosrc2 = `package main
+
+func main() {
+	;
+
+	// akf
+	// dkfj
+
+	;
+}
+`
+
+func TestTesting(t *testing.T) {
+	fs := token.NewFileSet()
+	f, err := parser.ParseFile(fs, "test.tgo", tgosrc2, parser.SkipObjectResolution|parser.ParseComments)
+
+	ast.Print(fs, f)
+
+	if err != nil {
+		if v, ok := err.(scanner.ErrorList); ok {
+			for _, err := range v {
+				t.Errorf("%v", err)
+			}
+		}
+		t.Fatalf("%v", err)
+	}
+
+	err = analyzer.Analyze(fs, f)
+	if v, ok := err.(analyzer.AnalyzeErrors); ok {
+		for _, v := range v {
+			t.Logf("%v", v)
+		}
+	}
+	if err != nil {
+		t.Fatalf("%v", err)
+	}
+	tt := transpiler{
+		f:   f,
+		fs:  fs,
+		src: tgosrc2,
+	}
+
+	b := f.Decls[0].(*ast.FuncDecl).Body
+
+	t.Logf("%q", tt.src[b.Lbrace+1-1:b.Rbrace-1])
+
+	for v := range tt.iterWhite(b.Lbrace+1, b.Rbrace-1) {
+		t.Logf("%#v", v)
+		t.Logf("%#v", tt.src[v.pos-1:v.end()-1])
+	}
+}

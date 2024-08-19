@@ -3,7 +3,6 @@ package transpiler
 import (
 	"bytes"
 	"fmt"
-	"iter"
 	"slices"
 	"strconv"
 	"strings"
@@ -259,30 +258,6 @@ func (t *transpiler) skipAllWhite() {
 			continue
 		}
 		break
-	}
-}
-
-func (t *transpiler) iterList(list []ast.Stmt) iter.Seq[any] {
-	return func(yield func(any) bool) {
-		prevPos := list[0].Pos()
-		for _, v := range list {
-			curPos := v.Pos()
-			for _, v := range t.f.Comments {
-				if v.Pos() < prevPos {
-					continue
-				}
-				if v.Pos() > curPos {
-					break
-				}
-				if !yield(v) {
-					return
-				}
-			}
-			if !yield(v) {
-				return
-			}
-			prevPos = v.End()
-		}
 	}
 }
 
