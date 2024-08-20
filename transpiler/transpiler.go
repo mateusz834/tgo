@@ -83,73 +83,9 @@ func (t *transpiler) inspect(n ast.Node) bool {
 	return true
 }
 
-type directive uint8
-
-const (
-	_ directive = iota
-	directiveOneline
-	directiveNormal
-)
-
-func (t *transpiler) directive(curPos token.Pos, nextNode ast.Node) directive {
-	var (
-		curPosLine  = t.fs.Position(curPos).Line
-		nextNodePos = nextNode.Pos()
-	)
-
-	for _, v := range t.f.Comments {
-		if v.Pos() < curPos {
-			// TODO: we can cache the pos to which we previously continued.
-			continue
-		}
-		if v.Pos() > nextNodePos {
-			break
-		}
-		if t.fs.Position(v.Pos()).Line == curPosLine || t.semiBetween(curPos, v.Pos()) {
-			return directiveOneline
-		}
-		return directiveNormal
-	}
-
-	if t.fs.Position(nextNodePos).Line == curPosLine || t.semiBetween(curPos, nextNodePos) {
-		return directiveOneline
-	}
-	return directiveNormal
-}
-
-func (t *transpiler) semiBetween(start, end token.Pos) bool {
-	for _, v := range t.src[start-1 : end-1] {
-		if v == ';' {
-			return true
-		}
-		if v == ' ' || v == '\t' || v == '\r' || v == '\n' {
-			continue
-		}
-		panic("unreachable")
-	}
-	return false
-}
-
-func (t *transpiler) writeLineDirective(prev, next ast.Node) {
-	d := t.directive(t.lastPosWritten, next)
-	if !t.lineDirectiveMangled {
-		return
-	}
-	t.inStaticWrite = false
-	t.lineDirectiveMangled = false
-
-	if v, ok := prev.(*ast.EndTagStmt); ok {
-		if t.fs.Position(v.End()).Line == t.fs.Position(next.Pos()).Line {
-			t.appendString(";")
-		}
-	} else if v, ok := prev.(*ast.EndTagStmt); ok {
-		if t.fs.Position(v.End()).Line == t.fs.Position(next.Pos()).Line {
-			t.appendString(";")
-		}
-	}
-
-	p := t.fs.Position(t.lastPosWritten + 1)
-	if d == directiveOneline {
+func (t *transpiler) writeLineDirective(oneline bool, pos token.Pos) {
+	p := t.fs.Position(pos + 1)
+	if oneline {
 		t.appendString(" /*line ")
 	} else {
 		t.appendString("\n//line ")
@@ -159,7 +95,7 @@ func (t *transpiler) writeLineDirective(prev, next ast.Node) {
 	t.appendString(strconv.FormatInt(int64(p.Line), 10))
 	t.appendString(":")
 	t.appendString(strconv.FormatInt(int64(p.Column), 10))
-	if d == directiveOneline {
+	if oneline {
 		t.appendString("*/")
 	}
 }
@@ -227,16 +163,30 @@ func isTgo(n ast.Node) bool {
 func (t *transpiler) transpileList(additionalIndent int, lastIndentLine int, list []ast.Stmt) {
 	var prev ast.Node
 	for _, n := range list {
+		var (
+			onelineDirective = t.fs.Position(t.lastPosWritten).Line == t.fs.Position(n.Pos()).Line
+			beforeNewline    = true
+		)
 		for v := range t.iterWhite(t.lastPosWritten, n.Pos()-1) {
 			switch v.whiteType {
 			case whiteWhite:
+				if beforeNewline {
+					onelineDirective = true
+				}
 			case whiteIndent:
 				t.lastIndentation = v.text
 				t.prevIndent = true
+				beforeNewline = false
 			case whiteComment:
 				t.prevIndent = false
+				if beforeNewline {
+					onelineDirective = true
+				}
 			case whiteSemi:
 				t.prevIndent = false
+				if beforeNewline {
+					onelineDirective = true
+				}
 			default:
 				panic("unreachable")
 			}
@@ -252,8 +202,21 @@ func (t *transpiler) transpileList(additionalIndent int, lastIndentLine int, lis
 			t.prevIndent = false
 			t.lineDirectiveMangled = true
 		} else {
-			t.writeLineDirective(prev, n)
-			t.appendFromSource(n.Pos())
+			if t.lineDirectiveMangled {
+				t.inStaticWrite = false
+				t.lineDirectiveMangled = false
+				if v, ok := prev.(*ast.EndTagStmt); ok {
+					if t.fs.Position(v.End()).Line == t.fs.Position(n.Pos()).Line {
+						t.appendString(";")
+					}
+				} else if v, ok := prev.(*ast.EndTagStmt); ok {
+					if t.fs.Position(v.End()).Line == t.fs.Position(n.Pos()).Line {
+						t.appendString(";")
+					}
+				}
+				t.writeLineDirective(onelineDirective, t.lastPosWritten)
+				t.appendFromSource(n.Pos())
+			}
 		}
 
 		switch n := n.(type) {
