@@ -19,6 +19,8 @@ func Transpile(f *ast.File, fs *token.FileSet, src string) string {
 		fs:  fs,
 		src: src,
 		out: slices.Grow([]byte{}, len(src)*2),
+
+		lastIndentation: "\n",
 	}
 	t.transpile()
 	return string(t.out)
@@ -33,7 +35,6 @@ type transpiler struct {
 	lastPosWritten token.Pos
 
 	lineDirectiveMangled bool
-	lastIndentMangled    string
 
 	inStaticWrite  bool
 	staticWritePos int
@@ -80,48 +81,6 @@ func (t *transpiler) inspect(n ast.Node) bool {
 		return false
 	}
 	return true
-}
-
-func (t *transpiler) lastIndent() string {
-	if t.lastIndentMangled != "" {
-		n := t.lastIndentMangled
-		t.lastIndentMangled = ""
-		return n
-	}
-
-	i := max(bytes.LastIndexByte(t.out, '\n')+1, 0)
-
-	for j, v := range t.out[i:] {
-		if v == ' ' || v == '\t' {
-			continue
-		}
-		return string(t.out[i : i+j])
-	}
-
-	return string(t.out[i:])
-}
-
-func (t *transpiler) lastNewline() bool {
-	i := max(bytes.LastIndexByte(t.out, '\n')+1, 0)
-	for _, v := range t.out[i:] {
-		if v != ' ' && v != '\t' {
-			return false
-		}
-	}
-	return true
-}
-
-func (t *transpiler) wantNewlineIndent(additionalIndent int) string {
-	indent := t.lastIndent()
-	if additionalIndent != 0 && t.lastIndentMangled == "" {
-		t.lastIndentMangled = indent
-	}
-	if !t.lastNewline() {
-		t.appendString("\n")
-		t.appendString(indent)
-		t.appendString(strings.Repeat("\t", additionalIndent))
-	}
-	return indent
 }
 
 type directive uint8
@@ -211,6 +170,12 @@ func (t *transpiler) appendSourceIndented(additionalIndent int, source string) {
 }
 
 func (t *transpiler) wantIndent(additionalIndent int) {
+	if transpilerDebug {
+		if !strings.HasPrefix(t.lastIndentation, "\n") {
+			panic("unreachable")
+		}
+	}
+
 	if !t.prevIndent {
 		if transpilerDebug {
 			fmt.Printf(
