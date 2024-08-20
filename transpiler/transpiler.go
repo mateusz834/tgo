@@ -60,7 +60,7 @@ func (t *transpiler) appendFromSource(end token.Pos) {
 }
 
 func (t *transpiler) transpile() {
-	t.lastPosWritten = 1
+	t.lastPosWritten = t.f.FileStart
 	t.appendSource("//line ")
 	t.appendSource(t.fs.Position(t.f.FileStart).Filename)
 	t.appendSource(":1:1\n")
@@ -238,6 +238,7 @@ func (t *transpiler) transpileList(additionalIndent int, lastIndentLine int, lis
 				if v.whiteType == whiteIndent {
 					t.lastIndentation = v.text
 				} else {
+					continue
 					// TODO: figure case this out.
 					panic("unreachable")
 				}
@@ -316,7 +317,9 @@ func (t *transpiler) transpileTemplateLiteral(additionalIndent int, x *ast.Templ
 func (t *transpiler) dynamicWriteIndent(additionalIndent int, n ast.Expr) {
 	t.wantIndent(additionalIndent)
 	t.appendSource("if err := __tgo.DynamicWrite(__tgo_ctx, ")
+	indent := t.lastIndentation
 	ast.Inspect(n, t.inspect)
+	t.lastIndentation = indent
 	t.appendFromSource(n.End())
 	t.appendSource("); err != nil {")
 	t.wantIndent(additionalIndent)

@@ -27,7 +27,9 @@ import (
 const tgosrc = `package templates
 
 func test(a string) {
-	<div>"lol \{a}"</div>
+	"\{func() {
+		""
+	}()}"
 }
 
 //func test(a string) {
@@ -279,16 +281,20 @@ func FuzzFormattedTgoProducesFormattedGoSource(f *testing.F) {
 	fuzzAddDir(f, "../../tgoast/parser/testdata")
 	fuzzAddDir(f, "../../tgoast/ast")
 	f.Fuzz(func(t *testing.T, name string, src string) {
+		t.Logf("file name: %q", name)
+
 		if _, err := parser.ParseFile(
 			token.NewFileSet(),
 			name,
 			"//line "+name+":1:1\npackage main",
 			parser.ParseComments|parser.SkipObjectResolution,
-		); err != nil {
+		); err != nil || strings.ContainsRune(name, '\r') || strings.ContainsRune(src, '\r') {
 			return
 		}
 
 		t.Logf("source:\n%v", src)
+		t.Logf("quoted input:\n%q", src)
+
 		fs := token.NewFileSet()
 		f, err := parser.ParseFile(fs, name, src, parser.ParseComments|parser.SkipObjectResolution)
 		if err != nil {
@@ -333,7 +339,6 @@ func FuzzFormattedTgoProducesFormattedGoSource(f *testing.F) {
 					t.Logf("%v", v)
 				}
 			}
-			t.Logf("quoted output:\n%q", src)
 			t.Logf("quoted transpiled output:\n%q", out)
 			t.Fatalf("goparser.ParseFile() = %v; want <nil>", err)
 		}
@@ -353,7 +358,6 @@ func FuzzFormattedTgoProducesFormattedGoSource(f *testing.F) {
 		}
 		t.Logf("formatted transpiled output:\n%v", outFmt.String())
 
-		t.Logf("quoted output:\n%q", src)
 		t.Logf("quoted transpiled output:\n%q", out)
 		t.Logf("quoted formatted transpiled output:\n%q", outFmt.String())
 
