@@ -43,7 +43,7 @@ type transpiler struct {
 	prevIndent      bool
 }
 
-func (t *transpiler) appendString(s string) {
+func (t *transpiler) appendSource(s string) {
 	if transpilerDebug {
 		fmt.Printf("t.appendString(%q)\n", s)
 	}
@@ -55,15 +55,15 @@ func (t *transpiler) appendFromSource(end token.Pos) {
 	if transpilerDebug {
 		fmt.Printf("t.appendFromSource(%v) -> ", end)
 	}
-	t.appendString(t.src[t.lastPosWritten-1 : end-1])
+	t.appendSource(t.src[t.lastPosWritten-1 : end-1])
 	t.lastPosWritten = end
 }
 
 func (t *transpiler) transpile() {
 	t.lastPosWritten = 1
-	t.appendString("//line ")
-	t.appendString(t.fs.Position(t.f.FileStart).Filename)
-	t.appendString(":1:1\n")
+	t.appendSource("//line ")
+	t.appendSource(t.fs.Position(t.f.FileStart).Filename)
+	t.appendSource(":1:1\n")
 	ast.Inspect(t.f, t.inspect)
 	t.appendFromSource(t.f.FileEnd)
 }
@@ -86,23 +86,23 @@ func (t *transpiler) inspect(n ast.Node) bool {
 func (t *transpiler) writeLineDirective(oneline bool, pos token.Pos) {
 	p := t.fs.Position(pos + 1)
 	if oneline {
-		t.appendString(" /*line ")
+		t.appendSource(" /*line ")
 	} else {
-		t.appendString("\n//line ")
+		t.appendSource("\n//line ")
 	}
-	t.appendString(p.Filename)
-	t.appendString(":")
-	t.appendString(strconv.FormatInt(int64(p.Line), 10))
-	t.appendString(":")
-	t.appendString(strconv.FormatInt(int64(p.Column), 10))
+	t.appendSource(p.Filename)
+	t.appendSource(":")
+	t.appendSource(strconv.FormatInt(int64(p.Line), 10))
+	t.appendSource(":")
+	t.appendSource(strconv.FormatInt(int64(p.Column), 10))
 	if oneline {
-		t.appendString("*/")
+		t.appendSource("*/")
 	}
 }
 
 func (t *transpiler) appendSourceIndented(additionalIndent int, source string) {
 	t.wantIndent(additionalIndent)
-	t.appendString(source)
+	t.appendSource(source)
 }
 
 func (t *transpiler) wantIndent(additionalIndent int) {
@@ -207,11 +207,11 @@ func (t *transpiler) transpileList(additionalIndent int, lastIndentLine int, lis
 				t.lineDirectiveMangled = false
 				if v, ok := prev.(*ast.EndTagStmt); ok {
 					if t.fs.Position(v.End()).Line == t.fs.Position(n.Pos()).Line {
-						t.appendString(";")
+						t.appendSource(";")
 					}
 				} else if v, ok := prev.(*ast.EndTagStmt); ok {
 					if t.fs.Position(v.End()).Line == t.fs.Position(n.Pos()).Line {
-						t.appendString(";")
+						t.appendSource(";")
 					}
 				}
 				t.writeLineDirective(onelineDirective, t.lastPosWritten)
@@ -315,14 +315,14 @@ func (t *transpiler) transpileTemplateLiteral(additionalIndent int, x *ast.Templ
 
 func (t *transpiler) dynamicWriteIndent(additionalIndent int, n ast.Expr) {
 	t.wantIndent(additionalIndent)
-	t.appendString("if err := __tgo.DynamicWrite(__tgo_ctx, ")
+	t.appendSource("if err := __tgo.DynamicWrite(__tgo_ctx, ")
 	ast.Inspect(n, t.inspect)
 	t.appendFromSource(n.End())
-	t.appendString("); err != nil {")
+	t.appendSource("); err != nil {")
 	t.wantIndent(additionalIndent)
-	t.appendString("\treturn err")
+	t.appendSource("\treturn err")
 	t.wantIndent(additionalIndent)
-	t.appendString("}")
+	t.appendSource("}")
 }
 
 func (t *transpiler) staticWriteIndent(additionalIndent int, s string) {
@@ -333,12 +333,12 @@ func (t *transpiler) staticWriteIndent(additionalIndent int, s string) {
 	}
 	t.inStaticWrite = true
 	t.wantIndent(additionalIndent)
-	t.appendString("if err := __tgo_ctx.WriteString(`")
-	t.appendString(s)
+	t.appendSource("if err := __tgo_ctx.WriteString(`")
+	t.appendSource(s)
 	t.staticWritePos = len(t.out)
-	t.appendString("`); err != nil {")
+	t.appendSource("`); err != nil {")
 	t.wantIndent(additionalIndent)
-	t.appendString("\treturn err")
+	t.appendSource("\treturn err")
 	t.wantIndent(additionalIndent)
-	t.appendString("}")
+	t.appendSource("}")
 }
