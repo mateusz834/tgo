@@ -312,6 +312,12 @@ func FuzzFormattedTgoProducesFormattedGoSource(f *testing.F) {
 				if strings.ContainsRune(n.Value, '`') {
 					t.Skip()
 				}
+			case *ast.TemplateLiteralExpr:
+				for _, v := range n.Strings {
+					if strings.ContainsRune(v, '`') {
+						t.Skip()
+					}
+				}
 			}
 			return true
 		})
