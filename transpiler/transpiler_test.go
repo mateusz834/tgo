@@ -27,9 +27,7 @@ import (
 const tgosrc = `package templates
 
 func test(a string) {
-	"\{func() {
-		""
-	}()}"
+	<ArtiCle>0</ArtiCle>
 }
 
 //func test(a string) {
@@ -288,7 +286,9 @@ func FuzzFormattedTgoProducesFormattedGoSource(f *testing.F) {
 			name,
 			"//line "+name+":1:1\n/*line "+name+":1:1*/\npackage main",
 			parser.ParseComments|parser.SkipObjectResolution,
-		); err != nil || strings.ContainsRune(name, '\r') || strings.ContainsRune(src, '\r') {
+		); err != nil ||
+			strings.ContainsRune(name, '\r') || strings.ContainsRune(src, '\r') ||
+			strings.ContainsRune(name, '\f') {
 			return
 		}
 
