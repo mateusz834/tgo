@@ -18,8 +18,8 @@ func Transpile(f *ast.File, fs *token.FileSet, src string) string {
 		f:   f,
 		fs:  fs,
 		src: src,
+		out: slices.Grow([]byte{}, len(src)*2),
 	}
-	t.out = slices.Grow([]byte{}, len(src)*2)
 	t.transpile()
 	return string(t.out)
 }
@@ -259,7 +259,7 @@ func isTgo(n ast.Node) bool {
 	return false
 }
 
-func (t *transpiler) transpileList(implicitIndentTabCount int, implicitIndentLine int, list []ast.Stmt) {
+func (t *transpiler) transpileList(additionalIndent int, lastIndentLine int, list []ast.Stmt) {
 	var prev ast.Node
 	for _, n := range list {
 		for v := range t.iterWhite(t.lastPosWritten, n.Pos()-1) {
@@ -293,70 +293,72 @@ func (t *transpiler) transpileList(implicitIndentTabCount int, implicitIndentLin
 
 		switch n := n.(type) {
 		case *ast.OpenTagStmt:
-			//if t.fs.Position(n.Pos()).Line != implicitIndentLine {
-			//	implicitIndentTabCount = 0
-			//	implicitIndentLine = -1
-			//}
-			//implicitIndentLine = t.fs.Position(n.Pos()).Line
+			if t.fs.Position(n.Pos()).Line != lastIndentLine {
+				additionalIndent = 0
+			}
+			lastIndentLine = t.fs.Position(n.Pos()).Line
 
-			t.staticWriteIndent(implicitIndentTabCount, "<")
-			t.staticWriteIndent(implicitIndentTabCount, n.Name.Name)
+			t.staticWriteIndent(additionalIndent, "<")
+			t.staticWriteIndent(additionalIndent, n.Name.Name)
 
-			t.appendSourceIndented(implicitIndentTabCount, "{")
+			t.appendSourceIndented(additionalIndent, "{")
 			t.lastPosWritten = n.Name.End()
 
-			t.transpileList(0 /*implicitIndentTabCount+1*/, implicitIndentLine, n.Body)
+			t.transpileList(additionalIndent+1, lastIndentLine, n.Body)
 
 			for v := range t.iterWhite(t.lastPosWritten, n.ClosePos-1) {
 				if v.whiteType == whiteIndent {
 					t.lastIndentation = v.text
+				} else {
+					// TODO: figure case this out.
+					panic("unreachable")
 				}
 			}
 			t.prevIndent = false
 
-			t.appendSourceIndented(implicitIndentTabCount, "}")
+			t.appendSourceIndented(additionalIndent, "}")
 
-			t.staticWriteIndent(implicitIndentTabCount, ">")
-			t.appendSourceIndented(implicitIndentTabCount, "{")
-			//implicitIndentTabCount++
+			t.staticWriteIndent(additionalIndent, ">")
+			t.appendSourceIndented(additionalIndent, "{")
+			additionalIndent++
 			t.lastPosWritten = n.End()
 		case *ast.EndTagStmt:
-			//implicitIndentTabCount = max(implicitIndentTabCount-1, 0)
-			t.appendSourceIndented(implicitIndentTabCount, "}")
-			t.staticWriteIndent(implicitIndentTabCount, "</")
-			t.staticWriteIndent(implicitIndentTabCount, n.Name.Name)
-			t.staticWriteIndent(implicitIndentTabCount, ">")
+			additionalIndent = max(additionalIndent-1, 0)
+			t.appendSourceIndented(additionalIndent, "}")
+			t.staticWriteIndent(additionalIndent, "</")
+			t.staticWriteIndent(additionalIndent, n.Name.Name)
+			t.staticWriteIndent(additionalIndent, ">")
 			t.lastPosWritten = n.End()
 		case *ast.AttributeStmt:
-			//if t.fs.Position(n.Pos()).Line != implicitIndentLine {
-			//	implicitIndentLine = -1
-			//	implicitIndentTabCount = 0
-			//}
+			if t.fs.Position(n.Pos()).Line != lastIndentLine {
+				additionalIndent = 0
+			}
+			lastIndentLine = t.fs.Position(n.Pos()).Line
 			if n.Value != nil {
 				switch x := n.Value.(type) {
 				case *ast.BasicLit:
-					t.staticWriteIndent(implicitIndentTabCount, " "+n.AttrName.(*ast.Ident).Name+"=")
+					t.staticWriteIndent(additionalIndent, " "+n.AttrName.(*ast.Ident).Name+"=")
 					if x.Kind == token.STRING {
-						t.staticWriteIndent(implicitIndentTabCount, x.Value)
+						t.staticWriteIndent(additionalIndent, x.Value)
 					}
 				case *ast.TemplateLiteralExpr:
-					t.staticWriteIndent(implicitIndentTabCount, " "+n.AttrName.(*ast.Ident).Name+"=")
-					t.transpileTemplateLiteral(implicitIndentTabCount, x)
+					t.staticWriteIndent(additionalIndent, " "+n.AttrName.(*ast.Ident).Name+"=")
+					t.transpileTemplateLiteral(additionalIndent, x)
 				}
 			} else {
-				t.staticWriteIndent(implicitIndentTabCount, " "+n.AttrName.(*ast.Ident).Name)
+				t.staticWriteIndent(additionalIndent, " "+n.AttrName.(*ast.Ident).Name)
 			}
 			t.lastPosWritten = n.End()
 		case *ast.ExprStmt:
-			//if t.fs.Position(n.Pos()).Line != implicitIndentLine {
-			//	implicitIndentLine = -1
-			//	implicitIndentTabCount = 0
-			//}
+			if t.fs.Position(n.Pos()).Line != lastIndentLine {
+				additionalIndent = 0
+			}
+			lastIndentLine = t.fs.Position(n.Pos()).Line
 			if x, ok := n.X.(*ast.BasicLit); ok && x.Kind == token.STRING {
-				t.staticWriteIndent(implicitIndentTabCount, x.Value)
+				t.staticWriteIndent(additionalIndent, x.Value)
 				t.lastPosWritten = n.End()
 			} else if x, ok := n.X.(*ast.TemplateLiteralExpr); ok {
-				t.transpileTemplateLiteral(implicitIndentTabCount, x)
+				t.transpileTemplateLiteral(additionalIndent, x)
 			} else {
 				ast.Inspect(n, t.inspect)
 				t.appendFromSource(n.End())
