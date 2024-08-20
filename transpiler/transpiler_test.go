@@ -286,7 +286,7 @@ func FuzzFormattedTgoProducesFormattedGoSource(f *testing.F) {
 		if _, err := parser.ParseFile(
 			token.NewFileSet(),
 			name,
-			"//line "+name+":1:1\npackage main",
+			"//line "+name+":1:1\n/*line "+name+":1:1*/\npackage main",
 			parser.ParseComments|parser.SkipObjectResolution,
 		); err != nil || strings.ContainsRune(name, '\r') || strings.ContainsRune(src, '\r') {
 			return
