@@ -64,7 +64,6 @@ func yieldIndent(src string, start, end token.Pos, yield func(iterWhiteResult) b
 		last      = int(start) - 1
 		whiteType = whiteWhite
 	)
-
 	for i := last; i < int(end); i++ {
 		switch src[i] {
 		case ';':

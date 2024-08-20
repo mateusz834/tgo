@@ -27,14 +27,16 @@ import (
 const tgosrc = `package templates
 
 func test(a string) {
-	""
-
-	""
-
-	""
-
-	"\{0}"
+	<div
+		@a="a"
+	>
+		"testing \{sth}"
+	</div>
 }
+
+//func test(a string) {
+//	<div>; a = 3 </div>
+//}
 `
 
 //func test(a string) {
