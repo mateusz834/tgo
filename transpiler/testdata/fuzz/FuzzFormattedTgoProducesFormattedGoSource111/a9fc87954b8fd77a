@@ -1,3 +1,0 @@
-go test fuzz v1
-string("0")
-string("package A\nfunc A(A){ <div@A> \"\\{0}\\{\"\"}\" </div>0}")

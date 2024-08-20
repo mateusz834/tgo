@@ -1,3 +1,0 @@
-go test fuzz v1
-string("../../tgoast/parserBtestdata/tgo/2.tgo")
-string("package A00000000\n\nfunc A000(A000000000) {\n\t<div>\n\t\t\"\\{0 % \"\"}\"\n\t</div>\n}\n")

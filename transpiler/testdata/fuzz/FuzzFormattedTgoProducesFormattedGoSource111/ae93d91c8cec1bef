@@ -1,3 +1,0 @@
-go test fuzz v1
-string("0")
-string("package A\n\nfunc A(A) {\n\t\"\"\n\n\t\"\"\n\n\t\"\\{0}\"\n}\n")

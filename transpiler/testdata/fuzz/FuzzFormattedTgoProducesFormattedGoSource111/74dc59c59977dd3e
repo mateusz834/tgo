@@ -1,3 +1,0 @@
-go test fuzz v1
-string("0")
-string("package A\nfunc A(A){<div> \n0</div>}")

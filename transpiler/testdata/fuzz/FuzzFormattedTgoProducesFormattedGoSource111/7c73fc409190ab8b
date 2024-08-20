@@ -1,3 +1,0 @@
-go test fuzz v1
-string("0900")
-string("package A000\nfunc A000(A00){<A>} ")

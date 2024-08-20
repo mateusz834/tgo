@@ -270,7 +270,7 @@ func fuzzAddDir(f *testing.F, testdata string) {
 	}
 }
 
-func FuzzFormattedTgoProducesFormattedGoSource111(f *testing.F) {
+func FuzzFormattedTgoProducesFormattedGoSource(f *testing.F) {
 	fuzzAddDir(f, "../../tgoast/printer/testdata/tgo")
 	fuzzAddDir(f, "../../tgoast/parser/testdata/tgo")
 	fuzzAddDir(f, "../../tgoast/printer")
