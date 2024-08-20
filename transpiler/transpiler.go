@@ -308,17 +308,8 @@ func (t *transpiler) transpileList(implicitIndentTabCount int, implicitIndentLin
 			t.transpileList(0 /*implicitIndentTabCount+1*/, implicitIndentLine, n.Body)
 
 			for v := range t.iterWhite(t.lastPosWritten, n.ClosePos-1) {
-				switch v.whiteType {
-				case whiteWhite:
-				case whiteIndent:
+				if v.whiteType == whiteIndent {
 					t.lastIndentation = v.text
-					t.prevIndent = true
-				case whiteComment:
-					t.prevIndent = false
-				case whiteSemi:
-					t.prevIndent = false
-				default:
-					panic("unreachable")
 				}
 			}
 			t.prevIndent = false
