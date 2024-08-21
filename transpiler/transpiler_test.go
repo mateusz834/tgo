@@ -27,9 +27,17 @@ import (
 const tgosrc = `package templates
 
 func test(a string) {
-	<ArtiCle>
-		0
-	</ArtiCle>
+	switch a {
+	case "lol":
+		<ArtiCle>
+			0
+		</ArtiCle>
+	case "lol":
+		<ArtiCle>
+			0
+		</ArtiCle>
+	}
+	//switch {case"a":"a"default:}
 }
 
 //func test(a string) {
@@ -312,10 +320,6 @@ func FuzzFormattedTgoProducesFormattedGoSource(f *testing.F) {
 		}
 		ast.Inspect(f, func(n ast.Node) bool {
 			switch n := n.(type) {
-			case *ast.SwitchStmt:
-				t.Skip()
-			case *ast.SelectStmt:
-				t.Skip()
 			case *ast.BasicLit:
 				if strings.ContainsRune(n.Value, '`') {
 					t.Skip()

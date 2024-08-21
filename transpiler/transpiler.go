@@ -79,6 +79,16 @@ func (t *transpiler) inspect(n ast.Node) bool {
 		t.transpileList(0, -1, n.List)
 		t.appendFromSource(n.Rbrace + 1)
 		return false
+	case *ast.SwitchStmt:
+		t.appendFromSource(n.Body.Lbrace + 1)
+		t.transpileList(0, -1, n.Body.List)
+		t.appendFromSource(n.Body.Rbrace + 1)
+		return false
+	case *ast.TypeSwitchStmt:
+		t.appendFromSource(n.Body.Lbrace + 1)
+		t.transpileList(0, -1, n.Body.List)
+		t.appendFromSource(n.Body.Rbrace + 1)
+		return false
 	}
 	return true
 }
@@ -293,6 +303,9 @@ func (t *transpiler) transpileList(additionalIndent int, lastIndentLine int, lis
 				t.appendFromSource(n.End())
 				t.lastPosWritten = n.End()
 			}
+		case *ast.CaseClause:
+			t.appendFromSource(n.Colon + 1)
+			t.transpileList(additionalIndent+1, lastIndentLine, n.Body)
 		default:
 			ast.Inspect(n, t.inspect)
 			t.appendFromSource(n.End())
