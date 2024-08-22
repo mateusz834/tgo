@@ -37,7 +37,6 @@ func test(a string) {
 			0
 		</ArtiCle>
 	}
-	switch {case"a":"a";default:}
 }
 
 //func test(a string) {
