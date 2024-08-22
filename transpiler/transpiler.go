@@ -294,7 +294,7 @@ func (t *transpiler) transpileList(additionalIndent int, lastIndentLine int, lis
 			}
 			lastIndentLine = t.fs.Position(n.Pos()).Line
 			if x, ok := n.X.(*ast.BasicLit); ok && x.Kind == token.STRING {
-				t.staticWriteIndent(additionalIndent, x.Value)
+				t.staticWriteIndentGoString(additionalIndent, x.Value)
 				t.lastPosWritten = n.End()
 			} else if x, ok := n.X.(*ast.TemplateLiteralExpr); ok {
 				t.transpileTemplateLiteral(additionalIndent, x)
@@ -341,6 +341,22 @@ func (t *transpiler) dynamicWriteIndent(additionalIndent int, n ast.Expr) {
 	t.appendSource("}")
 }
 
+func (t *transpiler) staticWriteIndentGoString(additionalIndent int, str string) {
+	switch str[0] {
+	case '"':
+		t.staticWriteIndent(additionalIndent, str[1:len(str)-1])
+	case '`':
+		unquoted, err := strconv.Unquote(str)
+		if err != nil {
+			panic("unreachable, invalid value in (*ast.BasicLit).Value: " + err.Error())
+		}
+		val := strconv.Quote(unquoted)
+		t.staticWriteIndent(additionalIndent, val[1:len(val)-1])
+	default:
+		panic("unreachable")
+	}
+}
+
 func (t *transpiler) staticWriteIndent(additionalIndent int, s string) {
 	if t.inStaticWrite {
 		t.out = slices.Insert(t.out, t.staticWritePos, []byte(s)...)
@@ -349,10 +365,10 @@ func (t *transpiler) staticWriteIndent(additionalIndent int, s string) {
 	}
 	t.inStaticWrite = true
 	t.wantIndent(additionalIndent)
-	t.appendSource("if err := __tgo_ctx.WriteString(`")
+	t.appendSource(`if err := __tgo_ctx.WriteString("`)
 	t.appendSource(s)
 	t.staticWritePos = len(t.out)
-	t.appendSource("`); err != nil {")
+	t.appendSource(`"); err != nil {`)
 	t.wantIndent(additionalIndent)
 	t.appendSource("\treturn err")
 	t.wantIndent(additionalIndent)

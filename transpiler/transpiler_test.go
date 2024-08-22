@@ -2,6 +2,7 @@ package transpiler
 
 import (
 	"errors"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -24,13 +25,29 @@ import (
 // TODO: transpilation of:
 //func A(A){"\{a}\{""}l"}
 
+func test() {
+	// Transpile string writes to something like this,
+	// this way we can also preserve comments, by adding them
+	// betwen strings.
+	io.WriteString(nil, ""+
+		"<div"+
+		" attr=\"value\""+
+		" attr=\"valuedf\""+
+		">"+
+		"<span>"+
+		"value between div"+
+		"</span>"+
+		"</div>",
+	)
+}
+
 const tgosrc = `package templates
 
 func test(a string) {
 	switch a {
 	case "lol":
 		<ArtiCle>
-			0
+			"a"
 		</ArtiCle>
 	case "lol":
 		<ArtiCle>
