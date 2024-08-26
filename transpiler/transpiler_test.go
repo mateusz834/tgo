@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	goast "go/ast"
 	goformat "go/format"
 	goparser "go/parser"
 	goscanner "go/scanner"
@@ -44,16 +45,9 @@ func test() {
 const tgosrc = `package templates
 
 func test(a string) {
-	switch a {
-	case "lol":
-		<ArtiCle>
-			"a"
-		</ArtiCle>
-	case "lol":
-		<ArtiCle>
-			0
-		</ArtiCle>
-	}
+	<ArtiCle>
+		a := 3;
+	</ArtiCle>
 }
 
 //func test(a string) {
@@ -334,8 +328,14 @@ func FuzzFormattedTgoProducesFormattedGoSource(f *testing.F) {
 		if len(f.Comments) > 0 {
 			t.Skip()
 		}
+
+		hasEmptyBlockStmt := false
 		ast.Inspect(f, func(n ast.Node) bool {
 			switch n := n.(type) {
+			case *ast.BlockStmt:
+				if len(n.List) == 0 {
+					hasEmptyBlockStmt = true
+				}
 			case *ast.BasicLit:
 				if strings.ContainsRune(n.Value, '`') {
 					t.Skip()
@@ -392,6 +392,20 @@ func FuzzFormattedTgoProducesFormattedGoSource(f *testing.F) {
 				"difference found, apply following changes to make this test pass:\n%v",
 				diff,
 			)
+		}
+
+		// Transpiler should not produce empty block stmts for empty tags (<div>)
+		// and for empty tag bodies (<div></div>).
+		if !hasEmptyBlockStmt {
+			goast.Inspect(fgo, func(n goast.Node) bool {
+				switch n := n.(type) {
+				case *goast.BlockStmt:
+					if len(n.List) == 0 {
+						t.Fatalf("transpiled output contains unexpected empty *ast.BlockStmt")
+					}
+				}
+				return true
+			})
 		}
 	})
 }
