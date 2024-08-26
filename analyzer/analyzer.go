@@ -8,6 +8,8 @@ import (
 	"github.com/mateusz834/tgoast/token"
 )
 
+// TODO: gotos, return/continue/break in the middle of a tag.
+
 func Analyze(fs *token.FileSet, f *ast.File) error {
 	ctx := &analyzerContext{
 		fs: fs,

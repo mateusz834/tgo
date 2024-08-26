@@ -36,8 +36,7 @@ type transpiler struct {
 
 	lineDirectiveMangled bool
 
-	inStaticWrite  bool
-	staticWritePos int
+	inStaticWrite bool
 
 	lastIndentation string
 	prevIndent      bool
@@ -74,7 +73,7 @@ func (t *transpiler) flushTmp() {
 func (t *transpiler) transpile() {
 	t.lastPosWritten = t.f.FileStart
 	t.appendSource("//line ")
-	t.appendSource(t.fs.Position(t.f.FileStart).Filename)
+	t.appendSource(t.fs.File(t.f.FileStart).Name())
 	t.appendSource(":1:1\n")
 	ast.Inspect(t.f, t.inspect)
 	t.appendFromSource(t.f.FileEnd)
@@ -127,12 +126,19 @@ func (t *transpiler) appendSourceIndented(additionalIndent int, source string) {
 	t.appendSource(source)
 }
 
+func (t *transpiler) appendIndent(b []byte, additionalIndent int) []byte {
+	b = append(b, t.lastIndentation...)
+	for range additionalIndent {
+		b = append(b, '\t')
+	}
+	return b
+}
+
 func (t *transpiler) wantIndent(additionalIndent int) {
+	t.flushTmp()
+
 	if transpilerDebug {
 		if !strings.HasPrefix(t.lastIndentation, "\n") {
-			panic("unreachable")
-		}
-		if len(t.tmp) != 0 {
 			panic("unreachable")
 		}
 	}
@@ -156,10 +162,7 @@ func (t *transpiler) wantIndent(additionalIndent int) {
 				panic("unreachable")
 			}
 		}
-		t.out = append(t.out, t.lastIndentation...)
-		for range additionalIndent {
-			t.out = append(t.out, '\t')
-		}
+		t.out = t.appendIndent(t.out, additionalIndent)
 		t.prevIndent = true
 	} else if transpilerDebug {
 		if additionalIndent > 0 {
@@ -191,10 +194,7 @@ type scopeState struct {
 
 func (t *transpiler) scopeStart(additionalIndent int) scopeState {
 	beforeLen := len(t.tmp)
-	t.tmp = append(t.tmp, []byte(t.lastIndentation)...)
-	for range additionalIndent {
-		t.tmp = append(t.tmp, '\t')
-	}
+	t.tmp = t.appendIndent(t.tmp, additionalIndent)
 	t.tmp = append(t.tmp, '{')
 	t.scopeRemainingOpenCount++
 	return scopeState{
@@ -204,9 +204,19 @@ func (t *transpiler) scopeStart(additionalIndent int) scopeState {
 
 func (t *transpiler) scopeEnd(s scopeState, additionalIndent int) {
 	if t.scopeRemainingOpenCount <= t.forceAllBracesToBeClosedBefore {
-		t.appendSourceIndented(additionalIndent, "}")
+		t.tmp = t.appendIndent(t.tmp, additionalIndent)
+		t.tmp = append(t.tmp, '}')
 		t.forceAllBracesToBeClosedBefore--
 	} else {
+		if transpilerDebug {
+			for _, v := range t.tmp[s.beforeLen:] {
+				switch v {
+				case ' ', '\t', '\n', '{', '}':
+				default:
+					panic("unreachable")
+				}
+			}
+		}
 		t.tmp = t.tmp[:s.beforeLen]
 	}
 	t.scopeRemainingOpenCount--
@@ -375,7 +385,6 @@ func (t *transpiler) transpileTemplateLiteral(additionalIndent int, x *ast.Templ
 }
 
 func (t *transpiler) dynamicWriteIndent(additionalIndent int, n ast.Expr) {
-	t.flushTmp()
 	t.wantIndent(additionalIndent)
 	t.appendSource("if err := __tgo.DynamicWrite(__tgo_ctx, ")
 	indent := t.lastIndentation
@@ -391,18 +400,16 @@ func (t *transpiler) dynamicWriteIndent(additionalIndent int, n ast.Expr) {
 
 func (t *transpiler) staticWriteIndent(additionalIndent int, s string) {
 	if t.inStaticWrite {
-		t.out = slices.Insert(t.out, t.staticWritePos, []byte(s)...)
-		t.staticWritePos += len(s)
+		t.out = append(t.out, s...)
 		return
 	}
 	t.inStaticWrite = true
 	t.wantIndent(additionalIndent)
 	t.appendSource("if err := __tgo_ctx.WriteString(`")
 	t.appendSource(s)
-	t.staticWritePos = len(t.out)
-	t.appendSource("`); err != nil {")
-	t.wantIndent(additionalIndent)
-	t.appendSource("\treturn err")
-	t.wantIndent(additionalIndent)
-	t.appendSource("}")
+	t.tmp = append(t.tmp, "`); err != nil {"...)
+	t.tmp = t.appendIndent(t.tmp, additionalIndent)
+	t.tmp = append(t.tmp, "\treturn err"...)
+	t.tmp = t.appendIndent(t.tmp, additionalIndent)
+	t.tmp = append(t.tmp, '}')
 }
