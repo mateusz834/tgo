@@ -145,13 +145,16 @@ func (t *transpiler) writeLineDirective(oneline bool, pos token.Pos) {
 	} else {
 		t.appendSource("\n//line ")
 	}
+	if oneline {
+		p.Line--
+	}
 	t.appendSource(p.Filename)
 	t.appendSource(":")
 	t.appendSource(strconv.FormatInt(int64(p.Line), 10))
 	t.appendSource(":")
 	t.appendSource(strconv.FormatInt(int64(p.Column), 10))
 	if oneline {
-		t.appendSource("*/")
+		t.appendSource("*/ ")
 	}
 }
 
