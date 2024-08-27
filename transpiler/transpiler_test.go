@@ -329,12 +329,12 @@ func FuzzFormattedTgoProducesFormattedGoSource(f *testing.F) {
 			t.Skip()
 		}
 
-		hasEmptyBlockStmt := false
+		emptyBlockStmtCount := 0
 		ast.Inspect(f, func(n ast.Node) bool {
 			switch n := n.(type) {
 			case *ast.BlockStmt:
 				if len(n.List) == 0 {
-					hasEmptyBlockStmt = true
+					emptyBlockStmtCount++
 				}
 			case *ast.BasicLit:
 				if strings.ContainsRune(n.Value, '`') {
@@ -394,18 +394,21 @@ func FuzzFormattedTgoProducesFormattedGoSource(f *testing.F) {
 			)
 		}
 
+		emptyBlockStmtCountGo := 0
+		goast.Inspect(fgo, func(n goast.Node) bool {
+			switch n := n.(type) {
+			case *goast.BlockStmt:
+				if len(n.List) == 0 {
+					emptyBlockStmtCountGo++
+				}
+			}
+			return true
+		})
+
 		// Transpiler should not produce empty block stmts for empty tags (<div>)
 		// and for empty tag bodies (<div></div>).
-		if !hasEmptyBlockStmt {
-			goast.Inspect(fgo, func(n goast.Node) bool {
-				switch n := n.(type) {
-				case *goast.BlockStmt:
-					if len(n.List) == 0 {
-						t.Fatalf("transpiled output contains unexpected empty *ast.BlockStmt")
-					}
-				}
-				return true
-			})
+		if emptyBlockStmtCount != emptyBlockStmtCountGo {
+			t.Fatalf("transpiled output contains unexpected empty *ast.BlockStmt")
 		}
 	})
 }
