@@ -45,9 +45,9 @@ func test() {
 const tgosrc = `package templates
 
 func test(a string) {
-	<ArtiCle>
-		a := 3;
-	</ArtiCle>
+	{
+		<div></div>
+	}
 }
 
 //func test(a string) {
