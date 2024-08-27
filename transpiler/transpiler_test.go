@@ -283,9 +283,11 @@ func FuzzFormattedTgoProducesFormattedGoSource(f *testing.F) {
 		//		}
 		//	}
 		//}
-
 		for _, v := range f.Comments {
 			for _, v := range v.List {
+				// TODO: add only a workaround for https://github.com/golang/go/issues/69089
+				// if there is a go:build directive, print (not format.Node) then parse
+				// and if there is an error then skip.
 				if strings.HasPrefix(v.Text, "//go:build") {
 					return
 				}
