@@ -342,6 +342,8 @@ func FuzzFormattedTgoProducesFormattedGoSource(f *testing.F) {
 			return
 		}
 
+		// TODO: remove this and fix the formatter :)
+		// probably a upstream fix to go also
 		if len(f.Comments) > 0 {
 			t.Skip()
 		}
