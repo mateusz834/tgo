@@ -111,7 +111,7 @@ func (t *transpiler) addLineDirectiveBeforeRbrace(rbracePos token.Pos) {
 		}
 		t.inStaticWrite = false
 		t.lineDirectiveMangled = false
-		t.writeLineDirective(onelineDirective, t.lastPosWritten)
+		t.writeLineDirective(onelineDirective, true, t.lastPosWritten)
 	}
 }
 
@@ -132,14 +132,14 @@ func (t *transpiler) inspect(n ast.Node) bool {
 	return true
 }
 
-func (t *transpiler) writeLineDirective(oneline bool, pos token.Pos) {
+func (t *transpiler) writeLineDirective(oneline, addSpace bool, pos token.Pos) {
 	p := t.fs.Position(pos + 1)
 	if oneline {
 		t.appendSource(" /*line ")
 	} else {
 		t.appendSource("\n//line ")
 	}
-	if oneline {
+	if oneline && addSpace {
 		p.Column--
 	}
 	t.appendSource(p.Filename)
@@ -147,8 +147,10 @@ func (t *transpiler) writeLineDirective(oneline bool, pos token.Pos) {
 	t.appendSource(strconv.FormatInt(int64(p.Line), 10))
 	t.appendSource(":")
 	t.appendSource(strconv.FormatInt(int64(p.Column), 10))
-	if oneline {
+	if oneline && addSpace {
 		t.appendSource("*/ ")
+	} else if oneline {
+		t.appendSource("*/")
 	}
 }
 
@@ -262,12 +264,17 @@ func (t *transpiler) transpileList(additionalIndent int, lastIndentLine int, lis
 		var (
 			onelineDirective = t.fs.Position(t.lastPosWritten).Line == t.fs.Position(n.Pos()).Line
 			beforeNewline    = true
+			firstWhite       = false
+			afterFirst       = false
 		)
 		for v := range t.iterWhite(t.lastPosWritten, n.Pos()-1) {
 			switch v.whiteType {
 			case whiteWhite:
 				if beforeNewline {
 					onelineDirective = true
+				}
+				if !afterFirst {
+					firstWhite = true
 				}
 			case whiteIndent:
 				t.lastIndentation = v.text
@@ -286,6 +293,7 @@ func (t *transpiler) transpileList(additionalIndent int, lastIndentLine int, lis
 			default:
 				panic("unreachable")
 			}
+			afterFirst = true
 		}
 
 		if isTgo(n) {
@@ -313,7 +321,7 @@ func (t *transpiler) transpileList(additionalIndent int, lastIndentLine int, lis
 					}
 				}
 
-				t.writeLineDirective(onelineDirective, t.lastPosWritten)
+				t.writeLineDirective(onelineDirective, !firstWhite, t.lastPosWritten)
 				t.appendFromSource(n.Pos()) // TODO: is this necessary here?
 			}
 		}

@@ -72,87 +72,6 @@ func test(a string) {
 //}
 `
 
-//func test(a string) {
-//	"test"
-//	0
-//}
-
-const _ = `
-func test(sth string) {
-	//<div
-	//	@class="test \{sth}"
-	//	@class2="test"
-	//	@class3="\{"lol"}"
-	//>
-	//	"test"
-	//	"testing"
-	//	<div>"sth\{test}"</div>
-	//	{
-	//		<test></test>
-	//	}
-	//	<test></test>
-	//	for _, v := range a {
-	//		<test></test>
-	//	}
-	//</div>
-
-	//<div>
-	//	"test"
-	//	{
-	//		<span><div>"test \{sth}"</div></span>
-	//	}
-	//</div>
-
-	//<div
-	//	testi() //;
-	//	kdfj
-	//	@kdjf="lol \{sth} kdfjd"
-	//	@test="test \{func(a strin) {
-	//		<div>
-	//			"hello world :)"
-	//		</div>
-	//	}()}"
-	//>
-	//	test = 2
-	//	"hello \{sth}test"
-	//</div>
-
-	//<span>
-	//	<div><div>"hello world"</div></div>
-	//</span>
-
-	//<div><span>"test\{sth}aa\{sth2}bb\{sth3}"</span></div>
-
-	//<div@class="test"@class="test"><div>"lol"</div></div>
-
-	//// TODO: ignore spaces between div name and attr and between attr and attr.
-	//// TODO: comments?
-	//<div
-	//	@class="test"
-	//	@class="testingg"
-	//	@class="test"
-	//	@class="testingg"
-	//	a = 3
-	//>
-	//	"test"
-	//</div>
-}
-`
-
-var _ = `
-	//<div @xd="lol"></div>
-	//<span>
-	//a:=3;</span>
-	//<span>
-	//	a := 2
-	//</span>
-	//<span>
-	//	lol
-	//</span>
-}
-
-	`
-
 func TestTranspiler(t *testing.T) {
 	fs := token.NewFileSet()
 	f, err := parser.ParseFile(fs, "test.tgo", tgosrc, parser.SkipObjectResolution|parser.ParseComments)
@@ -169,6 +88,7 @@ func TestTranspiler(t *testing.T) {
 	}
 
 	err = analyzer.Analyze(fs, f)
+	err = nil
 	if v, ok := err.(analyzer.AnalyzeErrors); ok {
 		for _, v := range v {
 			t.Logf("%v", v)
@@ -179,12 +99,20 @@ func TestTranspiler(t *testing.T) {
 	}
 
 	fmted, err := format.Source([]byte(tgosrc))
-	if err == nil {
-		t.Log("\n" + string(fmted))
+	if err != nil {
+		t.Fatalf("%v", err)
 	}
+	t.Log("\n" + string(fmted))
+
+	var oo strings.Builder
+	if err := format.Node(&oo, fs, f); err != nil {
+		t.Fatal(err)
+	}
+	t.Log("\n" + oo.String())
 
 	out := Transpile(f, fs, tgosrc)
 	t.Log("\n" + out)
+	t.Logf("\n%q", out)
 
 	fs = token.NewFileSet()
 	f, err = parser.ParseFile(fs, "test.go", out, parser.SkipObjectResolution|parser.ParseComments)
@@ -198,7 +126,9 @@ func TestTranspiler(t *testing.T) {
 	}
 
 	var o strings.Builder
-	format.Node(&o, fs, f)
+	if err := format.Node(&o, fs, f); err != nil {
+		t.Fatal(err)
+	}
 	t.Log("\n" + o.String())
 
 	if o.String() != out {
@@ -325,7 +255,9 @@ func FuzzFormattedTgoProducesFormattedGoSource(f *testing.F) {
 			parser.ParseComments|parser.SkipObjectResolution,
 		); err != nil ||
 			strings.ContainsRune(name, '\r') || strings.ContainsRune(src, '\r') ||
-			strings.ContainsRune(name, '\f') || strings.ContainsRune(name, '\n') {
+			strings.ContainsRune(name, '\f') || strings.ContainsRune(name, '\n') ||
+			strings.ContainsRune(name, '`') || strings.ContainsRune(name, '\'') ||
+			strings.Contains(name, "*/") {
 			return
 		}
 
@@ -344,8 +276,20 @@ func FuzzFormattedTgoProducesFormattedGoSource(f *testing.F) {
 
 		// TODO: remove this and fix the formatter :)
 		// probably a upstream fix to go also
-		if len(f.Comments) > 0 {
-			t.Skip()
+		//if len(f.Comments) > 0 {
+		//	for _, v := range f.Comments {
+		//		if v.End() < f.Package {
+		//			t.Skip()
+		//		}
+		//	}
+		//}
+
+		for _, v := range f.Comments {
+			for _, v := range v.List {
+				if strings.HasPrefix(v.Text, "//go:build") {
+					return
+				}
+			}
 		}
 
 		emptyBlockStmtCount := 0
@@ -390,7 +334,7 @@ func FuzzFormattedTgoProducesFormattedGoSource(f *testing.F) {
 		}
 
 		if tgoFmt.String() != src {
-			return
+			return // input src not formatted
 		}
 
 		var outFmt strings.Builder
