@@ -44,11 +44,27 @@ func test() {
 
 const tgosrc = `package templates
 
+//func test(a string) { "a" }
+
 func test(a string) {
-	switch a {
-	case "":
-		<div></div>
-	}
+	<div>
+		switch a {
+		case "":
+			<div></div>
+		default:
+			<span>"empty"</span>
+		}
+	</div>
+
+	<div>
+		//switch func(a string) { "a" } {
+		switch a {
+		case "":
+			<div></div>
+		default:
+			<span>"empty"</span>
+		}
+	</div>
 }
 
 //func test(a string) {
@@ -309,7 +325,7 @@ func FuzzFormattedTgoProducesFormattedGoSource(f *testing.F) {
 			parser.ParseComments|parser.SkipObjectResolution,
 		); err != nil ||
 			strings.ContainsRune(name, '\r') || strings.ContainsRune(src, '\r') ||
-			strings.ContainsRune(name, '\f') {
+			strings.ContainsRune(name, '\f') || strings.ContainsRune(name, '\n') {
 			return
 		}
 

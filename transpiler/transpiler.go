@@ -122,22 +122,11 @@ func (t *transpiler) inspect(n ast.Node) bool {
 	}()
 	switch n := n.(type) {
 	case *ast.BlockStmt:
+		// TODO: line directive before this and what about *ast.SwitchStmt and TypeSwitchStmt.
 		t.appendFromSource(n.Lbrace + 1)
 		t.transpileList(0, -1, n.List)
 		t.addLineDirectiveBeforeRbrace(n.Rbrace)
 		t.appendFromSource(n.Rbrace + 1)
-		return false
-	case *ast.SwitchStmt:
-		t.appendFromSource(n.Body.Lbrace + 1)
-		t.transpileList(0, -1, n.Body.List)
-		t.addLineDirectiveBeforeRbrace(n.Body.Rbrace)
-		t.appendFromSource(n.Body.Rbrace + 1)
-		return false
-	case *ast.TypeSwitchStmt:
-		t.appendFromSource(n.Body.Lbrace + 1)
-		t.transpileList(0, -1, n.Body.List)
-		t.addLineDirectiveBeforeRbrace(n.Body.Rbrace)
-		t.appendFromSource(n.Body.Rbrace + 1)
 		return false
 	}
 	return true
