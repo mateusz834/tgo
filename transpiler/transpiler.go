@@ -79,6 +79,42 @@ func (t *transpiler) transpile() {
 	t.appendFromSource(t.f.FileEnd)
 }
 
+func (t *transpiler) addLineDirectiveBeforeRbrace(rbracePos token.Pos) {
+	if t.lineDirectiveMangled {
+		var (
+			onelineDirective = t.fs.Position(t.lastPosWritten).Line == t.fs.Position(rbracePos).Line
+			beforeNewline    = true
+		)
+		for v := range t.iterWhite(t.lastPosWritten, rbracePos-1) {
+			switch v.whiteType {
+			case whiteWhite:
+				if beforeNewline {
+					onelineDirective = true
+				}
+			case whiteIndent:
+				t.lastIndentation = v.text
+				t.prevIndent = true
+				beforeNewline = false
+			case whiteComment:
+				t.prevIndent = false
+				if beforeNewline {
+					onelineDirective = true
+				}
+			case whiteSemi:
+				t.prevIndent = false
+				if beforeNewline {
+					onelineDirective = true
+				}
+			default:
+				panic("unreachable")
+			}
+		}
+		t.inStaticWrite = false
+		t.lineDirectiveMangled = false
+		t.writeLineDirective(onelineDirective, t.lastPosWritten)
+	}
+}
+
 func (t *transpiler) inspect(n ast.Node) bool {
 	t.inStaticWrite = false
 	defer func() {
@@ -88,50 +124,19 @@ func (t *transpiler) inspect(n ast.Node) bool {
 	case *ast.BlockStmt:
 		t.appendFromSource(n.Lbrace + 1)
 		t.transpileList(0, -1, n.List)
-		// TODO: move this to transpileList ?
-		if t.lineDirectiveMangled {
-			var (
-				onelineDirective = t.fs.Position(t.lastPosWritten).Line == t.fs.Position(n.Rbrace).Line
-				beforeNewline    = true
-			)
-			for v := range t.iterWhite(t.lastPosWritten, n.Rbrace-1) {
-				switch v.whiteType {
-				case whiteWhite:
-					if beforeNewline {
-						onelineDirective = true
-					}
-				case whiteIndent:
-					t.lastIndentation = v.text
-					t.prevIndent = true
-					beforeNewline = false
-				case whiteComment:
-					t.prevIndent = false
-					if beforeNewline {
-						onelineDirective = true
-					}
-				case whiteSemi:
-					t.prevIndent = false
-					if beforeNewline {
-						onelineDirective = true
-					}
-				default:
-					panic("unreachable")
-				}
-			}
-			t.inStaticWrite = false
-			t.lineDirectiveMangled = false
-			t.writeLineDirective(onelineDirective, t.lastPosWritten)
-		}
+		t.addLineDirectiveBeforeRbrace(n.Rbrace)
 		t.appendFromSource(n.Rbrace + 1)
 		return false
 	case *ast.SwitchStmt:
 		t.appendFromSource(n.Body.Lbrace + 1)
 		t.transpileList(0, -1, n.Body.List)
+		t.addLineDirectiveBeforeRbrace(n.Body.Rbrace)
 		t.appendFromSource(n.Body.Rbrace + 1)
 		return false
 	case *ast.TypeSwitchStmt:
 		t.appendFromSource(n.Body.Lbrace + 1)
 		t.transpileList(0, -1, n.Body.List)
+		t.addLineDirectiveBeforeRbrace(n.Body.Rbrace)
 		t.appendFromSource(n.Body.Rbrace + 1)
 		return false
 	}

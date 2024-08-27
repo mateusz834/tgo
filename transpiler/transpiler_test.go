@@ -45,7 +45,8 @@ func test() {
 const tgosrc = `package templates
 
 func test(a string) {
-	{
+	switch a {
+	case "":
 		<div></div>
 	}
 }
