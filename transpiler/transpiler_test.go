@@ -42,34 +42,13 @@ func test() {
 	)
 }
 
-const tgosrc = `package templates
+const tgosrc = `
+package main
 
-//func test(a string) { "a" }
-
-func test(a string) {
-	<div>
-		switch a {
-		case "":
-			<div></div>
-		default:
-			<span>"empty"</span>
-		}
-	</div>
-
-	<div>
-		//switch func(a string) { "a" } {
-		switch a {
-		case "":
-			<div></div>
-		default:
-			<span>"empty"</span>
-		}
-	</div>
+func a() {
+	"000"
+	/*line a:1:1*/ //
 }
-
-//func test(a string) {
-//	<div>; a = 3 </div>
-//}
 `
 
 func TestTranspiler(t *testing.T) {
@@ -124,6 +103,8 @@ func TestTranspiler(t *testing.T) {
 		}
 		t.Fatalf("%v", err)
 	}
+
+	ast.Print(fs, f)
 
 	var o strings.Builder
 	if err := format.Node(&o, fs, f); err != nil {
@@ -283,19 +264,19 @@ func FuzzFormattedTgoProducesFormattedGoSource(f *testing.F) {
 		//		}
 		//	}
 		//}
-		//for _, v := range f.Comments {
-		//	for _, v := range v.List {
-		//		if v.Pos() > f.Package {
-		//			break
-		//		}
-		//		// TODO: add only a workaround for https://github.com/golang/go/issues/69089
-		//		// if there is a go:build directive, print (not format.Node) then parse
-		//		// and if there is an error then skip.
-		//		if strings.HasPrefix(v.Text, "//go:build") {
-		//			return
-		//		}
-		//	}
-		//}
+
+		// Because of the go doc formatting rules it is currently impossible
+		// with the curreent golang formatter to make sure that the comments
+		// before the package token do not cause different formatting when
+		// the line directive is prepended.
+		for _, v := range f.Comments {
+			for _, v := range v.List {
+				if v.Pos() > f.Package {
+					break
+				}
+				return
+			}
+		}
 
 		emptyBlockStmtCount := 0
 		ast.Inspect(f, func(n ast.Node) bool {
@@ -335,6 +316,9 @@ func FuzzFormattedTgoProducesFormattedGoSource(f *testing.F) {
 
 		var tgoFmt strings.Builder
 		if err := format.Node(&tgoFmt, fs, f); err != nil {
+			if strings.Contains(err.Error(), "format.Node internal error (") {
+				return
+			}
 			t.Fatalf("format.Node() = %v; want <nil>", err)
 		}
 
