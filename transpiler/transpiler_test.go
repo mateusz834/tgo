@@ -353,7 +353,6 @@ func a() {
 			if strings.Contains(err.Error(), "format.Node internal error (") {
 				for _, v := range f.Comments {
 					for _, v := range v.List {
-						t.Logf("fs.PositionFor(token.Pos(v.Pos()), false).Column: %v\n", fs.PositionFor(token.Pos(v.Pos()), false).Column)
 						if fs.PositionFor(v.Pos(), false).Column != 1 &&
 							(constraint.IsGoBuild(v.Text) || constraint.IsPlusBuild(v.Text)) {
 							return
