@@ -47,7 +47,7 @@ package main
 
 func a() {
 	"000"
-	/*line a:1:1*/ //
+	//
 }
 `
 
@@ -226,6 +226,15 @@ func FuzzFormattedTgoProducesFormattedGoSource(f *testing.F) {
 	fuzzAddDir(f, "../../tgoast/parser")
 	fuzzAddDir(f, "../../tgoast/parser/testdata")
 	fuzzAddDir(f, "../../tgoast/ast")
+
+	f.Add("a", `package main
+
+func a() {
+	"000"
+	//
+}
+`)
+
 	f.Fuzz(func(t *testing.T, name string, src string) {
 		t.Logf("file name: %q", name)
 
@@ -312,6 +321,26 @@ func FuzzFormattedTgoProducesFormattedGoSource(f *testing.F) {
 			}
 			t.Logf("quoted transpiled output:\n%q", out)
 			t.Fatalf("goparser.ParseFile() = %v; want <nil>", err)
+		}
+
+		for _, v := range fgo.Comments {
+			hasLineComment := false
+			for _, v := range v.List {
+				p := fsgo.PositionFor(v.Pos(), false)
+				if p.Column == 1 && strings.HasPrefix(v.Text, "//line") {
+					hasLineComment = true
+					break
+				} else if strings.HasPrefix(v.Text, "/*line") {
+					hasLineComment = true
+					break
+				}
+			}
+			if len(v.List) > 1 && hasLineComment {
+				// The Go formatter moves comments around, but
+				// line directive should not be moved in any way.
+				// We are not able to keep that formatted.
+				return
+			}
 		}
 
 		var tgoFmt strings.Builder
