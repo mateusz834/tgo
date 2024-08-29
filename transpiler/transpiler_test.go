@@ -301,6 +301,23 @@ func a() {
 			t.Fatalf("goparser.ParseFile() = %v; want <nil>", err)
 		}
 
+		emptyBlockStmtCountGo := 0
+		goast.Inspect(fgo, func(n goast.Node) bool {
+			switch n := n.(type) {
+			case *goast.BlockStmt:
+				if len(n.List) == 0 {
+					emptyBlockStmtCountGo++
+				}
+			}
+			return true
+		})
+
+		// Transpiler should not produce empty block stmts for empty tags (<div>)
+		// and for empty tag bodies (<div></div>).
+		if emptyBlockStmtCount != emptyBlockStmtCountGo {
+			t.Error("transpiled output contains unexpected empty *ast.BlockStmt")
+		}
+
 		// Because of the go doc formatting rules it is currently impossible
 		// with the curreent golang formatter to make sure that the comments
 		// before the package token do not cause different formatting when
@@ -365,23 +382,6 @@ func a() {
 				"difference found, apply following changes to make this test pass:\n%v",
 				diff,
 			)
-		}
-
-		emptyBlockStmtCountGo := 0
-		goast.Inspect(fgo, func(n goast.Node) bool {
-			switch n := n.(type) {
-			case *goast.BlockStmt:
-				if len(n.List) == 0 {
-					emptyBlockStmtCountGo++
-				}
-			}
-			return true
-		})
-
-		// Transpiler should not produce empty block stmts for empty tags (<div>)
-		// and for empty tag bodies (<div></div>).
-		if emptyBlockStmtCount != emptyBlockStmtCountGo {
-			t.Fatalf("transpiled output contains unexpected empty *ast.BlockStmt")
 		}
 	})
 }
