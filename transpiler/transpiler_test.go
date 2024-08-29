@@ -265,19 +265,6 @@ func a() {
 			return
 		}
 
-		// Because of the go doc formatting rules it is currently impossible
-		// with the curreent golang formatter to make sure that the comments
-		// before the package token do not cause different formatting when
-		// the line directive is prepended.
-		for _, v := range f.Comments {
-			for _, v := range v.List {
-				if v.Pos() > f.Package {
-					break
-				}
-				return
-			}
-		}
-
 		emptyBlockStmtCount := 0
 		ast.Inspect(f, func(n ast.Node) bool {
 			switch n := n.(type) {
@@ -312,6 +299,19 @@ func a() {
 			}
 			t.Logf("quoted transpiled output:\n%q", out)
 			t.Fatalf("goparser.ParseFile() = %v; want <nil>", err)
+		}
+
+		// Because of the go doc formatting rules it is currently impossible
+		// with the curreent golang formatter to make sure that the comments
+		// before the package token do not cause different formatting when
+		// the line directive is prepended.
+		for _, v := range f.Comments {
+			for _, v := range v.List {
+				if v.Pos() > f.Package {
+					break
+				}
+				return
+			}
 		}
 
 		for _, v := range fgo.Comments {
