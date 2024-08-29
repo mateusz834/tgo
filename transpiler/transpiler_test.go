@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	goast "go/ast"
+	"go/build/constraint"
 	goformat "go/format"
 	goparser "go/parser"
 	goscanner "go/scanner"
@@ -264,16 +265,6 @@ func a() {
 			return
 		}
 
-		// TODO: remove this and fix the formatter :)
-		// probably a upstream fix to go also
-		//if len(f.Comments) > 0 {
-		//	for _, v := range f.Comments {
-		//		if v.End() < f.Package {
-		//			t.Skip()
-		//		}
-		//	}
-		//}
-
 		// Because of the go doc formatting rules it is currently impossible
 		// with the curreent golang formatter to make sure that the comments
 		// before the package token do not cause different formatting when
@@ -335,7 +326,7 @@ func a() {
 					break
 				}
 			}
-			if len(v.List) > 1 && hasLineComment {
+			if hasLineComment && len(v.List) != 1 {
 				// The Go formatter moves comments around, but
 				// line directive should not be moved in any way.
 				// We are not able to keep that formatted.
@@ -345,8 +336,15 @@ func a() {
 
 		var tgoFmt strings.Builder
 		if err := format.Node(&tgoFmt, fs, f); err != nil {
+			// See go.dev/issue/69089
 			if strings.Contains(err.Error(), "format.Node internal error (") {
-				return
+				for _, v := range fgo.Comments {
+					for _, v := range v.List {
+						if constraint.IsGoBuild(v.Text) || constraint.IsPlusBuild(v.Text) {
+							return
+						}
+					}
+				}
 			}
 			t.Fatalf("format.Node() = %v; want <nil>", err)
 		}
