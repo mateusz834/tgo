@@ -351,7 +351,8 @@ func a() {
 			if strings.Contains(err.Error(), "format.Node internal error (") {
 				for _, v := range fgo.Comments {
 					for _, v := range v.List {
-						if constraint.IsGoBuild(v.Text) || constraint.IsPlusBuild(v.Text) {
+						if fs.Position(token.Pos(v.Pos())).Column != 1 &&
+							(constraint.IsGoBuild(v.Text) || constraint.IsPlusBuild(v.Text)) {
 							return
 						}
 					}
