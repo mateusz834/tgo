@@ -314,14 +314,14 @@ func a() {
 			}
 		}
 
+		// The Go formatter moves comments around, but
+		// line directive should not be moved in any way.
+		// We are not able to keep that formatted.
 		for _, v := range fgo.Comments {
 			for _, c := range v.List {
 				p := fsgo.PositionFor(v.Pos(), false)
 				if (p.Column == 1 && strings.HasPrefix(c.Text, "//line")) || strings.HasPrefix(c.Text, "/*line") {
 					if len(v.List) != 1 {
-						// The Go formatter moves comments around, but
-						// line directive should not be moved in any way.
-						// We are not able to keep that formatted.
 						return
 					}
 				}
