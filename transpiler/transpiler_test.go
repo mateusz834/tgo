@@ -347,7 +347,7 @@ func a() {
 
 		var tgoFmt strings.Builder
 		if err := format.Node(&tgoFmt, fs, f); err != nil {
-			// See go.dev/issue/69089
+			// See https://go.dev/issue/69089
 			if strings.Contains(err.Error(), "format.Node internal error (") {
 				for _, v := range fgo.Comments {
 					for _, v := range v.List {
