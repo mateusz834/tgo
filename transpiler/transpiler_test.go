@@ -315,22 +315,16 @@ func a() {
 		}
 
 		for _, v := range fgo.Comments {
-			hasLineComment := false
-			for _, v := range v.List {
+			for _, c := range v.List {
 				p := fsgo.PositionFor(v.Pos(), false)
-				if p.Column == 1 && strings.HasPrefix(v.Text, "//line") {
-					hasLineComment = true
-					break
-				} else if strings.HasPrefix(v.Text, "/*line") {
-					hasLineComment = true
-					break
+				if (p.Column == 1 && strings.HasPrefix(c.Text, "//line")) || strings.HasPrefix(c.Text, "/*line") {
+					if len(v.List) != 1 {
+						// The Go formatter moves comments around, but
+						// line directive should not be moved in any way.
+						// We are not able to keep that formatted.
+						return
+					}
 				}
-			}
-			if hasLineComment && len(v.List) != 1 {
-				// The Go formatter moves comments around, but
-				// line directive should not be moved in any way.
-				// We are not able to keep that formatted.
-				return
 			}
 		}
 
@@ -357,8 +351,8 @@ func a() {
 		if err := goformat.Node(&outFmt, fsgo, fgo); err != nil {
 			t.Fatalf("goformat.Node() = %v; want <nil>", err)
 		}
-		t.Logf("formatted transpiled output:\n%v", outFmt.String())
 
+		t.Logf("formatted transpiled output:\n%v", outFmt.String())
 		t.Logf("quoted transpiled output:\n%q", out)
 		t.Logf("quoted formatted transpiled output:\n%q", outFmt.String())
 
