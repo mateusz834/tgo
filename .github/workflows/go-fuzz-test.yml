@@ -1,5 +1,8 @@
 name: Go fuzz test
-on: workflow_dispatch
+on:
+  workflow_dispatch:
+    branches:
+      - main
 jobs:
   fuzz-test:
     name: Fuzz test
