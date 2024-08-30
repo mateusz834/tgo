@@ -88,12 +88,17 @@ func (t *transpiler) addLineDirectiveBeforeRbrace(rbracePos token.Pos) {
 		var (
 			onelineDirective = t.fs.Position(t.lastPosWritten).Line == t.fs.Position(rbracePos).Line
 			beforeNewline    = true
+			firstWhite       = false
+			afterFirst       = false
 		)
 		for v := range t.iterWhite(t.lastPosWritten, rbracePos-1) {
 			switch v.whiteType {
 			case whiteWhite:
 				if beforeNewline {
 					onelineDirective = true
+				}
+				if !afterFirst {
+					firstWhite = true
 				}
 			case whiteIndent:
 				t.lastIndentation = v.text
@@ -112,10 +117,11 @@ func (t *transpiler) addLineDirectiveBeforeRbrace(rbracePos token.Pos) {
 			default:
 				panic("unreachable")
 			}
+			afterFirst = true
 		}
 		t.inStaticWrite = false
 		t.lineDirectiveMangled = false
-		t.writeLineDirective(onelineDirective, true, t.lastPosWritten)
+		t.writeLineDirective(onelineDirective, !firstWhite, t.lastPosWritten)
 	}
 }
 
@@ -324,7 +330,6 @@ func (t *transpiler) transpileList(additionalIndent int, lastIndentLine int, lis
 						t.appendSource(";")
 					}
 				}
-
 				t.writeLineDirective(onelineDirective, !firstWhite, t.lastPosWritten)
 				t.appendFromSource(n.Pos()) // TODO: is this necessary here?
 			}
