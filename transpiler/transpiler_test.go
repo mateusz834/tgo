@@ -203,6 +203,13 @@ func TestTranspile(t *testing.T) {
 }
 
 func fuzzAddDir(f *testing.F, testdata string) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		f.Fatal(err)
+	}
+
+	testdata = filepath.Join(home, "/go/pkg/mod/github.com/mateusz834/tgoast@v0.0.0-20240822174010-6e8bd4a53425", testdata)
+
 	files, err := os.ReadDir(testdata)
 	if err != nil {
 		f.Fatal(err)
@@ -217,18 +224,18 @@ func fuzzAddDir(f *testing.F, testdata string) {
 		if err != nil {
 			f.Fatal(err)
 		}
-		f.Add(testFile, string(content))
+		f.Add(v.Name(), string(content))
 	}
 }
 
 func FuzzFormattedTgoProducesFormattedGoSource(f *testing.F) {
-	fuzzAddDir(f, "../../tgoast/printer/testdata/tgo")
-	fuzzAddDir(f, "../../tgoast/parser/testdata/tgo")
-	fuzzAddDir(f, "../../tgoast/printer")
-	fuzzAddDir(f, "../../tgoast/printer/testdata")
-	fuzzAddDir(f, "../../tgoast/parser")
-	fuzzAddDir(f, "../../tgoast/parser/testdata")
-	fuzzAddDir(f, "../../tgoast/ast")
+	fuzzAddDir(f, "/printer/testdata/tgo")
+	fuzzAddDir(f, "/parser/testdata/tgo")
+	fuzzAddDir(f, "/printer")
+	fuzzAddDir(f, "/printer/testdata")
+	fuzzAddDir(f, "/parser")
+	fuzzAddDir(f, "/parser/testdata")
+	fuzzAddDir(f, "/ast")
 
 	f.Add("a", `package main
 
