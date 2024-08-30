@@ -1,6 +1,10 @@
 name: Go fuzz test
 on:
-  workflow_dispatch:
+  - workflow_dispatch:
+    branches:
+      - main
+      - dev
+  - push:
     branches:
       - main
       - dev
