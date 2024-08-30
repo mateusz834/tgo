@@ -3,7 +3,7 @@ on:
   workflow_dispatch:
     branches:
       - main
-	  - dev
+      - dev
 jobs:
   fuzz-test:
     name: Fuzz test
