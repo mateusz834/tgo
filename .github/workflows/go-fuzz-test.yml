@@ -1,4 +1,5 @@
 name: Go fuzz test
+on: workflow_dispatch
 jobs:
   fuzz-test:
     name: Fuzz test
