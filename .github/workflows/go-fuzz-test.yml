@@ -13,4 +13,4 @@ jobs:
         with:
           packages: './transpiler'
           fuzz-time: 1h
-          go-version: 1.23
+          go-version: "1.23"
