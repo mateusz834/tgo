@@ -1,0 +1,10 @@
+name: Go fuzz test
+jobs:
+  fuzz-test:
+    name: Fuzz test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: jidicula/go-fuzz-action@v1.1.0
+        with:
+          packages: './transpiler'
+          fuzz-time: 1h
