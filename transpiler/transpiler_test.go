@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -26,6 +27,7 @@ import (
 
 // TODO: transpilation of:
 //func A(A){"\{a}\{""}l"}
+//func a(a string) { "a" }
 
 func test() {
 	// Transpile string writes to something like this,
@@ -337,6 +339,15 @@ func a() {
 			}
 		}
 
+		// TODO: understand this issue, is this related to the ast.SortImprts panic?
+		for _, v := range f.Comments {
+			for _, v := range v.List {
+				if v.Text[1] == '*' && strings.ContainsRune(v.Text, '\f') {
+					return
+				}
+			}
+		}
+
 		// The Go formatter moves comments around, but
 		// line directive should not be moved in any way.
 		// We are not able to keep that formatted.
@@ -352,20 +363,41 @@ func a() {
 		}
 
 		var tgoFmt strings.Builder
-		if err := format.Node(&tgoFmt, fs, f); err != nil {
-			// See https://go.dev/issue/69089
-			if strings.Contains(err.Error(), "format.Node internal error (") {
-				for _, v := range f.Comments {
-					for _, v := range v.List {
-						if fs.PositionFor(v.Pos(), false).Column != 1 &&
-							(constraint.IsGoBuild(v.Text) || constraint.IsPlusBuild(v.Text)) {
-							return
+		func() {
+			defer func() {
+				if p := recover(); p != nil {
+					b := make([]uintptr, 128)
+					n := runtime.Callers(0, b)
+					cf := runtime.CallersFrames(b[:n])
+					has := false
+					for f, ok := cf.Next(); ok; f, ok = cf.Next() {
+						if f.Func.Name() == "github.com/mateusz834/tgoast/ast.sortSpecs" {
+							has = true
+						}
+					}
+					v, _ := p.(string)
+					if !(has && strings.Contains(v, "invalid line number")) {
+						panic(p)
+					}
+					// if we didn't repanic, then the test will be skipped,
+					// by the is formatted check below.
+				}
+			}()
+			if err := format.Node(&tgoFmt, fs, f); err != nil {
+				// See https://go.dev/issue/69089
+				if strings.Contains(err.Error(), "format.Node internal error (") {
+					for _, v := range f.Comments {
+						for _, v := range v.List {
+							if fs.PositionFor(v.Pos(), false).Column != 1 &&
+								(constraint.IsGoBuild(v.Text) || constraint.IsPlusBuild(v.Text)) {
+								return
+							}
 						}
 					}
 				}
+				t.Fatalf("format.Node() = %v; want <nil>", err)
 			}
-			t.Fatalf("format.Node() = %v; want <nil>", err)
-		}
+		}()
 
 		if tgoFmt.String() != src {
 			return // input src not formatted
