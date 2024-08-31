@@ -3,6 +3,7 @@ package transpiler
 import (
 	"errors"
 	"io"
+	"math"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -49,7 +50,9 @@ const tgosrc = `
 package A
 
 func a(a string) {
-	"test" //testing
+	<div>
+		/*test*/ a()
+	</div>
 }
 `
 
@@ -351,13 +354,24 @@ func a() {
 		// The Go formatter moves comments around, but
 		// line directive should not be moved in any way.
 		// We are not able to keep that formatted.
+		// Also comments with line directives are not properly combined
+		// into comment groups, because of line directives (https://go.dev/cl/609515)
+		prevHadLine := false
+		prevLine := math.MinInt
 		for _, v := range fgo.Comments {
+			if prevHadLine && prevLine+1 == fsgo.PositionFor(v.Pos(), false).Line {
+				return
+			}
+			prevHadLine = false
+			prevLine = fsgo.PositionFor(v.End(), false).Line
+
 			for _, c := range v.List {
 				p := fsgo.PositionFor(v.Pos(), false)
 				if (p.Column == 1 && strings.HasPrefix(c.Text, "//line")) || strings.HasPrefix(c.Text, "/*line") {
 					if len(v.List) != 1 {
 						return
 					}
+					prevHadLine = true
 				}
 			}
 		}
