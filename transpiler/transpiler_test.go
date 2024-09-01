@@ -351,8 +351,9 @@ func a() {
 			}
 		}
 
-		// The Go formatter moves comments around, but
-		// line directive should not be moved in any way.
+		// The Go formatter moves comments around, bacause it treats every comment
+		// at Column == 1 as doc comment, and it moves directives to the end of a comment.
+		// Line directive should not be moved in any way (https://go.dev/cl/609077).
 		// We are not able to keep that formatted.
 		// Also comments with line directives are not properly combined
 		// into comment groups, because of line directives (https://go.dev/cl/609515)
