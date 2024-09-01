@@ -243,6 +243,12 @@ func a() {
 }
 `)
 
+	f.Add("a", `
+
+// test
+package main
+`)
+
 	f.Fuzz(func(t *testing.T, name string, src string) {
 		t.Logf("file name: %q", name)
 
@@ -329,18 +335,19 @@ func a() {
 			t.Error("transpiled output contains unexpected empty *ast.BlockStmt")
 		}
 
+		// NOTE: this case is already handled by //line check below.
 		// Because of the go doc formatting rules it is currently impossible
 		// with the curreent golang formatter to make sure that the comments
 		// before the package token do not cause different formatting when
 		// the line directive is prepended.
-		for _, v := range f.Comments {
-			for _, v := range v.List {
-				if v.Pos() > f.Package {
-					break
-				}
-				return
-			}
-		}
+		//for _, v := range f.Comments {
+		//	for _, v := range v.List {
+		//		if v.Pos() > f.Package {
+		//			break
+		//		}
+		//		return
+		//	}
+		//}
 
 		// TODO: understand this issue, is this related to the ast.SortImprts panic?
 		for _, v := range f.Comments {
