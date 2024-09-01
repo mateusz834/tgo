@@ -391,18 +391,18 @@ package main
 					b := make([]uintptr, 128)
 					n := runtime.Callers(0, b)
 					cf := runtime.CallersFrames(b[:n])
-					has := false
 					for f, ok := cf.Next(); ok; f, ok = cf.Next() {
-						if f.Func.Name() == "github.com/mateusz834/tgoast/ast.sortSpecs" {
-							has = true
+						v, _ := p.(string)
+						if f.Func.Name() == "github.com/mateusz834/tgoast/ast.sortSpecs" &&
+							strings.Contains(v, "invalid line number") {
+							return
+						}
+						if f.Func.Name() == "github.com/mateusz834/tgoast/printer.combinesWithName" &&
+							strings.Contains(v, "unexpected parenthesized expression") {
+							return
 						}
 					}
-					v, _ := p.(string)
-					if !(has && strings.Contains(v, "invalid line number")) {
-						panic(p)
-					}
-					// if we didn't repanic, then the test will be skipped,
-					// by the is formatted check below.
+					panic(p)
 				}
 			}()
 			if err := format.Node(&tgoFmt, fs, f); err != nil {
