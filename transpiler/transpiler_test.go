@@ -393,10 +393,16 @@ package main
 					cf := runtime.CallersFrames(b[:n])
 					for f, ok := cf.Next(); ok; f, ok = cf.Next() {
 						v, _ := p.(string)
+
+						// Upstream bugs:
+
+						// https://go.dev/cl/610035
 						if f.Func.Name() == "github.com/mateusz834/tgoast/ast.sortSpecs" &&
 							strings.Contains(v, "invalid line number") {
 							return
 						}
+
+						// TODO: figure this out or make an issue.
 						if f.Func.Name() == "github.com/mateusz834/tgoast/printer.combinesWithName" &&
 							strings.Contains(v, "unexpected parenthesized expression") {
 							return
