@@ -402,7 +402,7 @@ package main
 							return
 						}
 
-						// TODO: figure this out or make an issue.
+						// https://go.dev/cl/610115 https://go.dev/issue/69206
 						if f.Func.Name() == "github.com/mateusz834/tgoast/printer.combinesWithName" &&
 							strings.Contains(v, "unexpected parenthesized expression") {
 							return
