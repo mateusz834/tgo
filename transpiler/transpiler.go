@@ -11,7 +11,7 @@ import (
 	"github.com/mateusz834/tgoast/token"
 )
 
-const transpilerDebug = true
+const transpilerDebug = false
 
 func Transpile(f *ast.File, fs *token.FileSet, src string) string {
 	t := transpiler{
@@ -278,6 +278,7 @@ func (t *transpiler) transpileList(additionalIndent int, lastIndentLine int, lis
 			beforeNewline    = true
 			firstWhite       = false
 			afterFirst       = false
+			end              = n.Pos()
 		)
 		for v := range t.iterWhite(t.lastPosWritten, n.Pos()-1) {
 			switch v.whiteType {
@@ -292,6 +293,7 @@ func (t *transpiler) transpileList(additionalIndent int, lastIndentLine int, lis
 				t.lastIndentation = v.text
 				t.prevIndent = true
 				beforeNewline = false
+				end = v.pos
 			case whiteComment:
 				t.prevIndent = false
 				if beforeNewline {
@@ -309,8 +311,13 @@ func (t *transpiler) transpileList(additionalIndent int, lastIndentLine int, lis
 		}
 
 		if isTgo(n) {
+			// Preserve whitespace, comments and semicolons up to last newline (or up to n.Pos()
+			// if no newline found between prev and n.).
+			if prev != nil && !isTgo(prev) && t.lastPosWritten != end {
+				t.appendFromSource(end - 1)
+			}
+
 			// TODO: we are ingnoring comments.
-			// TODO: we are ignoring semis after non-tgo elements (a=3;<div>).
 
 			// When the current node is a tgo-node, ignore the whitespace
 			// the logic below will add the indentation (from t.lastIndentation),

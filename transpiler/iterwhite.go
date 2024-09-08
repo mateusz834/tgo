@@ -60,6 +60,8 @@ func (t *transpiler) iterWhite(start, end token.Pos) iter.Seq[iterWhiteResult] {
 }
 
 func yieldIndent(src string, start, end token.Pos, yield func(iterWhiteResult) bool) bool {
+	// TODO: start/end might not always start at base == 0 (token.FileSet)
+	// new(token.FileSet).File(0).Base()
 	var (
 		last      = int(start) - 1
 		whiteType = whiteWhite

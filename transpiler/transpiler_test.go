@@ -30,6 +30,8 @@ import (
 //func A(A){"\{a}\{""}l"}
 //func a(a string) { "a" }
 
+// TODO: write a one huge concatenated string and then introduce comments ?
+
 func test() {
 	// Transpile string writes to something like this,
 	// this way we can also preserve comments, by adding them
@@ -62,6 +64,7 @@ const tgosrc = `package A
 
 func a(a string) {
 	<div>
+	0//
 	</div>
 }
 `
