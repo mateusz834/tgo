@@ -280,6 +280,7 @@ func (t *transpiler) transpileList(additionalIndent int, lastIndentLine int, lis
 			afterFirst       = false
 			end              = n.Pos()
 		)
+		fmt.Printf("a t.fs.Position(end): %#v\n", t.fs.Position(end))
 		for v := range t.iterWhite(t.lastPosWritten, n.Pos()-1) {
 			switch v.whiteType {
 			case whiteWhite:
@@ -294,6 +295,7 @@ func (t *transpiler) transpileList(additionalIndent int, lastIndentLine int, lis
 				t.prevIndent = true
 				beforeNewline = false
 				end = v.pos
+				fmt.Printf("t.fs.Position(end): %#v\n", t.fs.Position(end))
 			case whiteComment:
 				t.prevIndent = false
 				if beforeNewline {
@@ -313,11 +315,11 @@ func (t *transpiler) transpileList(additionalIndent int, lastIndentLine int, lis
 		if isTgo(n) {
 			// Preserve whitespace, comments and semicolons up to last newline (or up to n.Pos()
 			// if no newline found between prev and n.).
-			if prev != nil && !isTgo(prev) && t.lastPosWritten != end {
+			if prev != nil && !isTgo(prev) && end > t.lastPosWritten {
 				t.appendFromSource(end - 1)
 			}
 
-			// TODO: we are ingnoring comments.
+			// TODO: we are ingnoring comments between tgo tags.
 
 			// When the current node is a tgo-node, ignore the whitespace
 			// the logic below will add the indentation (from t.lastIndentation),

@@ -64,7 +64,7 @@ const tgosrc = `package A
 
 func a(a string) {
 	<div>
-	0//
+	0//akj
 	</div>
 }
 `

@@ -46,7 +46,7 @@ func (t *transpiler) iterWhite(start, end token.Pos) iter.Seq[iterWhiteResult] {
 				break
 			}
 			for _, v := range v.List {
-				if !yieldIndent(t.src, last, v.Pos()-1, yield) {
+				if !yieldIndent(t.fs, t.src, last, v.Pos()-1, yield) {
 					return
 				}
 				if !yield(iterWhiteResult{whiteComment, v.Pos(), v.Text}) {
@@ -55,38 +55,37 @@ func (t *transpiler) iterWhite(start, end token.Pos) iter.Seq[iterWhiteResult] {
 				last = v.End()
 			}
 		}
-		yieldIndent(t.src, last, end, yield)
+		yieldIndent(t.fs, t.src, last, end, yield)
 	}
 }
 
-func yieldIndent(src string, start, end token.Pos, yield func(iterWhiteResult) bool) bool {
-	// TODO: start/end might not always start at base == 0 (token.FileSet)
-	// new(token.FileSet).File(0).Base()
+func yieldIndent(fset *token.FileSet, src string, start, end token.Pos, yield func(iterWhiteResult) bool) bool {
 	var (
-		last      = int(start) - 1
-		whiteType = whiteWhite
+		base       = fset.File(start).Base()
+		lastSrcPos = int(start) - base
+		whiteType  = whiteWhite
 	)
-	for i := last; i < int(end); i++ {
+	for i := lastSrcPos; i < int(end)-base; i++ {
 		switch src[i] {
 		case ';':
-			if len(src[last:i]) > 0 {
-				if !yield(iterWhiteResult{whiteType, token.Pos(last + 1), src[last:i]}) {
+			if len(src[lastSrcPos:i]) > 0 {
+				if !yield(iterWhiteResult{whiteType, token.Pos(lastSrcPos + base + 1), src[lastSrcPos:i]}) {
 					return false
 				}
 			}
-			if !yield(iterWhiteResult{whiteSemi, token.Pos(i + 1), ";"}) {
+			if !yield(iterWhiteResult{whiteSemi, token.Pos(i + base + 1), ";"}) {
 				return false
 			}
 			whiteType = whiteWhite
-			last = i + 1
+			lastSrcPos = i + 1
 		case '\n':
-			if len(src[last:i]) > 0 {
-				if !yield(iterWhiteResult{whiteType, token.Pos(last + 1), src[last:i]}) {
+			if len(src[lastSrcPos:i]) > 0 {
+				if !yield(iterWhiteResult{whiteType, token.Pos(lastSrcPos + base + 1), src[lastSrcPos:i]}) {
 					return false
 				}
 			}
 			whiteType = whiteIndent
-			last = i
+			lastSrcPos = i
 		case ' ', '\t':
 			continue
 		case '\r':
@@ -95,8 +94,8 @@ func yieldIndent(src string, start, end token.Pos, yield func(iterWhiteResult) b
 			panic("unreachable")
 		}
 	}
-	if len(src[last:end]) > 0 {
-		return yield(iterWhiteResult{whiteType, token.Pos(last + 1), src[last:end]})
+	if len(src[lastSrcPos:int(end)-base]) > 0 {
+		return yield(iterWhiteResult{whiteType, token.Pos(lastSrcPos + base + 1), src[lastSrcPos : int(end)-base]})
 	}
 	return true
 }
