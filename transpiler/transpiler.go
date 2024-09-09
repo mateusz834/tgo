@@ -93,7 +93,7 @@ func (t *transpiler) addLineDirectiveBeforeRbrace(rbracePos token.Pos) {
 		)
 		// TODO: we don't get a whiteIdent, when a comment spans multiple lines.
 		// do we need to handle this case? What is broken currently?
-		for v := range t.iterWhite(t.lastPosWritten, rbracePos-1) {
+		for v := range t.iterWhite(t.lastPosWritten, rbracePos) {
 			switch v.whiteType {
 			case whiteWhite:
 				if beforeNewline {
@@ -281,7 +281,7 @@ func (t *transpiler) transpileList(additionalIndent int, lastIndentLine int, lis
 			end              = n.Pos()
 		)
 		fmt.Printf("a t.fs.Position(end): %#v\n", t.fs.Position(end))
-		for v := range t.iterWhite(t.lastPosWritten, n.Pos()-1) {
+		for v := range t.iterWhite(t.lastPosWritten, n.Pos()) {
 			switch v.whiteType {
 			case whiteWhite:
 				if beforeNewline {
@@ -316,7 +316,7 @@ func (t *transpiler) transpileList(additionalIndent int, lastIndentLine int, lis
 			// Preserve whitespace, comments and semicolons up to last newline (or up to n.Pos()
 			// if no newline found between prev and n.).
 			if prev != nil && !isTgo(prev) && end > t.lastPosWritten {
-				t.appendFromSource(end - 1)
+				t.appendFromSource(end)
 			}
 
 			// TODO: we are ingnoring comments between tgo tags.
@@ -360,7 +360,7 @@ func (t *transpiler) transpileList(additionalIndent int, lastIndentLine int, lis
 			t.lastPosWritten = n.Name.End()
 			t.transpileList(additionalIndent+1, lastIndentLine, n.Body)
 
-			for v := range t.iterWhite(t.lastPosWritten, n.ClosePos-1) {
+			for v := range t.iterWhite(t.lastPosWritten, n.ClosePos) {
 				if v.whiteType == whiteIndent {
 					t.lastIndentation = v.text
 				} else {

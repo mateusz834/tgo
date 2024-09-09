@@ -17,10 +17,42 @@ func TestIterWhite(t *testing.T) {
 		{
 			src: `package main
 func main() {
+	a = 3
 }
 `,
 			want: []iterWhiteResult{
-				{whiteWhite, 1, " "},
+				{whiteIndent, 27, "\n\t"},
+			},
+		},
+		{
+			src: `package main
+func main() {
+	// test
+}
+`,
+			want: []iterWhiteResult{
+				{whiteIndent, 27, "\n\t"},
+				{whiteComment, 29, "// test"},
+				{whiteIndent, 36, "\n"},
+			},
+		},
+		{
+			src: `package main
+func main() {
+	/*test*/ /*test*/ //test
+	// test
+	// testing
+	/*testing*/
+}
+`,
+			want: []iterWhiteResult{
+				{whiteIndent, 27, "\n\t"},
+				{whiteIndent, 29, "/*test*/"},
+				{whiteWhite, 37, " "},
+				{whiteIndent, 38, "/*test*/"},
+				{whiteWhite, 44, " "},
+				{whiteIndent, 45, "//test"},
+				{whiteIndent, 51, "\n\t"},
 			},
 		},
 	}
@@ -28,7 +60,6 @@ func main() {
 	for _, tt := range cases {
 		fset := token.NewFileSet()
 		fset.AddFile("test", fset.Base(), 100) // increase fset.Base()
-
 		for i := range tt.want {
 			tt.want[i].pos += 101
 		}
@@ -38,8 +69,12 @@ func main() {
 			t.Fatal(err)
 		}
 
-		start := f.Decls[0].(*ast.FuncDecl).Body.Lbrace + 1
-		end := f.Decls[0].(*ast.FuncDecl).Body.Rbrace - 1
+		fd := f.Decls[0].(*ast.FuncDecl)
+		start := fd.Body.Lbrace + 1
+		end := fd.Body.Rbrace
+		if len(fd.Body.List) > 0 {
+			end = fd.Body.List[0].Pos()
+		}
 
 		tr := transpiler{f: f, fs: fset, src: tt.src}
 		got := slices.Collect(tr.iterWhite(start, end))
