@@ -1,7 +1,9 @@
 package transpiler
 
 import (
-	"slices"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/mateusz834/tgoast/ast"
@@ -9,81 +11,63 @@ import (
 	"github.com/mateusz834/tgoast/token"
 )
 
-func TestIterWhite(t *testing.T) {
-	cases := []struct {
-		src  string
-		want []iterWhiteResult
-	}{
-		{
-			src: `package main
-func main() {
-	a = 3
-}
-`,
-			want: []iterWhiteResult{
-				{whiteIndent, 27, "\n\t"},
-			},
-		},
-		{
-			src: `package main
-func main() {
-	// test
-}
-`,
-			want: []iterWhiteResult{
-				{whiteIndent, 27, "\n\t"},
-				{whiteComment, 29, "// test"},
-				{whiteIndent, 36, "\n"},
-			},
-		},
-		{
-			src: `package main
-func main() {
-	/*test*/ /*test*/ //test
-	// test
-	// testing
-	/*testing*/
-}
-`,
-			want: []iterWhiteResult{
-				{whiteIndent, 27, "\n\t"},
-				{whiteIndent, 29, "/*test*/"},
-				{whiteWhite, 37, " "},
-				{whiteIndent, 38, "/*test*/"},
-				{whiteWhite, 44, " "},
-				{whiteIndent, 45, "//test"},
-				{whiteIndent, 51, "\n\t"},
-			},
-		},
+func fuzzAddDir2(f *testing.F, testdata string) {
+	files, err := os.ReadDir(testdata)
+	if err != nil {
+		f.Fatal(err)
 	}
-
-	for _, tt := range cases {
-		fset := token.NewFileSet()
-		fset.AddFile("test", fset.Base(), 100) // increase fset.Base()
-		for i := range tt.want {
-			tt.want[i].pos += 101
+	for _, v := range files {
+		if v.IsDir() {
+			continue
 		}
 
-		f, err := parser.ParseFile(fset, "test.go", tt.src, parser.ParseComments|parser.SkipObjectResolution)
+		testFile := filepath.Join(testdata, v.Name())
+		content, err := os.ReadFile(testFile)
 		if err != nil {
-			t.Fatal(err)
+			f.Fatal(err)
 		}
-
-		fd := f.Decls[0].(*ast.FuncDecl)
-		start := fd.Body.Lbrace + 1
-		end := fd.Body.Rbrace
-		if len(fd.Body.List) > 0 {
-			end = fd.Body.List[0].Pos()
-		}
-
-		tr := transpiler{f: f, fs: fset, src: tt.src}
-		got := slices.Collect(tr.iterWhite(start, end))
-		if !slices.Equal(got, tt.want) {
-			t.Errorf(
-				"\nsource: %v\ngot:%#v\nwant:%#v",
-				tt.src, got, tt.want,
-			)
-		}
-
+		f.Add(string(content))
 	}
+}
+
+func FuzzIterWhite(f *testing.F) {
+	fuzzAddDir2(f, "../../tgoast/printer/testdata/tgo")
+	fuzzAddDir2(f, "../../tgoast/parser/testdata/tgo")
+	fuzzAddDir2(f, "../../tgoast/printer")
+	fuzzAddDir2(f, "../../tgoast/printer/testdata")
+	fuzzAddDir2(f, "../../tgoast/parser")
+	fuzzAddDir2(f, "../../tgoast/parser/testdata")
+	fuzzAddDir2(f, "../../tgoast/ast")
+	f.Fuzz(func(t *testing.T, src string) {
+		fset := token.NewFileSet()
+		fset.AddFile("test.go", fset.Base(), 99)
+		f, err := parser.ParseFile(fset, "test.go", src, parser.ParseComments|parser.SkipObjectResolution)
+		if err != nil {
+			return
+		}
+
+		var (
+			startNode ast.Node
+			endNode   ast.Node
+		)
+		ast.Inspect(f, func(n ast.Node) bool {
+			if n, ok := n.(*ast.BlockStmt); ok {
+				if len(n.List) >= 2 {
+					startNode = n.List[0]
+					endNode = n.List[1]
+				}
+
+			}
+			return true
+		})
+
+		if startNode != nil && endNode != nil {
+			tr := transpiler{f: f, fs: fset, src: src}
+			for v := range tr.iterWhite(startNode.End(), endNode.Pos()) {
+				if !strings.HasPrefix(src[fset.PositionFor(v.pos, false).Offset:], v.text) {
+					t.Fatalf("source: %q, invalid pos for: %v", src, v)
+				}
+			}
+		}
+	})
 }

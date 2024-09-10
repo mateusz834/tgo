@@ -77,7 +77,7 @@ func yieldIndent(fset *token.FileSet, src string, start, end token.Pos, yield fu
 					return false
 				}
 			}
-			if !yield(iterWhiteResult{whiteSemi, token.Pos(i + base + 1), ";"}) {
+			if !yield(iterWhiteResult{whiteSemi, token.Pos(i + base), ";"}) {
 				return false
 			}
 			whiteType = whiteWhite

@@ -274,13 +274,12 @@ func (t *transpiler) transpileList(additionalIndent int, lastIndentLine int, lis
 	)
 	for _, n := range list {
 		var (
-			onelineDirective = t.fs.Position(t.lastPosWritten).Line == t.fs.Position(n.Pos()).Line
-			beforeNewline    = true
-			firstWhite       = false
-			afterFirst       = false
-			end              = n.Pos()
+			onelineDirective     = t.fs.Position(t.lastPosWritten).Line == t.fs.Position(n.Pos()).Line
+			beforeNewline        = true
+			firstWhite           = false
+			afterFirst           = false
+			lastNewlineOrNodePos = n.Pos()
 		)
-		fmt.Printf("a t.fs.Position(end): %#v\n", t.fs.Position(end))
 		for v := range t.iterWhite(t.lastPosWritten, n.Pos()) {
 			switch v.whiteType {
 			case whiteWhite:
@@ -294,8 +293,7 @@ func (t *transpiler) transpileList(additionalIndent int, lastIndentLine int, lis
 				t.lastIndentation = v.text
 				t.prevIndent = true
 				beforeNewline = false
-				end = v.pos
-				fmt.Printf("t.fs.Position(end): %#v\n", t.fs.Position(end))
+				lastNewlineOrNodePos = v.pos
 			case whiteComment:
 				t.prevIndent = false
 				if beforeNewline {
@@ -315,8 +313,8 @@ func (t *transpiler) transpileList(additionalIndent int, lastIndentLine int, lis
 		if isTgo(n) {
 			// Preserve whitespace, comments and semicolons up to last newline (or up to n.Pos()
 			// if no newline found between prev and n.).
-			if prev != nil && !isTgo(prev) && end > t.lastPosWritten {
-				t.appendFromSource(end)
+			if prev != nil && !isTgo(prev) && lastNewlineOrNodePos > t.lastPosWritten {
+				t.appendFromSource(lastNewlineOrNodePos)
 			}
 
 			// TODO: we are ingnoring comments between tgo tags.
