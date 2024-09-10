@@ -64,7 +64,9 @@ const tgosrc = `package A
 
 func a(a string) {
 	<div>
-		0 //akj
+		a = 3
+		// halo to ja XD
+		"halo"
 	</div>
 }
 `
