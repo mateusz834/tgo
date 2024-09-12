@@ -23,6 +23,9 @@ func Transpile(f *ast.File, fs *token.FileSet, src string) string {
 		lastIndentation: "\n",
 	}
 	t.transpile()
+	if len(t.tmp) != 0 {
+		panic("unreachable")
+	}
 	return string(t.out)
 }
 
@@ -31,17 +34,22 @@ type transpiler struct {
 	fs  *token.FileSet
 	src string
 	out []byte
+	tmp []byte
 
-	lastPosWritten token.Pos
+	lastPosWritten token.Pos // last position processed by the transpiler of the src.
 
+	// if set to true, then some generated source was written before, and line
+	// mapping would get out of sync when appending from original source,
+	// before appending anything from src a line directive needs
+	// to be written.
 	lineDirectiveMangled bool
 
-	inStaticWrite bool
+	inStaticWrite bool // if true, then inside of a static string write call.
 
+	// lastIndentation represents the last indentation found in the source code.
+	// It always contains at least a single newline character.
 	lastIndentation string
-	prevIndent      bool
-
-	tmp []byte
+	prevIndent      bool // if set, then out is already suffxed with lastIndentation.
 
 	scopeRemainingOpenCount        int
 	forceAllBracesToBeClosedBefore int
@@ -324,7 +332,7 @@ func (t *transpiler) transpileList(additionalIndent int, lastIndentLine int, lis
 			// when necessary.
 			t.prevIndent = false
 			t.lineDirectiveMangled = true
-		} else
+		} else {
 			if t.lineDirectiveMangled {
 				t.inStaticWrite = false
 				t.lineDirectiveMangled = false
