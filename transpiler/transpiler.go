@@ -56,8 +56,12 @@ type transpiler struct {
 	forceAllBracesToBeClosedBefore int
 }
 
-func (t *transpiler) srcOffset(p token.Pos) int {
+func (t *transpiler) posToOffset(p token.Pos) int {
 	return t.fs.File(t.f.FileStart).Offset(p)
+}
+
+func (t *transpiler) offsetToPos(off int) token.Pos {
+	return t.fs.File(t.f.FileStart).Pos(off)
 }
 
 func (t *transpiler) appendSource(s string) {
@@ -73,7 +77,7 @@ func (t *transpiler) appendFromSource(end token.Pos) {
 	if transpilerDebug {
 		fmt.Printf("t.appendFromSource(%v) -> ", end)
 	}
-	t.appendSource(t.src[t.srcOffset(t.lastPosWritten):t.srcOffset(end)])
+	t.appendSource(t.src[t.posToOffset(t.lastPosWritten):t.posToOffset(end)])
 	t.lastPosWritten = end
 }
 

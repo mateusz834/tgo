@@ -48,7 +48,7 @@ func (t *transpiler) iterWhite(start, end token.Pos) iter.Seq[iterWhiteResult] {
 				break
 			}
 			for _, v := range v.List {
-				if !yieldIndent(t.fs, t.src, last, v.Pos(), yield) {
+				if !t.yieldIndent(t.src, last, v.Pos(), yield) {
 					return
 				}
 				if !yield(iterWhiteResult{whiteComment, v.Pos(), v.Text}) {
@@ -57,15 +57,14 @@ func (t *transpiler) iterWhite(start, end token.Pos) iter.Seq[iterWhiteResult] {
 				last = v.End()
 			}
 		}
-		yieldIndent(t.fs, t.src, last, end, yield)
+		t.yieldIndent(t.src, last, end, yield)
 	}
 }
 
-func yieldIndent(fset *token.FileSet, src string, start, end token.Pos, yield func(iterWhiteResult) bool) bool {
+func (t *transpiler) yieldIndent(src string, start, end token.Pos, yield func(iterWhiteResult) bool) bool {
 	var (
-		base       = fset.File(start).Base()
-		lastSrcPos = int(start) - base
-		endSrcPos  = int(end) - base
+		lastSrcPos = t.posToOffset(start)
+		endSrcPos  = t.posToOffset(end)
 		whiteType  = whiteWhite
 	)
 
@@ -73,18 +72,18 @@ func yieldIndent(fset *token.FileSet, src string, start, end token.Pos, yield fu
 		switch src[i] {
 		case ';':
 			if len(src[lastSrcPos:i]) > 0 {
-				if !yield(iterWhiteResult{whiteType, token.Pos(lastSrcPos + base), src[lastSrcPos:i]}) {
+				if !yield(iterWhiteResult{whiteType, t.offsetToPos(lastSrcPos), src[lastSrcPos:i]}) {
 					return false
 				}
 			}
-			if !yield(iterWhiteResult{whiteSemi, token.Pos(i + base), ";"}) {
+			if !yield(iterWhiteResult{whiteSemi, t.offsetToPos(i), ";"}) {
 				return false
 			}
 			whiteType = whiteWhite
 			lastSrcPos = i + 1
 		case '\n':
 			if len(src[lastSrcPos:i]) > 0 {
-				if !yield(iterWhiteResult{whiteType, token.Pos(lastSrcPos + base), src[lastSrcPos:i]}) {
+				if !yield(iterWhiteResult{whiteType, t.offsetToPos(lastSrcPos), src[lastSrcPos:i]}) {
 					return false
 				}
 			}
@@ -99,7 +98,7 @@ func yieldIndent(fset *token.FileSet, src string, start, end token.Pos, yield fu
 		}
 	}
 	if len(src[lastSrcPos:endSrcPos]) > 0 {
-		return yield(iterWhiteResult{whiteType, token.Pos(lastSrcPos + base), src[lastSrcPos:endSrcPos]})
+		return yield(iterWhiteResult{whiteType, t.offsetToPos(lastSrcPos), src[lastSrcPos:endSrcPos]})
 	}
 	return true
 }
