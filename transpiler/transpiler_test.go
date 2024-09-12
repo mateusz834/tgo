@@ -278,6 +278,13 @@ package main
 		t.Logf("quoted input:\n%q", src)
 
 		fs := token.NewFileSet()
+
+		// Add an unused file to FileSet, so that fs.Base()
+		// is incrased before parsing the file. This way we also
+		// make sure that we are converting token.Pos into source offset
+		// correctly in the transpiler.
+		fs.AddFile("t", -1, 99)
+
 		f, err := parser.ParseFile(fs, name, src, parser.ParseComments|parser.SkipObjectResolution)
 		if err != nil {
 			return

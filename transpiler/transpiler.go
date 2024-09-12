@@ -33,6 +33,7 @@ type transpiler struct {
 	f   *ast.File
 	fs  *token.FileSet
 	src string
+
 	out []byte
 	tmp []byte
 
@@ -46,13 +47,17 @@ type transpiler struct {
 
 	inStaticWrite bool // if true, then inside of a static string write call.
 
-	// lastIndentation represents the last indentation found in the source code.
-	// It always contains at least a single newline character.
+	// lastIndentation represents the last indentation found in the source code
+	// (prefixed with a newline). It always contains at least a single newline character.
 	lastIndentation string
 	prevIndent      bool // if set, then out is already suffxed with lastIndentation.
 
 	scopeRemainingOpenCount        int
 	forceAllBracesToBeClosedBefore int
+}
+
+func (t *transpiler) srcOffset(p token.Pos) int {
+	return t.fs.File(t.f.FileStart).Offset(p)
 }
 
 func (t *transpiler) appendSource(s string) {
@@ -68,7 +73,7 @@ func (t *transpiler) appendFromSource(end token.Pos) {
 	if transpilerDebug {
 		fmt.Printf("t.appendFromSource(%v) -> ", end)
 	}
-	t.appendSource(t.src[t.lastPosWritten-1 : end-1])
+	t.appendSource(t.src[t.srcOffset(t.lastPosWritten):t.srcOffset(end)])
 	t.lastPosWritten = end
 }
 
