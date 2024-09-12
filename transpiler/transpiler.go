@@ -324,23 +324,12 @@ func (t *transpiler) transpileList(additionalIndent int, lastIndentLine int, lis
 			// when necessary.
 			t.prevIndent = false
 			t.lineDirectiveMangled = true
-		} else {
+		} else
 			if t.lineDirectiveMangled {
 				t.inStaticWrite = false
 				t.lineDirectiveMangled = false
-
-				// TODO: this ifs can be removed?
-				if v, ok := prev.(*ast.EndTagStmt); ok {
-					if t.fs.Position(v.End()).Line == t.fs.Position(n.Pos()).Line {
-						t.appendSource(";")
-					}
-				} else if v, ok := prev.(*ast.EndTagStmt); ok {
-					if t.fs.Position(v.End()).Line == t.fs.Position(n.Pos()).Line {
-						t.appendSource(";")
-					}
-				}
 				t.writeLineDirective(onelineDirective, !firstWhite, t.lastPosWritten)
-				t.appendFromSource(n.Pos()) // TODO: is this necessary here?
+				t.appendFromSource(n.Pos())
 			}
 		}
 

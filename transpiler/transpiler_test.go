@@ -63,11 +63,7 @@ func test() {
 const tgosrc = `package A
 
 func a(a string) {
-	<div>
-		a = 3
-		// halo to ja XD
-		"halo"
-	</div>
+	<div></div>;a=3
 }
 `
 
