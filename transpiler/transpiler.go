@@ -1,7 +1,6 @@
 package transpiler
 
 import (
-	"bytes"
 	"fmt"
 	"slices"
 	"strconv"
@@ -46,10 +45,7 @@ type transpiler struct {
 
 	inStaticWrite bool // if true, then inside of a static string write call.
 
-	// lastIndentation represents the last indentation found in the source code
-	// (prefixed with a newline). It always contains at least a single newline character.
-	lastIndentation string
-	prevIndent      bool // if set, then out is already suffxed with lastIndentation.
+	lastIndentation string // last indentation found in the source, prefixed with a newline.
 
 	scopeRemainingOpenCount        int
 	forceAllBracesToBeClosedBefore int
@@ -69,12 +65,11 @@ func (t *transpiler) appendSource(s string) {
 	}
 	t.flushTmp()
 	t.out = append(t.out, s...)
-	t.prevIndent = false
 }
 
 func (t *transpiler) appendFromSource(end token.Pos) {
 	if debug.Verbose {
-		fmt.Printf("t.appendFromSource(%v) -> ", end)
+		fmt.Printf("t.appendFromSource(%v (%v)) -> ", t.fs.Position(end), end)
 	}
 	t.appendSource(t.src[t.posToOffset(t.lastPosWritten):t.posToOffset(end)])
 	t.lastPosWritten = end
@@ -120,15 +115,12 @@ func (t *transpiler) addLineDirectiveBeforeRbrace(rbracePos token.Pos) {
 				}
 			case whiteIndent:
 				t.lastIndentation = v.text
-				t.prevIndent = true
 				beforeNewline = false
 			case whiteComment:
-				t.prevIndent = false
 				if beforeNewline {
 					onelineDirective = true
 				}
 			case whiteSemi:
-				t.prevIndent = false
 				if beforeNewline {
 					onelineDirective = true
 				}
@@ -196,47 +188,15 @@ func (t *transpiler) appendIndent(b []byte, additionalIndent int) []byte {
 }
 
 func (t *transpiler) wantIndent(additionalIndent int) {
+	if debug.Verbose {
+		fmt.Printf(
+			"t.wantIndent(%v): appending %q\n",
+			additionalIndent,
+			t.lastIndentation+strings.Repeat("\t", additionalIndent),
+		)
+	}
 	t.flushTmp()
-
-	if debug.Debug {
-		if !strings.HasPrefix(t.lastIndentation, "\n") {
-			panic("unreachable")
-		}
-	}
-
-	if !t.prevIndent {
-		if debug.Verbose {
-			fmt.Printf(
-				"t.wantIndent(%v): appending %q\n",
-				additionalIndent,
-				t.lastIndentation+strings.Repeat("\t", additionalIndent),
-			)
-		}
-		if debug.Debug {
-			alreadyIndented := false
-			for _, v := range t.out[max(bytes.LastIndexByte(t.out, '\n')+1, 0):] {
-				if v == ' ' || v == '\t' {
-					continue
-				}
-				alreadyIndented = true
-				break
-			}
-			if !alreadyIndented {
-				panic("unreachable")
-			}
-		}
-		t.out = t.appendIndent(t.out, additionalIndent)
-		t.prevIndent = true
-	} else if debug.Debug {
-		if additionalIndent > 0 {
-			// TODO: figure this case out:
-			panic("unreachable")
-		}
-		fmt.Printf("t.wantIndent(): already indented with %q\n", t.lastIndentation)
-		if !bytes.HasSuffix(t.out, []byte(t.lastIndentation)) {
-			panic("unreachable")
-		}
-	}
+	t.out = t.appendIndent(t.out, additionalIndent)
 }
 
 func isTgo(n ast.Node) bool {
@@ -309,16 +269,13 @@ func (t *transpiler) transpileList(additionalIndent int, lastIndentLine int, lis
 				}
 			case whiteIndent:
 				t.lastIndentation = v.text
-				t.prevIndent = true
 				beforeNewline = false
 				lastNewlineOrNodePos = v.pos
 			case whiteComment:
-				t.prevIndent = false
 				if beforeNewline {
 					onelineDirective = true
 				}
 			case whiteSemi:
-				t.prevIndent = false
 				if beforeNewline {
 					onelineDirective = true
 				}
@@ -340,7 +297,6 @@ func (t *transpiler) transpileList(additionalIndent int, lastIndentLine int, lis
 			// When the current node is a tgo-node, ignore the whitespace
 			// the logic below will add the indentation (from t.lastIndentation),
 			// when necessary.
-			t.prevIndent = false
 			t.lineDirectiveMangled = true
 		} else {
 			if t.lineDirectiveMangled {
@@ -374,7 +330,6 @@ func (t *transpiler) transpileList(additionalIndent int, lastIndentLine int, lis
 					panic("unreachable")
 				}
 			}
-			t.prevIndent = false
 
 			t.scopeEnd(tagScope, additionalIndent)
 
