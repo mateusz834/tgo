@@ -408,10 +408,23 @@ func (t *transpiler) transpileTemplateLiteral(additionalIndent int, x *ast.Templ
 
 func (t *transpiler) dynamicWriteIndent(additionalIndent int, n ast.Expr) {
 	t.wantIndent(additionalIndent)
-	t.appendSource("if err := __tgo.DynamicWrite(__tgo_ctx, ")
+	t.appendSource("if err := __tgo.DynamicWrite(__tgo_ctx")
+
+	// We have to add a line directive before a comma, because
+	// the go parser does not preserve positon of commas
+	// so when formatting the comments get moved before the comma.
+	// See: https://go.dev/issue/13113
+	if t.fs.PositionFor(n.Pos(), false).Line != t.fs.PositionFor(n.Pos()-3, false).Line {
+		panic("unreachable")
+	}
+	t.writeLineDirective(true, false, n.Pos()-3)
+	t.appendSource(", ")
+
 	indent := t.lastIndentation
+	// TODO: figure out whether t.lineDirectiveMangled behaves right with this.
 	ast.Inspect(n, t.inspect)
 	t.lastIndentation = indent
+
 	t.appendFromSource(n.End())
 	t.appendSource("); err != nil {")
 	t.wantIndent(additionalIndent)

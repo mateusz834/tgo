@@ -70,12 +70,7 @@ func test() {
 const tgosrc = `package templates
 
 func test(sth string) {
-	<div>
-
-
-	</div>
-
-	a = 3
+	<div>"\{a}"</div>
 }
 `
 
