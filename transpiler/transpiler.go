@@ -7,11 +7,10 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/mateusz834/tgo/debug"
 	"github.com/mateusz834/tgoast/ast"
 	"github.com/mateusz834/tgoast/token"
 )
-
-const transpilerDebug = false
 
 func Transpile(f *ast.File, fs *token.FileSet, src string) string {
 	t := transpiler{
@@ -65,7 +64,7 @@ func (t *transpiler) offsetToPos(off int) token.Pos {
 }
 
 func (t *transpiler) appendSource(s string) {
-	if transpilerDebug {
+	if debug.Verbose {
 		fmt.Printf("t.appendString(%q)\n", s)
 	}
 	t.flushTmp()
@@ -74,7 +73,7 @@ func (t *transpiler) appendSource(s string) {
 }
 
 func (t *transpiler) appendFromSource(end token.Pos) {
-	if transpilerDebug {
+	if debug.Verbose {
 		fmt.Printf("t.appendFromSource(%v) -> ", end)
 	}
 	t.appendSource(t.src[t.posToOffset(t.lastPosWritten):t.posToOffset(end)])
@@ -199,19 +198,21 @@ func (t *transpiler) appendIndent(b []byte, additionalIndent int) []byte {
 func (t *transpiler) wantIndent(additionalIndent int) {
 	t.flushTmp()
 
-	if transpilerDebug {
+	if debug.Debug {
 		if !strings.HasPrefix(t.lastIndentation, "\n") {
 			panic("unreachable")
 		}
 	}
 
 	if !t.prevIndent {
-		if transpilerDebug {
+		if debug.Verbose {
 			fmt.Printf(
 				"t.wantIndent(%v): appending %q\n",
 				additionalIndent,
 				t.lastIndentation+strings.Repeat("\t", additionalIndent),
 			)
+		}
+		if debug.Debug {
 			alreadyIndented := false
 			for _, v := range t.out[max(bytes.LastIndexByte(t.out, '\n')+1, 0):] {
 				if v == ' ' || v == '\t' {
@@ -226,7 +227,7 @@ func (t *transpiler) wantIndent(additionalIndent int) {
 		}
 		t.out = t.appendIndent(t.out, additionalIndent)
 		t.prevIndent = true
-	} else if transpilerDebug {
+	} else if debug.Debug {
 		if additionalIndent > 0 {
 			// TODO: figure this case out:
 			panic("unreachable")
@@ -270,7 +271,7 @@ func (t *transpiler) scopeEnd(s scopeState, additionalIndent int) {
 		t.tmp = append(t.tmp, '}')
 		t.forceAllBracesToBeClosedBefore--
 	} else {
-		if transpilerDebug {
+		if debug.Debug {
 			for _, v := range t.tmp[s.beforeLen:] {
 				switch v {
 				case ' ', '\t', '\n', '{', '}':

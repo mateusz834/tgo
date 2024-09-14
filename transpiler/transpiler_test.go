@@ -63,7 +63,7 @@ func test() {
 const tgosrc = `package A
 
 func a(a string) {
-	<div></div>"a"+3
+	<div>"test"</div>
 }
 `
 
