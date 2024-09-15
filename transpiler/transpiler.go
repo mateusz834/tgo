@@ -410,6 +410,8 @@ func (t *transpiler) dynamicWriteIndent(additionalIndent int, n ast.Expr) {
 	t.wantIndent(additionalIndent)
 	t.appendSource("if err := __tgo.DynamicWrite(__tgo_ctx")
 
+	// TODO: comments before n.
+
 	// We have to add a line directive before a comma, because
 	// the go parser does not preserve positon of commas,
 	// when formatting the comments get moved before the comma.
