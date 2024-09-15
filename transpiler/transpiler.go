@@ -411,8 +411,8 @@ func (t *transpiler) dynamicWriteIndent(additionalIndent int, n ast.Expr) {
 	t.appendSource("if err := __tgo.DynamicWrite(__tgo_ctx")
 
 	// We have to add a line directive before a comma, because
-	// the go parser does not preserve positon of commas
-	// so when formatting the comments get moved before the comma.
+	// the go parser does not preserve positon of commas,
+	// when formatting the comments get moved before the comma.
 	// See: https://go.dev/issue/13113
 	if t.fs.PositionFor(n.Pos(), false).Line != t.fs.PositionFor(n.Pos()-3, false).Line {
 		panic("unreachable")
