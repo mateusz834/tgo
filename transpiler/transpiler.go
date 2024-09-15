@@ -419,6 +419,7 @@ func (t *transpiler) dynamicWriteIndent(additionalIndent int, n ast.Expr) {
 	if t.fs.PositionFor(n.Pos(), false).Line != t.fs.PositionFor(n.Pos()-3, false).Line {
 		panic("unreachable")
 	}
+	// TODO: why -3, not 2?
 	t.writeLineDirective(true, false, n.Pos()-3)
 	t.appendSource(", ")
 
