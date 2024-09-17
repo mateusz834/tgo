@@ -416,9 +416,7 @@ func (t *transpiler) dynamicWriteIndent(additionalIndent int, n ast.Expr) {
 	// the go parser does not preserve positon of commas,
 	// when formatting the comments get moved before the comma.
 	// See: https://go.dev/issue/13113
-	if t.fs.PositionFor(n.Pos(), false).Line != t.fs.PositionFor(n.Pos()-3, false).Line {
-		panic("unreachable")
-	}
+	_ = t.fs.File(t.f.FileStart).PositionFor(n.Pos()-3, false) // asserts that the pos is valid.
 	// TODO: why -3, not 2?
 	t.writeLineDirective(true, false, n.Pos()-3)
 	t.appendSource(", ")
