@@ -415,6 +415,22 @@ func (t *transpiler) dynamicWriteIndent(additionalIndent int, n *ast.TemplateLit
 	t.appendSource("if err := __tgo.DynamicWrite(__tgo_ctx, (")
 
 	t.lastPosWritten = n.LBrace + 1
+
+	var prev iterWhiteResult
+	for v := range t.iterWhite(t.lastPosWritten, n.X.Pos()) {
+		if prev.whiteType != whiteInvalid {
+			if prev.whiteType == whiteWhite && prev.text == " " && v.whiteType == whiteComment {
+				// Comment prefixed with a space, skip it, so we
+				// don't end up with two spaces in a row.
+				t.lastPosWritten++
+			}
+			break
+		}
+		prev = v
+	}
+
+	// TODO: verify the line comments, they are wrong now.
+
 	t.writeLineDirective(true, true, t.lastPosWritten)
 
 	// TODO: figure out whether t.lineDirectiveMangled behaves right with this.

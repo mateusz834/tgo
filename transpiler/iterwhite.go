@@ -15,7 +15,7 @@ import (
 type white uint8
 
 const (
-	_ white = iota
+	whiteInvalid white = iota
 
 	// TODO: what about '\r'?
 
