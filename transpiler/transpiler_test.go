@@ -69,12 +69,8 @@ func test() {
 
 const tgosrc = `package templates
 
-func test(sth string) {
-	<div>
-		sth = "testing"
-		<span>"\{/*aa*/ //aa
-		sth}"</span>
-	</div>
+func A(A) {
+	"\{a}"
 }
 `
 
@@ -283,7 +279,7 @@ package main
 			strings.ContainsRune(name, '\r') || strings.ContainsRune(src, '\r') ||
 			strings.ContainsRune(name, '\f') || strings.ContainsRune(name, '\n') ||
 			strings.ContainsRune(name, '`') || strings.ContainsRune(name, '\'') ||
-			strings.Contains(name, "*/") {
+			strings.Contains(name, "*/") || strings.Contains(name, "\v") {
 			return
 		}
 

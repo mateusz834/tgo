@@ -153,14 +153,14 @@ func (t *transpiler) inspect(n ast.Node) bool {
 }
 
 func (t *transpiler) writeLineDirective(oneline, addSpace bool, pos token.Pos) {
+	if oneline && addSpace {
+		pos--
+	}
 	p := t.fs.Position(pos + 1)
 	if oneline {
 		t.appendSource(" /*line ")
 	} else {
 		t.appendSource("\n//line ")
-	}
-	if oneline && addSpace {
-		p.Column--
 	}
 	t.appendSource(p.Filename)
 	t.appendSource(":")
@@ -398,7 +398,6 @@ func (t *transpiler) transpileList(additionalIndent int, lastIndentLine int, lis
 func (t *transpiler) transpileTemplateLiteral(additionalIndent int, x *ast.TemplateLiteralExpr) {
 	for i := range x.Parts {
 		t.staticWriteIndent(additionalIndent, x.Strings[i])
-		t.lastPosWritten = x.Parts[i].Pos()
 		t.inStaticWrite = false
 		t.dynamicWriteIndent(additionalIndent, x.Parts[i])
 	}
@@ -406,32 +405,33 @@ func (t *transpiler) transpileTemplateLiteral(additionalIndent int, x *ast.Templ
 	t.lastPosWritten = x.End()
 }
 
-func (t *transpiler) dynamicWriteIndent(additionalIndent int, n ast.Expr) {
+func (t *transpiler) dynamicWriteIndent(additionalIndent int, n *ast.TemplateLiteralPart) {
 	t.wantIndent(additionalIndent)
-	t.appendSource("if err := __tgo.DynamicWrite(__tgo_ctx")
 
-	// TODO: comments before n.
-
-	// We have to add a line directive before a comma, because
-	// the go parser does not preserve positon of commas,
-	// when formatting the comments get moved before the comma.
+	// We have wrap the n in a parens to create a *ast.ParenExpr, because
+	// the go parser does not preserve positon of commas, so
+	// while formatting the comments get moved before the comma.
 	// See: https://go.dev/issue/13113
-	_ = t.fs.File(t.f.FileStart).PositionFor(n.Pos()-3, false) // asserts that the pos is valid.
-	// TODO: why -3, not 2?
-	t.writeLineDirective(true, false, n.Pos()-3)
-	t.appendSource(", ")
+	t.appendSource("if err := __tgo.DynamicWrite(__tgo_ctx, (")
 
-	indent := t.lastIndentation
+	t.lastPosWritten = n.LBrace + 1
+	t.writeLineDirective(true, true, t.lastPosWritten)
+
 	// TODO: figure out whether t.lineDirectiveMangled behaves right with this.
-	ast.Inspect(n, t.inspect)
-	t.lastIndentation = indent
 
-	t.appendFromSource(n.End())
-	t.appendSource("); err != nil {")
+	t.appendFromSource(n.X.Pos())
+	indent := t.lastIndentation
+	ast.Inspect(n.X, t.inspect)
+	t.lastIndentation = indent
+	t.appendFromSource(n.End() - 1)
+
+	t.appendSource(")); err != nil {")
 	t.wantIndent(additionalIndent)
 	t.appendSource("\treturn err")
 	t.wantIndent(additionalIndent)
 	t.appendSource("}")
+
+	fmt.Println("a"+"a", ("a" + "a"))
 }
 
 func (t *transpiler) staticWriteIndent(additionalIndent int, s string) {
