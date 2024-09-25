@@ -70,7 +70,7 @@ func test() {
 const tgosrc = `package templates
 
 func A(A) {
-	"\{ /*lol*/ a}"
+	"\{ /*l*/ a}"
 }
 `
 

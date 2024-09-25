@@ -415,6 +415,7 @@ func (t *transpiler) dynamicWriteIndent(additionalIndent int, n *ast.TemplateLit
 	t.appendSource("if err := __tgo.DynamicWrite(__tgo_ctx, (")
 
 	t.lastPosWritten = n.LBrace + 1
+	lineDirectivePos := t.lastPosWritten
 
 	var prev iterWhiteResult
 	for v := range t.iterWhite(t.lastPosWritten, n.X.Pos()) {
@@ -429,9 +430,7 @@ func (t *transpiler) dynamicWriteIndent(additionalIndent int, n *ast.TemplateLit
 		prev = v
 	}
 
-	// TODO: verify the line comments, they are wrong now.
-
-	t.writeLineDirective(true, true, t.lastPosWritten)
+	t.writeLineDirective(true, true, lineDirectivePos)
 
 	// TODO: figure out whether t.lineDirectiveMangled behaves right with this.
 
