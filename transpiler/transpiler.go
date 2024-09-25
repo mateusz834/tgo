@@ -408,11 +408,13 @@ func (t *transpiler) transpileTemplateLiteral(additionalIndent int, x *ast.Templ
 func (t *transpiler) dynamicWriteIndent(additionalIndent int, n *ast.TemplateLiteralPart) {
 	t.wantIndent(additionalIndent)
 
-	// We have wrap the n in a parens to create a *ast.ParenExpr, because
-	// the go parser does not preserve positon of commas, so
-	// while formatting the comments get moved before the comma.
-	// See: https://go.dev/issue/13113
-	t.appendSource("if err := __tgo.DynamicWrite(__tgo_ctx, (")
+	t.appendSource("if err := __tgo.DynamicWrite(__tgo_ctx, " +
+		// We wrap n in parentheses to create a *ast.ParenExpr,
+		// because the Go parser does not preserve the position of commas.
+		// Without the parentheses, comments get moved before the comma during formatting.
+		// See: https://go.dev/issue/13113
+		"(",
+	)
 
 	t.lastPosWritten = n.LBrace + 1
 	lineDirectivePos := t.lastPosWritten
