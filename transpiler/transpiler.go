@@ -446,8 +446,6 @@ func (t *transpiler) dynamicWriteIndent(additionalIndent int, n *ast.TemplateLit
 	t.appendSource("\treturn err")
 	t.wantIndent(additionalIndent)
 	t.appendSource("}")
-
-	fmt.Println("a"+"a", ("a" + "a"))
 }
 
 func (t *transpiler) staticWriteIndent(additionalIndent int, s string) {
