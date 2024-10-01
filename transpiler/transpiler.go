@@ -292,8 +292,9 @@ func (t *transpiler) transpileList(additionalIndent int, lastIndentLine int, lis
 		}
 
 		if isTgo(n) {
-			// Preserve whitespace, comments and semicolons up to last newline (or up to n.Pos()
-			// if no newline found between prev and n.).
+			// When previous node was a non-tgo and now we have a tgo node,
+			// preserve whitespace, comments and semicolons up to last newline
+			// (or up to n.Pos() if no newline found between prev and n).
 			if prev != nil && !isTgo(prev) {
 				t.appendFromSource(lastNewlineOrNodePos)
 			}
