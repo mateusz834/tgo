@@ -98,12 +98,14 @@ func (t *transpiler) addLineDirectiveBeforeRbrace(rbracePos token.Pos) {
 	if t.lineDirectiveMangled {
 		var (
 			onelineDirective = t.fs.Position(t.lastPosWritten).Line == t.fs.Position(rbracePos).Line
-			beforeNewline    = true
-			firstWhite       = false
-			afterFirst       = false
+
+			// Note that the current implementation is wrong in case of a multiline
+			// comment, it is not a problem for what we are using it for now.
+			beforeNewline = true
+
+			firstWhite = false
+			afterFirst = false
 		)
-		// TODO: we don't get a whiteIdent, when a comment spans multiple lines.
-		// do we need to handle this case? What is broken currently?
 		for v := range t.iterWhite(t.lastPosWritten, rbracePos) {
 			switch v.whiteType {
 			case whiteWhite:
@@ -258,8 +260,12 @@ func (t *transpiler) transpileList(additionalIndent int, lastIndentLine int, lis
 	)
 	for _, n := range list {
 		var (
-			onelineDirective     = t.fs.Position(t.lastPosWritten).Line == t.fs.Position(n.Pos()).Line
-			beforeNewline        = true
+			onelineDirective = t.fs.Position(t.lastPosWritten).Line == t.fs.Position(n.Pos()).Line
+
+			// Note that the current implementation is wrong in case of a multiline
+			// comment, it is not a problem for what we are using it for now.
+			beforeNewline = true
+
 			firstWhite           = false
 			afterFirst           = false
 			lastNewlineOrNodePos = n.Pos()
