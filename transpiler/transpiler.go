@@ -100,7 +100,7 @@ func (t *transpiler) addLineDirectiveBeforeRbrace(rbracePos token.Pos) {
 			onelineDirective = t.fs.Position(t.lastPosWritten).Line == t.fs.Position(rbracePos).Line
 
 			// Note that the current implementation is wrong in case of a multiline
-			// comment, it is not a problem for what we are using it for now.
+			// comment, it is not a problem for what we are using it now.
 			beforeNewline = true
 
 			firstWhite = false
@@ -263,7 +263,7 @@ func (t *transpiler) transpileList(additionalIndent int, lastIndentLine int, lis
 			onelineDirective = t.fs.Position(t.lastPosWritten).Line == t.fs.Position(n.Pos()).Line
 
 			// Note that the current implementation is wrong in case of a multiline
-			// comment, it is not a problem for what we are using it for now.
+			// comment, it is not a problem for what we are using it now.
 			beforeNewline = true
 
 			firstWhite           = false
