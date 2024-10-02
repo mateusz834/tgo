@@ -47,8 +47,8 @@ type transpiler struct {
 
 	lastIndentation string // last indentation found in the source, prefixed with a newline.
 
-	scopeRemainingOpenCount        int
-	forceAllBracesToBeClosedBefore int
+	implicitBlockStmtCount            int
+	implicitBlockStmtForceCloseBefore int
 }
 
 func (t *transpiler) posToOffset(p token.Pos) int {
@@ -78,7 +78,7 @@ func (t *transpiler) appendFromSource(end token.Pos) {
 func (t *transpiler) flushTmp() {
 	t.out = append(t.out, t.tmp...)
 	t.tmp = t.tmp[:0]
-	t.forceAllBracesToBeClosedBefore = t.scopeRemainingOpenCount
+	t.implicitBlockStmtForceCloseBefore = t.implicitBlockStmtCount
 }
 
 func (t *transpiler) transpile() {
@@ -226,17 +226,17 @@ func (t *transpiler) scopeStart(additionalIndent int) scopeState {
 	beforeLen := len(t.tmp)
 	t.tmp = t.appendIndent(t.tmp, additionalIndent)
 	t.tmp = append(t.tmp, '{')
-	t.scopeRemainingOpenCount++
+	t.implicitBlockStmtCount++
 	return scopeState{
 		beforeLen: beforeLen,
 	}
 }
 
 func (t *transpiler) scopeEnd(s scopeState, additionalIndent int) {
-	if t.scopeRemainingOpenCount <= t.forceAllBracesToBeClosedBefore {
+	if t.implicitBlockStmtCount <= t.implicitBlockStmtForceCloseBefore {
 		t.tmp = t.appendIndent(t.tmp, additionalIndent)
 		t.tmp = append(t.tmp, '}')
-		t.forceAllBracesToBeClosedBefore--
+		t.implicitBlockStmtForceCloseBefore--
 	} else {
 		if debug.Debug {
 			for _, v := range t.tmp[s.beforeLen:] {
@@ -249,7 +249,7 @@ func (t *transpiler) scopeEnd(s scopeState, additionalIndent int) {
 		}
 		t.tmp = t.tmp[:s.beforeLen]
 	}
-	t.scopeRemainingOpenCount--
+	t.implicitBlockStmtCount--
 }
 
 func (t *transpiler) transpileList(additionalIndent int, lastIndentLine int, list []ast.Stmt) {
