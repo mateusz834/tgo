@@ -10,6 +10,7 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+	"unicode/utf8"
 
 	goast "go/ast"
 	"go/build/constraint"
@@ -268,38 +269,42 @@ package main
 `)
 
 	f.Fuzz(func(t *testing.T, name string, src string) {
-		t.Logf("file name: %q", name)
+		if testing.Verbose() {
+			t.Logf("file name: %q", name)
+			t.Logf("source:\n%v", src)
+			t.Logf("quoted input:\n%q", src)
+		}
 
-		if _, err := parser.ParseFile(
-			token.NewFileSet(),
-			name,
-			"//line "+name+":1:1\n/*line "+name+":1:1*/\npackage main",
-			parser.ParseComments|parser.SkipObjectResolution,
-		); err != nil ||
-			strings.ContainsRune(name, '\r') || strings.ContainsRune(src, '\r') ||
-			strings.ContainsRune(name, '\f') || strings.ContainsRune(name, '\n') ||
-			strings.ContainsRune(name, '`') || strings.ContainsRune(name, '\'') ||
-			strings.Contains(name, "*/") || strings.Contains(name, "\v") {
+		if !utf8.ValidString(name) {
 			return
 		}
 
-		t.Logf("source:\n%v", src)
-		t.Logf("quoted input:\n%q", src)
+		// TODO: remove "*/" after removing filenames for subsequent line directives
+		// See (*transpiler).writeLineDirective
+		for _, v := range []string{"\r", "\f", "\n", "\v" /*"`", "'",*/, "*/", "\000", "\ufeff"} {
+			if strings.Contains(name, v) {
+				return
+			}
+		}
 
-		fs := token.NewFileSet()
+		if strings.ContainsRune(src, '\r') {
+			return
+		}
 
-		// Add an unused file to FileSet, so that fs.Base()
+		fset := token.NewFileSet()
+
+		// Add an unused file to FileSet, so that fset.Base()
 		// is incrased before parsing the file. This way we also
 		// make sure that we are converting token.Pos into source offset
 		// correctly in the transpiler.
-		fs.AddFile("t", -1, 99)
+		fset.AddFile("t", -1, 99)
 
-		f, err := parser.ParseFile(fs, name, src, parser.ParseComments|parser.SkipObjectResolution)
+		f, err := parser.ParseFile(fset, name, src, parser.ParseComments|parser.SkipObjectResolution)
 		if err != nil {
 			return
 		}
 
-		if analyzer.Analyze(fs, f) != nil {
+		if analyzer.Analyze(fset, f) != nil {
 			return
 		}
 
@@ -327,20 +332,22 @@ package main
 			return true
 		})
 
-		out := Transpile(f, fs, src)
-		t.Logf("transpiled output:\n%v", out)
-		t.Logf("quoted transpiled output:\n%q", out)
+		out := Transpile(f, fset, src)
 
-		fsgo := gotoken.NewFileSet()
-		fgo, err := goparser.ParseFile(fsgo, name, out, goparser.ParseComments|goparser.SkipObjectResolution)
+		if testing.Verbose() {
+			t.Logf("transpiled output:\n%v", out)
+			t.Logf("quoted transpiled output:\n%q", out)
+		}
+
+		fsetgo := gotoken.NewFileSet()
+		fgo, err := goparser.ParseFile(fsetgo, name, out, goparser.ParseComments|goparser.SkipObjectResolution)
 		if err != nil {
 			if v, ok := err.(goscanner.ErrorList); ok {
 				for _, v := range v {
 					t.Logf("%v", v)
 				}
 			}
-			t.Logf("quoted transpiled output:\n%q", out)
-			t.Fatalf("goparser.ParseFile() = %v; want <nil>", err)
+			t.Fatalf("goparser.ParseFile(Transpile(src)) = %v; want = <nil>", err)
 		}
 
 		emptyBlockStmtCountGo := 0
@@ -392,14 +399,14 @@ package main
 		prevHadLine := false
 		prevLine := math.MinInt
 		for _, v := range fgo.Comments {
-			if prevHadLine && prevLine+1 == fsgo.PositionFor(v.Pos(), false).Line {
+			if prevHadLine && prevLine+1 == fsetgo.PositionFor(v.Pos(), false).Line {
 				return
 			}
 			prevHadLine = false
-			prevLine = fsgo.PositionFor(v.End(), false).Line
+			prevLine = fsetgo.PositionFor(v.End(), false).Line
 
 			for _, c := range v.List {
-				p := fsgo.PositionFor(v.Pos(), false)
+				p := fsetgo.PositionFor(v.Pos(), false)
 				if (p.Column == 1 && strings.HasPrefix(c.Text, "//line")) || strings.HasPrefix(c.Text, "/*line") {
 					if len(v.List) != 1 {
 						return
@@ -436,12 +443,12 @@ package main
 					panic(p)
 				}
 			}()
-			if err := format.Node(&tgoFmt, fs, f); err != nil {
+			if err := format.Node(&tgoFmt, fset, f); err != nil {
 				// See https://go.dev/issue/69089
 				if strings.Contains(err.Error(), "format.Node internal error (") {
 					for _, v := range f.Comments {
 						for _, v := range v.List {
-							if fs.PositionFor(v.Pos(), false).Column != 1 &&
+							if fset.PositionFor(v.Pos(), false).Column != 1 &&
 								(constraint.IsGoBuild(v.Text) || constraint.IsPlusBuild(v.Text)) {
 								return
 							}
@@ -457,13 +464,15 @@ package main
 		}
 
 		var outFmt strings.Builder
-		if err := goformat.Node(&outFmt, fsgo, fgo); err != nil {
+		if err := goformat.Node(&outFmt, fsetgo, fgo); err != nil {
 			t.Fatalf("goformat.Node() = %v; want <nil>", err)
 		}
 
-		t.Logf("formatted transpiled output:\n%v", outFmt.String())
-		t.Logf("quoted transpiled output:\n%q", out)
-		t.Logf("quoted formatted transpiled output:\n%q", outFmt.String())
+		if testing.Verbose() {
+			t.Logf("formatted transpiled output:\n%v", outFmt.String())
+			t.Logf("quoted transpiled output:\n%q", out)
+			t.Logf("quoted formatted transpiled output:\n%q", outFmt.String())
+		}
 
 		if outFmt.String() != out {
 			diff, err := gitDiff(t.TempDir(), out, outFmt.String())
