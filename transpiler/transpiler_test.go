@@ -382,15 +382,15 @@ package main
 		// at Column == 1 as doc comment, and it moves directives to the end of a comment.
 		// Line directive should not be moved in any way (https://go.dev/cl/609077).
 		// We are not able to keep that formatted.
-		// Also comments with line directives are not properly combined
-		// into comment groups, because of line directives (https://go.dev/cl/609515)
 		for i, v := range fgo.Comments {
 			for _, c := range v.List {
-				p := fsetgo.PositionFor(v.Pos(), false)
+				p := fsetgo.PositionFor(c.Pos(), false)
 				if (p.Column == 1 && strings.HasPrefix(c.Text, "//line")) || strings.HasPrefix(c.Text, "/*line") {
 					if len(v.List) != 1 {
 						return
 					}
+					// Comments with line directives are not properly combined
+					// into comment groups, because of line directives (https://go.dev/cl/609515)
 					if i+1 != len(fgo.Comments) {
 						end := fsetgo.PositionFor(v.End(), false)
 						nextStart := fsetgo.PositionFor(fgo.Comments[i+1].Pos(), false)
