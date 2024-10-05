@@ -3,7 +3,6 @@ package transpiler
 import (
 	"errors"
 	"io"
-	"math"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -68,10 +67,13 @@ func test() {
 //}
 //`
 
+// TODO: figure out this a printer (tgo).
+// why this happend in template part, but not
+// in *ast.ParenExpr.
+
 const tgosrc = `package templates
 
 func A(A) {
-	"\{ /*l*/ a}"
 }
 `
 
@@ -367,20 +369,6 @@ package main
 			t.Error("transpiled output contains unexpected empty *ast.BlockStmt")
 		}
 
-		// NOTE: this case is already handled by //line check below.
-		// Because of the go doc formatting rules it is currently impossible
-		// with the curreent golang formatter to make sure that the comments
-		// before the package token do not cause different formatting when
-		// the line directive is prepended.
-		//for _, v := range f.Comments {
-		//	for _, v := range v.List {
-		//		if v.Pos() > f.Package {
-		//			break
-		//		}
-		//		return
-		//	}
-		//}
-
 		// TODO: understand this issue, is this related to the ast.SortImprts panic?
 		for _, v := range f.Comments {
 			for _, v := range v.List {
@@ -396,22 +384,20 @@ package main
 		// We are not able to keep that formatted.
 		// Also comments with line directives are not properly combined
 		// into comment groups, because of line directives (https://go.dev/cl/609515)
-		prevHadLine := false
-		prevLine := math.MinInt
-		for _, v := range fgo.Comments {
-			if prevHadLine && prevLine+1 == fsetgo.PositionFor(v.Pos(), false).Line {
-				return
-			}
-			prevHadLine = false
-			prevLine = fsetgo.PositionFor(v.End(), false).Line
-
+		for i, v := range fgo.Comments {
 			for _, c := range v.List {
 				p := fsetgo.PositionFor(v.Pos(), false)
 				if (p.Column == 1 && strings.HasPrefix(c.Text, "//line")) || strings.HasPrefix(c.Text, "/*line") {
 					if len(v.List) != 1 {
 						return
 					}
-					prevHadLine = true
+					if i+1 != len(fgo.Comments) {
+						end := fsetgo.PositionFor(v.End(), false)
+						nextStart := fsetgo.PositionFor(fgo.Comments[i+1].Pos(), false)
+						if end.Line+1 == nextStart.Line {
+							return
+						}
+					}
 				}
 			}
 		}
