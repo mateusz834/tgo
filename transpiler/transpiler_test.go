@@ -389,13 +389,24 @@ package main
 					if len(v.List) != 1 {
 						return
 					}
+
 					// Comments with line directives are not properly combined
 					// into comment groups, because of line directives (https://go.dev/cl/609515)
 					if i+1 != len(fgo.Comments) {
 						end := fsetgo.PositionFor(v.End(), false)
 						nextStart := fsetgo.PositionFor(fgo.Comments[i+1].Pos(), false)
 						if end.Line+1 == nextStart.Line {
-							return
+							onlyWhite := true
+							for _, v := range out[end.Offset:nextStart.Offset] {
+								switch v {
+								case ' ', '\t', '\n':
+								default:
+									onlyWhite = false
+								}
+							}
+							if onlyWhite {
+								return
+							}
 						}
 					}
 				}
