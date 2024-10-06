@@ -74,6 +74,7 @@ func test() {
 const tgosrc = `package templates
 
 func A(A) {
+	/*l*/ /*l*/
 }
 `
 
@@ -395,7 +396,7 @@ package main
 					if i+1 != len(fgo.Comments) {
 						end := fsetgo.PositionFor(v.End(), false)
 						nextStart := fsetgo.PositionFor(fgo.Comments[i+1].Pos(), false)
-						if end.Line+1 == nextStart.Line {
+						if end.Line+1 == nextStart.Line || end.Line == nextStart.Line {
 							onlyWhite := true
 							for _, v := range out[end.Offset:nextStart.Offset] {
 								switch v {
