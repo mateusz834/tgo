@@ -282,9 +282,7 @@ package main
 			return
 		}
 
-		// TODO: remove "*/" after removing filenames for subsequent line directives
-		// See (*transpiler).writeLineDirective
-		for _, v := range []string{"\r", "\f", "\n", "\v" /*"`", "'",*/, "*/", "\000", "\ufeff"} {
+		for _, v := range []string{"\r", "\f", "\n", "\v", "\000", "\ufeff"} {
 			if strings.Contains(name, v) {
 				return
 			}

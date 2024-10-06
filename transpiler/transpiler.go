@@ -165,11 +165,6 @@ func (t *transpiler) writeLineDirective(oneline, addSpace bool, pos token.Pos) {
 		t.appendSource("\n//line ")
 	}
 
-	// TODO: Go allows skipping the filename from the line directive,
-	// in that case the previous filename is used (//line :1:1)
-	// we can use that to reduce the output (transpiled) size.
-	t.appendSource(p.Filename)
-
 	t.appendSource(":")
 	t.appendSource(strconv.FormatInt(int64(p.Line), 10))
 	t.appendSource(":")
