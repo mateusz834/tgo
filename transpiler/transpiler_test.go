@@ -288,10 +288,6 @@ package main
 			}
 		}
 
-		if strings.ContainsRune(src, '\r') {
-			return
-		}
-
 		fset := token.NewFileSet()
 
 		// Add an unused file to FileSet, so that fset.Base()

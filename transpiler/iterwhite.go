@@ -17,10 +17,8 @@ type white uint8
 const (
 	whiteInvalid white = iota
 
-	// TODO: what about '\r'?
-
-	whiteWhite   // " ", "\t"
-	whiteIndent  // "\n", "\n\t"
+	whiteWhite   // " ", "\t", "\r", "\t\r "
+	whiteIndent  // "\n", "\n\t", "\n\t\r "
 	whiteSemi    // ";"
 	whiteComment // /*comment*/, // comment
 )
@@ -89,10 +87,8 @@ func (t *transpiler) yieldIndent(src string, start, end token.Pos, yield func(it
 			}
 			whiteType = whiteIndent
 			lastSrcPos = i
-		case ' ', '\t':
+		case ' ', '\t', '\r':
 			continue
-		case '\r':
-			panic("TODO")
 		default:
 			panic("unreachable")
 		}
