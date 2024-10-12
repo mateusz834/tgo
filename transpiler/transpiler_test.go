@@ -332,6 +332,23 @@ package main
 			return true
 		})
 
+		// See https://go.dev/issue/41197
+		for _, v := range f.Comments {
+			for _, v := range v.List {
+				// TODO: what about line comments?
+				if v.Text[1] == '/' {
+					for _, v := range src[fset.File(f.FileStart).Offset(v.Pos()):] {
+						if v == '\r' {
+							t.Skip()
+						}
+						if v == '\n' {
+							continue
+						}
+					}
+				}
+			}
+		}
+
 		out := Transpile(f, fset, src)
 
 		if testing.Verbose() {
