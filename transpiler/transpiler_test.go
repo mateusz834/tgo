@@ -487,18 +487,25 @@ package main
 					}
 
 					// See https://go.dev/issue/69858
-					if len(f.Imports) != 0 {
-						for _, v := range f.Comments {
-							for _, v := range v.List {
-								if v.Text[1] == '*' && strings.ContainsRune(v.Text, '\f') {
-									return
-								}
-							}
+					var lastEndImportPos token.Pos
+					for _, v := range f.Decls {
+						if v, ok := v.(*ast.GenDecl); ok && v.Tok == token.IMPORT {
+							lastEndImportPos = v.End()
 						}
-						for _, v := range f.Imports {
-							if strings.ContainsRune(v.Path.Value, '\f') {
+					}
+					for _, v := range f.Comments {
+						for _, v := range v.List {
+							if v.Pos() > lastEndImportPos {
+								break
+							}
+							if v.Text[1] == '*' && strings.ContainsRune(v.Text, '\f') {
 								return
 							}
+						}
+					}
+					for _, v := range f.Imports {
+						if strings.ContainsRune(v.Path.Value, '\f') {
+							return
 						}
 					}
 				}
