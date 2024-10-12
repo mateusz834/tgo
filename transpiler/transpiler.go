@@ -2,6 +2,7 @@ package transpiler
 
 import (
 	"fmt"
+	"html"
 	"slices"
 	"strconv"
 	"strings"
@@ -362,16 +363,19 @@ func (t *transpiler) transpileList(additionalIndent int, lastIndentLine int, lis
 			if n.Value != nil {
 				switch x := n.Value.(type) {
 				case *ast.BasicLit:
-					t.staticWriteIndent(additionalIndent, " "+n.AttrName.(*ast.Ident).Name+"=")
+					t.staticWriteIndent(additionalIndent, " ")
+					t.staticWriteIndent(additionalIndent, n.AttrName.(*ast.Ident).Name)
+					t.staticWriteIndent(additionalIndent, "=")
 					if x.Kind == token.STRING {
-						t.staticWriteIndent(additionalIndent, x.Value)
+						t.staticWriteIndentGoString(additionalIndent, x.Value)
 					}
 				case *ast.TemplateLiteralExpr:
 					t.staticWriteIndent(additionalIndent, " "+n.AttrName.(*ast.Ident).Name+"=")
 					t.transpileTemplateLiteral(additionalIndent, x)
 				}
 			} else {
-				t.staticWriteIndent(additionalIndent, " "+n.AttrName.(*ast.Ident).Name)
+				t.staticWriteIndent(additionalIndent, " ")
+				t.staticWriteIndent(additionalIndent, n.AttrName.(*ast.Ident).Name)
 			}
 			t.lastPosWritten = n.End()
 		case *ast.ExprStmt:
@@ -380,7 +384,7 @@ func (t *transpiler) transpileList(additionalIndent int, lastIndentLine int, lis
 			}
 			lastIndentLine = t.fs.Position(n.Pos()).Line
 			if x, ok := n.X.(*ast.BasicLit); ok && x.Kind == token.STRING {
-				t.staticWriteIndent(additionalIndent, x.Value)
+				t.staticWriteIndentGoString(additionalIndent, x.Value)
 				t.lastPosWritten = n.End()
 			} else if x, ok := n.X.(*ast.TemplateLiteralExpr); ok {
 				t.transpileTemplateLiteral(additionalIndent, x)
@@ -404,11 +408,15 @@ func (t *transpiler) transpileList(additionalIndent int, lastIndentLine int, lis
 
 func (t *transpiler) transpileTemplateLiteral(additionalIndent int, x *ast.TemplateLiteralExpr) {
 	for i := range x.Parts {
-		t.staticWriteIndent(additionalIndent, x.Strings[i])
+		if i == 0 {
+			t.staticWriteIndentGoString(additionalIndent, x.Strings[i]+"\"")
+		} else {
+			t.staticWriteIndentGoString(additionalIndent, "\""+x.Strings[i]+"\"")
+		}
 		t.inStaticWrite = false
 		t.dynamicWriteIndent(additionalIndent, x.Parts[i])
 	}
-	t.staticWriteIndent(additionalIndent, x.Strings[len(x.Strings)-1])
+	t.staticWriteIndentGoString(additionalIndent, "\""+x.Strings[len(x.Strings)-1])
 	t.lastPosWritten = x.End()
 }
 
@@ -456,6 +464,18 @@ func (t *transpiler) dynamicWriteIndent(additionalIndent int, n *ast.TemplateLit
 	t.appendSource("}")
 }
 
+func (t *transpiler) staticWriteIndentGoString(additionalIndent int, s string) {
+	s, err := strconv.Unquote(s)
+	if err != nil {
+		panic(err) // unreachable, AST is valid
+	}
+	if s == "" {
+		return
+	}
+	s = strconv.Quote(html.EscapeString(s))
+	t.staticWriteIndent(additionalIndent, s[1:len(s)-1])
+}
+
 func (t *transpiler) staticWriteIndent(additionalIndent int, s string) {
 	if t.inStaticWrite {
 		t.out = append(t.out, s...)
@@ -463,9 +483,9 @@ func (t *transpiler) staticWriteIndent(additionalIndent int, s string) {
 	}
 	t.inStaticWrite = true
 	t.wantIndent(additionalIndent)
-	t.appendSource("if err := __tgo_ctx.WriteString(`")
+	t.appendSource("if err := __tgo_ctx.WriteString(\"")
 	t.appendSource(s)
-	t.tmp = append(t.tmp, "`); err != nil {"...)
+	t.tmp = append(t.tmp, "\"); err != nil {"...)
 	t.tmp = t.appendIndent(t.tmp, additionalIndent)
 	t.tmp = append(t.tmp, "\treturn err"...)
 	t.tmp = t.appendIndent(t.tmp, additionalIndent)

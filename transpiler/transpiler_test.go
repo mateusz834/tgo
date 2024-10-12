@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"testing"
 	"unicode/utf8"
@@ -71,12 +72,20 @@ func test() {
 // why this happend in template part, but not
 // in *ast.ParenExpr.
 
-const tgosrc = `package templates
+//const tgosrc = `package templates
+//
+//func A(A) {
+//	<div>
+//		{
+//			""
+//			""
+//			""
+//		}
+//	</div>
+//}
+//`
 
-func A(A) {
-	/*l*/ /*l*/
-}
-`
+const tgosrc = "package A\nimport(\"\f\"\n//\n\"\")"
 
 // TODO: issue with the assert, it should not allow three newliens in a row?
 
@@ -305,30 +314,6 @@ package main
 			return
 		}
 
-		emptyBlockStmtCount := 0
-		ast.Inspect(f, func(n ast.Node) bool {
-			switch n := n.(type) {
-			case *ast.BlockStmt:
-				if len(n.List) == 0 {
-					emptyBlockStmtCount++
-				}
-			case *ast.BasicLit:
-				if strings.ContainsRune(n.Value, '`') {
-					t.Skip()
-				}
-				if n.Kind == token.STRING && n.Value[0] == '"' && strings.ContainsRune(n.Value, '\f') {
-					t.Skip()
-				}
-			case *ast.TemplateLiteralExpr:
-				for _, v := range n.Strings {
-					if strings.ContainsRune(v, '`') {
-						t.Skip()
-					}
-				}
-			}
-			return true
-		})
-
 		out := Transpile(f, fset, src)
 
 		if testing.Verbose() {
@@ -347,6 +332,34 @@ package main
 			t.Fatalf("goparser.ParseFile(Transpile(src)) = %v; want = <nil>", err)
 		}
 
+		expectedEmptyBlockStmtCount := 0
+		ast.Inspect(f, func(n ast.Node) bool {
+			switch n := n.(type) {
+			case *ast.BlockStmt:
+				hasOnlyEmptyStrs := true
+				for _, v := range n.List {
+					isEmptyStr := false
+					if v, ok := v.(*ast.ExprStmt); ok {
+						if v, ok := v.X.(*ast.BasicLit); ok && v.Kind == token.STRING {
+							str, err := strconv.Unquote(v.Value)
+							if err != nil {
+								panic(err) // unreachable, AST is valid
+							}
+							isEmptyStr = str == ""
+						}
+					}
+					if !isEmptyStr {
+						hasOnlyEmptyStrs = false
+						break
+					}
+				}
+				if hasOnlyEmptyStrs {
+					expectedEmptyBlockStmtCount++
+				}
+			}
+			return true
+		})
+
 		emptyBlockStmtCountGo := 0
 		goast.Inspect(fgo, func(n goast.Node) bool {
 			switch n := n.(type) {
@@ -360,17 +373,8 @@ package main
 
 		// Transpiler should not produce empty block stmts for empty tags (<div>)
 		// and for empty tag bodies (<div></div>).
-		if emptyBlockStmtCount != emptyBlockStmtCountGo {
-			t.Error("transpiled output contains unexpected empty *ast.BlockStmt")
-		}
-
-		// TODO: understand this issue, is this related to the ast.SortImprts panic?
-		for _, v := range f.Comments {
-			for _, v := range v.List {
-				if v.Text[1] == '*' && strings.ContainsRune(v.Text, '\f') {
-					return
-				}
-			}
+		if expectedEmptyBlockStmtCount != emptyBlockStmtCountGo {
+			t.Error("transpiled output contains an unexpected, empty *ast.BlockStmt")
 		}
 
 		// The Go formatter moves comments around, bacause it treats every comment
@@ -436,12 +440,28 @@ package main
 				}
 			}()
 			if err := format.Node(&tgoFmt, fset, f); err != nil {
-				// See https://go.dev/issue/69089
 				if strings.Contains(err.Error(), "format.Node internal error (") {
+					// See https://go.dev/issue/69089
 					for _, v := range f.Comments {
 						for _, v := range v.List {
 							if fset.PositionFor(v.Pos(), false).Column != 1 &&
 								(constraint.IsGoBuild(v.Text) || constraint.IsPlusBuild(v.Text)) {
+								return
+							}
+						}
+					}
+
+					// See https://go.dev/issue/69858
+					if len(f.Imports) != 0 {
+						for _, v := range f.Comments {
+							for _, v := range v.List {
+								if v.Text[1] == '*' && strings.ContainsRune(v.Text, '\f') {
+									return
+								}
+							}
+						}
+						for _, v := range f.Imports {
+							if strings.ContainsRune(v.Path.Value, '\f') {
 								return
 							}
 						}
@@ -462,7 +482,6 @@ package main
 
 		if testing.Verbose() {
 			t.Logf("formatted transpiled output:\n%v", outFmt.String())
-			t.Logf("quoted transpiled output:\n%q", out)
 			t.Logf("quoted formatted transpiled output:\n%q", outFmt.String())
 		}
 
