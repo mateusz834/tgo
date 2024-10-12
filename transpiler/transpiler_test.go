@@ -85,7 +85,7 @@ func test() {
 //}
 //`
 
-const tgosrc = "package A\nimport(\"\f\"\n//\n\"\")"
+const tgosrc = "package A\n"
 
 // TODO: issue with the assert, it should not allow three newliens in a row?
 
@@ -313,6 +313,24 @@ package main
 		if analyzer.Analyze(fset, f) != nil {
 			return
 		}
+
+		// See https://go.dev/issue/69861
+		ast.Inspect(f, func(n ast.Node) bool {
+			switch n := n.(type) {
+			case *ast.BasicLit:
+				if n.Kind == token.STRING && n.Value[0] == '`' {
+					for _, v := range src[fset.File(f.FileStart).Offset(n.Pos())+1:] {
+						if v == '`' {
+							return true
+						}
+						if v == '\r' {
+							t.Skip()
+						}
+					}
+				}
+			}
+			return true
+		})
 
 		out := Transpile(f, fset, src)
 
