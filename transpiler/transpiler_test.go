@@ -335,7 +335,6 @@ package main
 		// See https://go.dev/issue/41197
 		for _, v := range f.Comments {
 			for _, v := range v.List {
-				// TODO: what about line comments?
 				if v.Text[1] == '/' {
 					for _, v := range src[fset.File(f.FileStart).Offset(v.Pos()):] {
 						if v == '\r' {
@@ -344,6 +343,17 @@ package main
 						if v == '\n' {
 							continue
 						}
+					}
+				} else if v.Text[1] == '*' {
+					var prev rune
+					for _, v := range src[fset.File(f.FileStart).Offset(v.Pos()):] {
+						if v == '\r' {
+							t.Skip()
+						}
+						if prev == '*' && v == '/' {
+							continue
+						}
+						prev = v
 					}
 				}
 			}
