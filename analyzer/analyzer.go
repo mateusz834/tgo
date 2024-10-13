@@ -79,7 +79,8 @@ func (f *contextAnalyzer) Visit(node ast.Node) ast.Visitor {
 		*ast.SwitchStmt, *ast.CaseClause,
 		*ast.ForStmt, *ast.SelectStmt,
 		*ast.CommClause, *ast.RangeStmt,
-		*ast.TypeSwitchStmt, *ast.ExprStmt:
+		*ast.TypeSwitchStmt, *ast.ExprStmt,
+		*ast.LabeledStmt:
 		return f
 	case *ast.TemplateLiteralExpr:
 		if f.context != contextTgoBody {
