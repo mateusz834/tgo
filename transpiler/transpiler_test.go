@@ -341,7 +341,7 @@ package main
 							t.Skip()
 						}
 						if v == '\n' {
-							continue
+							break
 						}
 					}
 				} else if v.Text[1] == '*' {
@@ -351,7 +351,7 @@ package main
 							t.Skip()
 						}
 						if prev == '*' && v == '/' {
-							continue
+							break
 						}
 						prev = v
 					}
