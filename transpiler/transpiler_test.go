@@ -336,7 +336,7 @@ package main
 		for _, v := range f.Comments {
 			for _, v := range v.List {
 				if v.Text[1] == '/' {
-					for _, v := range src[fset.File(f.FileStart).Offset(v.Pos()):] {
+					for _, v := range src[fset.File(f.FileStart).Offset(v.Pos())+2:] {
 						if v == '\r' {
 							t.Skip()
 						}
@@ -346,7 +346,7 @@ package main
 					}
 				} else if v.Text[1] == '*' {
 					var prev rune
-					for _, v := range src[fset.File(f.FileStart).Offset(v.Pos()):] {
+					for _, v := range src[fset.File(f.FileStart).Offset(v.Pos())+2:] {
 						if v == '\r' {
 							t.Skip()
 						}
