@@ -251,11 +251,11 @@ func (f *branchAnalyzer) Visit(node ast.Node) ast.Visitor {
 				})
 			}
 		case token.GOTO:
-			fallthrough
+			panic("figure out")
 		case token.FALLTHROUGH:
-			fallthrough
+			panic("figure out")
 		default:
-			panic("that also")
+			panic("unreachable")
 		}
 	case *ast.ReturnStmt:
 		if f.depth != 0 {
