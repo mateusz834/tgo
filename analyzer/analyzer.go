@@ -8,14 +8,15 @@ import (
 	"github.com/mateusz834/tgoast/token"
 )
 
-// TODO: gotos, return/continue/break in the middle of a tag.
-
 func Analyze(fs *token.FileSet, f *ast.File) error {
 	ctx := &analyzerContext{
 		fs: fs,
 	}
 	ast.Walk(&contextAnalyzer{context: contextNotTgo, ctx: ctx}, f)
 	ast.Walk(&tagPairsAnalyzer{ctx: ctx}, f)
+	if len(ctx.errors) == 0 {
+		ast.Walk(&branchAnalyzer{ctx: ctx}, f)
+	}
 	checkDirectives(ctx, f)
 	if len(ctx.errors) != 0 {
 		return ctx.errors
@@ -178,7 +179,6 @@ func (f *tagPairsAnalyzer) checkTagPairs(stmt []ast.Stmt) {
 					StartPos: f.ctx.fs.Position(n.OpenPos),
 					EndPos:   f.ctx.fs.Position(n.ClosePos),
 				})
-				continue
 			}
 		}
 	}
@@ -190,6 +190,83 @@ func (f *tagPairsAnalyzer) checkTagPairs(stmt []ast.Stmt) {
 			EndPos:   f.ctx.fs.Position(v.end),
 		})
 	}
+}
+
+type branchAnalyzer struct {
+	ctx           *analyzerContext
+	depth         int
+	breakDepth    int
+	continueDepth int
+}
+
+func (f *branchAnalyzer) Visit(node ast.Node) ast.Visitor {
+	switch n := node.(type) {
+	case *ast.FuncDecl, *ast.FuncLit:
+		return &branchAnalyzer{ctx: f.ctx} // reset depths
+	case *ast.ForStmt, *ast.RangeStmt:
+		return &branchAnalyzer{
+			ctx:           f.ctx,
+			depth:         f.depth,
+			breakDepth:    0,
+			continueDepth: 0,
+		}
+	case *ast.SwitchStmt, *ast.SelectStmt, *ast.TypeSwitchStmt:
+		return &branchAnalyzer{
+			ctx:           f.ctx,
+			depth:         f.depth,
+			breakDepth:    0,
+			continueDepth: f.continueDepth,
+		}
+	case *ast.OpenTagStmt:
+		// TODO(mateusz834): void elements
+		f.depth++
+		f.continueDepth++
+		f.breakDepth++
+	case *ast.EndTagStmt:
+		if f.depth == 0 || f.continueDepth == 0 || f.breakDepth == 0 {
+			panic("unreachable")
+		}
+		f.depth--
+		f.continueDepth--
+		f.breakDepth--
+	case *ast.BranchStmt:
+		if n.Label != nil {
+			panic("this is not going to be easy")
+		}
+		switch n.Tok {
+		case token.BREAK:
+			if f.breakDepth != 0 {
+				f.ctx.errors = append(f.ctx.errors, AnalyzeError{
+					Message:  "unexpected break statement",
+					StartPos: f.ctx.fs.Position(n.Pos()),
+					EndPos:   f.ctx.fs.Position(n.End() - 1),
+				})
+			}
+		case token.CONTINUE:
+			if f.continueDepth != 0 {
+				f.ctx.errors = append(f.ctx.errors, AnalyzeError{
+					Message:  "unexpected continue statement",
+					StartPos: f.ctx.fs.Position(n.Pos()),
+					EndPos:   f.ctx.fs.Position(n.End() - 1),
+				})
+			}
+		case token.GOTO:
+			fallthrough
+		case token.FALLTHROUGH:
+			fallthrough
+		default:
+			panic("that also")
+		}
+	case *ast.ReturnStmt:
+		if f.depth != 0 {
+			f.ctx.errors = append(f.ctx.errors, AnalyzeError{
+				Message:  "unexpected return statement",
+				StartPos: f.ctx.fs.Position(n.Pos()),
+				EndPos:   f.ctx.fs.Position(n.End() - 1),
+			})
+		}
+	}
+	return f
 }
 
 func checkDirectives(ctx *analyzerContext, f *ast.File) {

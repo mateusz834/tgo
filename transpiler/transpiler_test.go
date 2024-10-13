@@ -72,20 +72,20 @@ func test() {
 // why this happend in template part, but not
 // in *ast.ParenExpr.
 
-//const tgosrc = `package templates
-//
-//func A(A) {
-//	<div>
-//		{
-//			""
-//			""
-//			""
-//		}
-//	</div>
-//}
-//`
+const tgosrc = `package templates
 
-const tgosrc = "package A\n"
+func A(A) {
+	for _, v := range a {
+		<div>
+			for _, v := range 5 {
+				<div>
+				</div>
+				break
+			}
+		</div>
+	}
+}
+`
 
 // TODO: issue with the assert, it should not allow three newliens in a row?
 
@@ -105,7 +105,6 @@ func TestTranspiler(t *testing.T) {
 	}
 
 	err = analyzer.Analyze(fs, f)
-	err = nil
 	if v, ok := err.(analyzer.AnalyzeErrors); ok {
 		for _, v := range v {
 			t.Logf("%v", v)
