@@ -1,6 +1,7 @@
 package analyzer
 
 import (
+	"flag"
 	"os"
 	"path/filepath"
 	"strings"
@@ -59,6 +60,8 @@ func TestTgo(t *testing.T) {
 	}
 }
 
+var update = flag.Bool("update", false, "")
+
 func TestAnalyze(t *testing.T) {
 	const testdata = "./testdata"
 	files, err := os.ReadDir(testdata)
@@ -70,15 +73,13 @@ func TestAnalyze(t *testing.T) {
 			fileName := filepath.Join(testdata, v.Name())
 			c, err := os.ReadFile(fileName)
 			if err != nil {
-				//if errors.Is(err, os.ErrNotExist) {
-				//}
 				t.Fatal(err)
 			}
 
 			tgo, errors, separatorFound := strings.Cut(string(c), "======\n")
 
 			fset := token.NewFileSet()
-			f, err := parser.ParseFile(fset, fileName, tgo, parser.SkipObjectResolution|parser.ParseComments)
+			f, err := parser.ParseFile(fset, "test.tgo", tgo, parser.SkipObjectResolution|parser.ParseComments)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -90,6 +91,18 @@ func TestAnalyze(t *testing.T) {
 					gotErrors.WriteString("\n")
 				}
 				gotErrors.WriteString(err.Error())
+				gotErrors.WriteString("\n")
+			}
+
+			if *update {
+				out := tgo
+				if gotErrors.String() != "" {
+					out += "======\n" + gotErrors.String()
+				}
+				if err := os.WriteFile(fileName, []byte(out), 0666); err != nil {
+					t.Fatal(err)
+				}
+				return
 			}
 
 			if !separatorFound {
