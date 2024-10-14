@@ -2,6 +2,7 @@ package analyzer
 
 import (
 	"fmt"
+	"maps"
 	"strings"
 
 	"github.com/mateusz834/tgoast/ast"
@@ -198,6 +199,7 @@ type branchAnalyzer struct {
 	depth         int
 	breakDepth    int
 	continueDepth int
+	labeledDepth  map[string]int
 }
 
 func (f *branchAnalyzer) Visit(node ast.Node) ast.Visitor {
@@ -210,6 +212,7 @@ func (f *branchAnalyzer) Visit(node ast.Node) ast.Visitor {
 			depth:         f.depth,
 			breakDepth:    0,
 			continueDepth: 0,
+			labeledDepth:  maps.Clone(f.labeledDepth),
 		}
 	case *ast.SwitchStmt, *ast.SelectStmt, *ast.TypeSwitchStmt:
 		return &branchAnalyzer{
@@ -217,56 +220,97 @@ func (f *branchAnalyzer) Visit(node ast.Node) ast.Visitor {
 			depth:         f.depth,
 			breakDepth:    0,
 			continueDepth: f.continueDepth,
+			labeledDepth:  maps.Clone(f.labeledDepth),
 		}
+	case *ast.LabeledStmt:
+		b := &branchAnalyzer{
+			ctx:           f.ctx,
+			depth:         f.depth,
+			breakDepth:    0,
+			continueDepth: f.continueDepth,
+			labeledDepth:  maps.Clone(f.labeledDepth),
+		}
+		if b.labeledDepth == nil {
+			b.labeledDepth = make(map[string]int)
+		}
+		b.labeledDepth[n.Label.Name] = 0
+		return b
 	case *ast.OpenTagStmt:
 		// TODO(mateusz834): void elements
 		f.depth++
 		f.continueDepth++
 		f.breakDepth++
+		for k := range f.labeledDepth {
+			f.labeledDepth[k]++
+		}
 	case *ast.EndTagStmt:
 		if f.depth == 0 || f.continueDepth == 0 || f.breakDepth == 0 {
 			panic("unreachable")
 		}
+		// TODO(mateusz834): void elements
 		f.depth--
 		f.continueDepth--
 		f.breakDepth--
-	case *ast.BranchStmt:
-		if n.Label != nil {
-			panic("this is not going to be easy")
+		for k, v := range f.labeledDepth {
+			if v == 0 {
+				panic("unreachable")
+			}
+			f.labeledDepth[k]--
 		}
+	case *ast.BranchStmt:
 		switch n.Tok {
 		case token.BREAK:
-			if f.breakDepth != 0 {
+			depth := f.breakDepth
+			if n.Label != nil {
+				if d, ok := f.labeledDepth[n.Label.Name]; ok {
+					depth = d
+				}
+			}
+			if depth != 0 {
 				f.ctx.errors = append(f.ctx.errors, AnalyzeError{
-					Message:  "unexpected break statement",
+					Message:  "unexpected break statement in the middle of a tag body, ensure that all open tags are closed",
 					StartPos: f.ctx.fs.Position(n.Pos()),
 					EndPos:   f.ctx.fs.Position(n.End() - 1),
 				})
 			}
 		case token.CONTINUE:
-			if f.continueDepth != 0 {
+			depth := f.continueDepth
+			if n.Label != nil {
+				if d, ok := f.labeledDepth[n.Label.Name]; ok {
+					depth = d
+				}
+			}
+			if depth != 0 {
 				f.ctx.errors = append(f.ctx.errors, AnalyzeError{
-					Message:  "unexpected continue statement",
+					Message:  "unexpected continue statement in the middle of a tag body, ensure that all open tags are closed",
 					StartPos: f.ctx.fs.Position(n.Pos()),
 					EndPos:   f.ctx.fs.Position(n.End() - 1),
 				})
 			}
 		case token.GOTO:
-			panic("figure out")
+			// TODO: can we make it better? Who even uses gotos.
+			if f.depth != 0 {
+				f.ctx.errors = append(f.ctx.errors, AnalyzeError{
+					Message:  "unexpected goto statement in the middle of a tag body, ensure that all open tags are closed",
+					StartPos: f.ctx.fs.Position(n.Pos()),
+					EndPos:   f.ctx.fs.Position(n.End() - 1),
+				})
+			}
 		case token.FALLTHROUGH:
-			panic("figure out")
+			// ignore, fallthrough, as it can only be as the last statement.
 		default:
 			panic("unreachable")
 		}
 	case *ast.ReturnStmt:
 		if f.depth != 0 {
 			f.ctx.errors = append(f.ctx.errors, AnalyzeError{
-				Message:  "unexpected return statement",
+				Message:  "unexpected return statement in the middle of a tag body, ensure that all open tags are closed",
 				StartPos: f.ctx.fs.Position(n.Pos()),
 				EndPos:   f.ctx.fs.Position(n.End() - 1),
 			})
 		}
 	}
+
 	return f
 }
 
