@@ -2,6 +2,8 @@ package analyzer
 
 import (
 	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/mateusz834/tgoast/ast"
@@ -54,5 +56,54 @@ func TestTgo(t *testing.T) {
 	err = format.Node(os.Stdout, fs, f)
 	if err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestAnalyze(t *testing.T) {
+	const testdata = "./testdata"
+	files, err := os.ReadDir(testdata)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, v := range files {
+		t.Run(v.Name(), func(t *testing.T) {
+			fileName := filepath.Join(testdata, v.Name())
+			c, err := os.ReadFile(fileName)
+			if err != nil {
+				//if errors.Is(err, os.ErrNotExist) {
+				//}
+				t.Fatal(err)
+			}
+
+			tgo, errors, separatorFound := strings.Cut(string(c), "======\n")
+
+			fset := token.NewFileSet()
+			f, err := parser.ParseFile(fset, fileName, tgo, parser.SkipObjectResolution|parser.ParseComments)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			var gotErrors strings.Builder
+			if err := Analyze(fset, f); err != nil {
+				for _, v := range err.(AnalyzeErrors) {
+					gotErrors.WriteString(v.Error())
+					gotErrors.WriteString("\n")
+				}
+				gotErrors.WriteString(err.Error())
+			}
+
+			if !separatorFound {
+				if gotErrors.String() != "" {
+					t.Logf("source:\n%v", tgo)
+					t.Fatalf("unexpected errors, got:\n%v\nwant: <empty>", gotErrors.String())
+				}
+				return
+			}
+
+			if gotErrors.String() != errors {
+				t.Logf("source:\n%v", tgo)
+				t.Fatalf("unexpected errors, got:\n%v\nwant:\n%v", gotErrors.String(), errors)
+			}
+		})
 	}
 }

@@ -9,9 +9,9 @@ import (
 	"github.com/mateusz834/tgoast/token"
 )
 
-func Analyze(fs *token.FileSet, f *ast.File) error {
+func Analyze(fset *token.FileSet, f *ast.File) error {
 	ctx := &analyzerContext{
-		fs: fs,
+		fset: fset,
 	}
 	ast.Walk(&contextAnalyzer{context: contextNotTgo, ctx: ctx}, f)
 	ast.Walk(&tagPairsAnalyzer{ctx: ctx}, f)
@@ -48,7 +48,7 @@ func (a AnalyzeErrors) Error() string {
 
 type analyzerContext struct {
 	errors AnalyzeErrors
-	fs     *token.FileSet
+	fset   *token.FileSet
 }
 
 type context uint8
@@ -87,8 +87,8 @@ func (f *contextAnalyzer) Visit(node ast.Node) ast.Visitor {
 		if f.context != contextTgoBody {
 			f.ctx.errors = append(f.ctx.errors, AnalyzeError{
 				Message:  "template literal is not allowed in this context",
-				StartPos: f.ctx.fs.Position(n.Pos()),
-				EndPos:   f.ctx.fs.Position(n.End()),
+				StartPos: f.ctx.fset.Position(n.Pos()),
+				EndPos:   f.ctx.fset.Position(n.End()),
 			})
 		}
 		return &contextAnalyzer{context: contextNotTgo, ctx: f.ctx}
@@ -96,8 +96,8 @@ func (f *contextAnalyzer) Visit(node ast.Node) ast.Visitor {
 		if f.context != contextTgoBody {
 			f.ctx.errors = append(f.ctx.errors, AnalyzeError{
 				Message:  "open tag is not allowed in this context",
-				StartPos: f.ctx.fs.Position(n.Pos()),
-				EndPos:   f.ctx.fs.Position(n.End()),
+				StartPos: f.ctx.fset.Position(n.Pos()),
+				EndPos:   f.ctx.fset.Position(n.End()),
 			})
 		}
 		return &contextAnalyzer{context: contextTgoTag, ctx: f.ctx}
@@ -105,8 +105,8 @@ func (f *contextAnalyzer) Visit(node ast.Node) ast.Visitor {
 		if f.context != contextTgoBody {
 			f.ctx.errors = append(f.ctx.errors, AnalyzeError{
 				Message:  "end tag is not allowed in this context",
-				StartPos: f.ctx.fs.Position(n.Pos()),
-				EndPos:   f.ctx.fs.Position(n.End()),
+				StartPos: f.ctx.fset.Position(n.Pos()),
+				EndPos:   f.ctx.fset.Position(n.End()),
 			})
 		}
 		return nil
@@ -114,8 +114,8 @@ func (f *contextAnalyzer) Visit(node ast.Node) ast.Visitor {
 		if f.context != contextTgoTag {
 			f.ctx.errors = append(f.ctx.errors, AnalyzeError{
 				Message:  "attribute is not allowed in this context",
-				StartPos: f.ctx.fs.Position(n.Pos()),
-				EndPos:   f.ctx.fs.Position(n.End()),
+				StartPos: f.ctx.fset.Position(n.Pos()),
+				EndPos:   f.ctx.fset.Position(n.End()),
 			})
 		}
 		if v, ok := n.Value.(*ast.TemplateLiteralExpr); ok {
@@ -168,8 +168,8 @@ func (f *tagPairsAnalyzer) checkTagPairs(stmt []ast.Stmt) {
 			if len(deep) == 0 {
 				f.ctx.errors = append(f.ctx.errors, AnalyzeError{
 					Message:  "missing open tag",
-					StartPos: f.ctx.fs.Position(n.OpenPos),
-					EndPos:   f.ctx.fs.Position(n.ClosePos),
+					StartPos: f.ctx.fset.Position(n.OpenPos),
+					EndPos:   f.ctx.fset.Position(n.ClosePos),
 				})
 				continue
 			}
@@ -178,8 +178,8 @@ func (f *tagPairsAnalyzer) checkTagPairs(stmt []ast.Stmt) {
 			if !strings.EqualFold(last.name, n.Name.Name) {
 				f.ctx.errors = append(f.ctx.errors, AnalyzeError{
 					Message:  fmt.Sprintf("unexpected close tag: %q, want: %q", n.Name.Name, last.name),
-					StartPos: f.ctx.fs.Position(n.OpenPos),
-					EndPos:   f.ctx.fs.Position(n.ClosePos),
+					StartPos: f.ctx.fset.Position(n.OpenPos),
+					EndPos:   f.ctx.fset.Position(n.ClosePos),
 				})
 			}
 		}
@@ -188,8 +188,8 @@ func (f *tagPairsAnalyzer) checkTagPairs(stmt []ast.Stmt) {
 	for _, v := range deep {
 		f.ctx.errors = append(f.ctx.errors, AnalyzeError{
 			Message:  "unclosed tag",
-			StartPos: f.ctx.fs.Position(v.start),
-			EndPos:   f.ctx.fs.Position(v.end),
+			StartPos: f.ctx.fset.Position(v.start),
+			EndPos:   f.ctx.fset.Position(v.end),
 		})
 	}
 }
@@ -269,8 +269,8 @@ func (f *branchAnalyzer) Visit(node ast.Node) ast.Visitor {
 			if depth != 0 {
 				f.ctx.errors = append(f.ctx.errors, AnalyzeError{
 					Message:  "unexpected break statement in the middle of a tag body, ensure that all open tags are closed",
-					StartPos: f.ctx.fs.Position(n.Pos()),
-					EndPos:   f.ctx.fs.Position(n.End() - 1),
+					StartPos: f.ctx.fset.Position(n.Pos()),
+					EndPos:   f.ctx.fset.Position(n.End() - 1),
 				})
 			}
 		case token.CONTINUE:
@@ -283,8 +283,8 @@ func (f *branchAnalyzer) Visit(node ast.Node) ast.Visitor {
 			if depth != 0 {
 				f.ctx.errors = append(f.ctx.errors, AnalyzeError{
 					Message:  "unexpected continue statement in the middle of a tag body, ensure that all open tags are closed",
-					StartPos: f.ctx.fs.Position(n.Pos()),
-					EndPos:   f.ctx.fs.Position(n.End() - 1),
+					StartPos: f.ctx.fset.Position(n.Pos()),
+					EndPos:   f.ctx.fset.Position(n.End() - 1),
 				})
 			}
 		case token.GOTO:
@@ -292,8 +292,8 @@ func (f *branchAnalyzer) Visit(node ast.Node) ast.Visitor {
 			if f.depth != 0 {
 				f.ctx.errors = append(f.ctx.errors, AnalyzeError{
 					Message:  "unexpected goto statement in the middle of a tag body, ensure that all open tags are closed",
-					StartPos: f.ctx.fs.Position(n.Pos()),
-					EndPos:   f.ctx.fs.Position(n.End() - 1),
+					StartPos: f.ctx.fset.Position(n.Pos()),
+					EndPos:   f.ctx.fset.Position(n.End() - 1),
 				})
 			}
 		case token.FALLTHROUGH:
@@ -305,8 +305,8 @@ func (f *branchAnalyzer) Visit(node ast.Node) ast.Visitor {
 		if f.depth != 0 {
 			f.ctx.errors = append(f.ctx.errors, AnalyzeError{
 				Message:  "unexpected return statement in the middle of a tag body, ensure that all open tags are closed",
-				StartPos: f.ctx.fs.Position(n.Pos()),
-				EndPos:   f.ctx.fs.Position(n.End() - 1),
+				StartPos: f.ctx.fset.Position(n.Pos()),
+				EndPos:   f.ctx.fset.Position(n.End() - 1),
 			})
 		}
 	}
@@ -321,8 +321,8 @@ func checkDirectives(ctx *analyzerContext, f *ast.File) {
 			if strings.HasPrefix(v.Text[2:], "line") {
 				ctx.errors = append(ctx.errors, AnalyzeError{
 					Message:  "line directive is not allowed inside of the tgo file",
-					StartPos: ctx.fs.Position(v.Pos()),
-					EndPos:   ctx.fs.Position(v.End()),
+					StartPos: ctx.fset.Position(v.Pos()),
+					EndPos:   ctx.fset.Position(v.End()),
 				})
 			}
 		}

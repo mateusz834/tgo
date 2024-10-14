@@ -1,0 +1,6 @@
+package templates
+
+func test() {
+	<div>
+	</div>
+}
