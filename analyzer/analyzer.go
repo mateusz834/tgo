@@ -289,6 +289,7 @@ func (f *branchAnalyzer) Visit(node ast.Node) ast.Visitor {
 			}
 		case token.GOTO:
 			// TODO: can we make it better? Who even uses gotos.
+			// TODO: we can jump to already openned div :) FIX
 			if f.depth != 0 {
 				f.ctx.errors = append(f.ctx.errors, AnalyzeError{
 					Message:  "unexpected goto statement in the middle of a tag body, ensure that all open tags are closed",
