@@ -92,6 +92,19 @@ type contextAnalyzer struct {
 	exists      bool
 }
 
+func (f *contextAnalyzer) simpleStmt(v ast.Stmt) bool {
+	if v, ok := v.(*ast.AssignStmt); ok {
+		for _, v := range v.Lhs {
+			if v, ok := v.(*ast.Ident); ok {
+				if v.Name == f.ident {
+					return true
+				}
+			}
+		}
+	}
+	return false
+}
+
 func (f *contextAnalyzer) Visit(node ast.Node) ast.Visitor {
 	switch n := node.(type) {
 	case *ast.BlockStmt:
@@ -114,7 +127,9 @@ func (f *contextAnalyzer) Visit(node ast.Node) ast.Visitor {
 							}
 						}
 					case *ast.TypeSpec:
-						exists = v.Name.Name == f.ident
+						if v.Name.Name == f.ident {
+							exists = true
+						}
 					default:
 						panic("unreachable")
 					}
@@ -129,11 +144,52 @@ func (f *contextAnalyzer) Visit(node ast.Node) ast.Visitor {
 					}
 				}
 			case *ast.IfStmt:
+				ast.Walk(&contextAnalyzer{
+					ctx:         f.ctx,
+					context:     f.context,
+					ident:       f.ident,
+					tgoImported: f.tgoImported,
+					exists:      exists || f.exists || f.simpleStmt(v.Init),
+				}, v)
+				return nil
 			case *ast.SwitchStmt:
+				ast.Walk(&contextAnalyzer{
+					ctx:         f.ctx,
+					context:     f.context,
+					ident:       f.ident,
+					tgoImported: f.tgoImported,
+					exists:      exists || f.exists || f.simpleStmt(v.Init),
+				}, v)
+				return nil
 			case *ast.TypeSwitchStmt:
+				ast.Walk(&contextAnalyzer{
+					ctx:         f.ctx,
+					context:     f.context,
+					ident:       f.ident,
+					tgoImported: f.tgoImported,
+					exists:      exists || f.exists || f.simpleStmt(v.Init),
+				}, v)
+				return nil
 			case *ast.CommClause:
+				ast.Walk(&contextAnalyzer{
+					ctx:         f.ctx,
+					context:     f.context,
+					ident:       f.ident,
+					tgoImported: f.tgoImported,
+					exists:      exists || f.exists || f.simpleStmt(v.Comm),
+				}, v)
+				return nil
 			case *ast.ForStmt:
+				ast.Walk(&contextAnalyzer{
+					ctx:         f.ctx,
+					context:     f.context,
+					ident:       f.ident,
+					tgoImported: f.tgoImported,
+					exists:      exists || f.exists || f.simpleStmt(v.Init),
+				}, v)
+				return nil
 			case *ast.RangeStmt:
+				panic("TODO")
 			case *ast.LabeledStmt:
 				panic("unreachable")
 			default:
@@ -143,17 +199,18 @@ func (f *contextAnalyzer) Visit(node ast.Node) ast.Visitor {
 					ident:       f.ident,
 					tgoImported: f.tgoImported,
 					exists:      exists || f.exists,
-				}, n)
+				}, v)
 			}
 
 		}
+		return nil
 	case *ast.FuncDecl:
-		if len(n.Type.Params.List) == 0 {
+		if f.exists {
 			return &contextAnalyzer{context: contextNotTgo, ctx: f.ctx}
 		}
 		return &contextAnalyzer{context: contextTgoBody, ctx: f.ctx}
 	case *ast.FuncLit:
-		if len(n.Type.Params.List) == 0 {
+		if f.exists {
 			return &contextAnalyzer{context: contextNotTgo, ctx: f.ctx}
 		}
 		return &contextAnalyzer{context: contextTgoBody, ctx: f.ctx}

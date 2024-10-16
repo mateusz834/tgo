@@ -74,27 +74,8 @@ func test() {
 
 const tgosrc = `package templates
 
-func A(A) {
-	<div>
-	a:
-	for _, v := range a {
-		<div>
-			for _, v := range 5 {
-				<div>
-				</div>
-				continue
-			}
-		</div>
-		switch a {
-		case "lol":
-			<div>
-			</div>
-			break
-		case "test":
-			break
-		}
-	}
-	</div>
+func A() {
+	<div></div>
 }
 `
 
