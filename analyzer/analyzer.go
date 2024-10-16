@@ -13,8 +13,8 @@ func Analyze(fset *token.FileSet, f *ast.File) error {
 	ctx := &analyzerContext{
 		fset: fset,
 	}
-	ast.Walk(&contextAnalyzer{context: contextNotTgo, ctx: ctx}, f)
 	ast.Walk(&tagPairsAnalyzer{ctx: ctx}, f)
+	checkContext(ctx, f)
 	if len(ctx.errors) == 0 {
 		ast.Walk(&branchAnalyzer{ctx: ctx}, f)
 	}
@@ -59,9 +59,36 @@ const (
 	contextTgoTag
 )
 
+func checkContext(ctx *analyzerContext, f *ast.File) {
+	ident := "tgo"
+	tgoImported := false
+	for _, v := range f.Imports {
+		if v.Path.Value == "github.com/mateusz834/tgo" {
+			tgoImported = true
+			if v.Name != nil {
+				ident = v.Name.Name
+			}
+		}
+	}
+
+	if ident == "." {
+		panic("oho, figure this out then :)")
+	}
+
+	ast.Walk(&contextAnalyzer{
+		ctx:         ctx,
+		context:     contextNotTgo,
+		ident:       ident,
+		tgoImproted: tgoImported,
+	}, f)
+}
+
 type contextAnalyzer struct {
-	context context
-	ctx     *analyzerContext
+	ctx *analyzerContext
+
+	context     context
+	ident       string
+	tgoImproted bool
 }
 
 func (f *contextAnalyzer) Visit(node ast.Node) ast.Visitor {
