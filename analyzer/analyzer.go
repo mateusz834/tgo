@@ -79,7 +79,7 @@ func checkContext(ctx *analyzerContext, f *ast.File) {
 		ctx:         ctx,
 		context:     contextNotTgo,
 		ident:       ident,
-		tgoImproted: tgoImported,
+		tgoImported: tgoImported,
 	}, f)
 }
 
@@ -88,11 +88,65 @@ type contextAnalyzer struct {
 
 	context     context
 	ident       string
-	tgoImproted bool
+	tgoImported bool
+	exists      bool
 }
 
 func (f *contextAnalyzer) Visit(node ast.Node) ast.Visitor {
 	switch n := node.(type) {
+	case *ast.BlockStmt:
+		exists := false
+		for _, v := range n.List {
+			if l, ok := v.(*ast.LabeledStmt); ok {
+				v = l.Stmt
+			}
+
+			switch v := v.(type) {
+			case *ast.DeclStmt:
+				d := v.Decl.(*ast.GenDecl)
+				for _, v := range d.Specs {
+					switch v := v.(type) {
+					case *ast.ValueSpec:
+						for _, v := range v.Names {
+							if v.Name == f.ident {
+								exists = true
+								break
+							}
+						}
+					case *ast.TypeSpec:
+						exists = v.Name.Name == f.ident
+					default:
+						panic("unreachable")
+					}
+				}
+			case *ast.AssignStmt:
+				for _, v := range v.Lhs {
+					if v, ok := v.(*ast.Ident); ok {
+						if v.Name == f.ident {
+							exists = true
+							break
+						}
+					}
+				}
+			case *ast.IfStmt:
+			case *ast.SwitchStmt:
+			case *ast.TypeSwitchStmt:
+			case *ast.CommClause:
+			case *ast.ForStmt:
+			case *ast.RangeStmt:
+			case *ast.LabeledStmt:
+				panic("unreachable")
+			default:
+				ast.Walk(&contextAnalyzer{
+					ctx:         f.ctx,
+					context:     f.context,
+					ident:       f.ident,
+					tgoImported: f.tgoImported,
+					exists:      exists || f.exists,
+				}, n)
+			}
+
+		}
 	case *ast.FuncDecl:
 		if len(n.Type.Params.List) == 0 {
 			return &contextAnalyzer{context: contextNotTgo, ctx: f.ctx}
@@ -103,7 +157,7 @@ func (f *contextAnalyzer) Visit(node ast.Node) ast.Visitor {
 			return &contextAnalyzer{context: contextNotTgo, ctx: f.ctx}
 		}
 		return &contextAnalyzer{context: contextTgoBody, ctx: f.ctx}
-	case *ast.BlockStmt, *ast.IfStmt,
+	case *ast.IfStmt,
 		*ast.SwitchStmt, *ast.CaseClause,
 		*ast.ForStmt, *ast.SelectStmt,
 		*ast.CommClause, *ast.RangeStmt,
