@@ -110,104 +110,102 @@ func (f *contextAnalyzer) simpleStmt(v ast.Stmt) bool {
 	return false
 }
 
-func (f *contextAnalyzer) Visit(node ast.Node) ast.Visitor {
-	switch n := node.(type) {
-	case *ast.BlockStmt:
-		exists := false
-		for _, v := range n.List {
-			if l, ok := v.(*ast.LabeledStmt); ok {
-				v = l.Stmt
-			}
+func (f *contextAnalyzer) analyzeStmts(list []ast.Stmt) {
+	exists := false
+	for _, v := range list {
+		if l, ok := v.(*ast.LabeledStmt); ok {
+			v = l.Stmt
+		}
 
-			switch v := v.(type) {
-			case *ast.DeclStmt:
-				d := v.Decl.(*ast.GenDecl)
-				for _, v := range d.Specs {
-					switch v := v.(type) {
-					case *ast.ValueSpec:
-						for _, v := range v.Names {
-							if v.Name == f.ident {
-								exists = true
-								break
-							}
-						}
-					case *ast.TypeSpec:
-						if v.Name.Name == f.ident {
-							exists = true
-						}
-					default:
-						panic("unreachable")
-					}
-				}
-			case *ast.AssignStmt:
-				for _, v := range v.Lhs {
-					if v, ok := v.(*ast.Ident); ok {
+		switch v := v.(type) {
+		case *ast.DeclStmt:
+			d := v.Decl.(*ast.GenDecl)
+			for _, v := range d.Specs {
+				switch v := v.(type) {
+				case *ast.ValueSpec:
+					for _, v := range v.Names {
 						if v.Name == f.ident {
 							exists = true
 							break
 						}
 					}
+				case *ast.TypeSpec:
+					if v.Name.Name == f.ident {
+						exists = true
+					}
+				default:
+					panic("unreachable")
 				}
-			case *ast.IfStmt:
-				ast.Walk(&contextAnalyzer{
-					ctx:         f.ctx,
-					context:     f.context,
-					ident:       f.ident,
-					tgoImported: f.tgoImported,
-					exists:      exists || f.exists || f.simpleStmt(v.Init),
-				}, v)
-				return nil
-			case *ast.SwitchStmt:
-				ast.Walk(&contextAnalyzer{
-					ctx:         f.ctx,
-					context:     f.context,
-					ident:       f.ident,
-					tgoImported: f.tgoImported,
-					exists:      exists || f.exists || f.simpleStmt(v.Init),
-				}, v)
-				return nil
-			case *ast.TypeSwitchStmt:
-				ast.Walk(&contextAnalyzer{
-					ctx:         f.ctx,
-					context:     f.context,
-					ident:       f.ident,
-					tgoImported: f.tgoImported,
-					exists:      exists || f.exists || f.simpleStmt(v.Init),
-				}, v)
-				return nil
-			case *ast.CommClause:
-				ast.Walk(&contextAnalyzer{
-					ctx:         f.ctx,
-					context:     f.context,
-					ident:       f.ident,
-					tgoImported: f.tgoImported,
-					exists:      exists || f.exists || f.simpleStmt(v.Comm),
-				}, v)
-				return nil
-			case *ast.ForStmt:
-				ast.Walk(&contextAnalyzer{
-					ctx:         f.ctx,
-					context:     f.context,
-					ident:       f.ident,
-					tgoImported: f.tgoImported,
-					exists:      exists || f.exists || f.simpleStmt(v.Init),
-				}, v)
-				return nil
-			case *ast.RangeStmt:
-				panic("TODO")
-			case *ast.LabeledStmt:
-				panic("unreachable")
-			default:
-				ast.Walk(&contextAnalyzer{
-					ctx:         f.ctx,
-					context:     f.context,
-					ident:       f.ident,
-					tgoImported: f.tgoImported,
-					exists:      exists || f.exists,
-				}, v)
 			}
-
+		case *ast.AssignStmt:
+			for _, v := range v.Lhs {
+				if v, ok := v.(*ast.Ident); ok {
+					if v.Name == f.ident {
+						exists = true
+						break
+					}
+				}
+			}
+		case *ast.IfStmt:
+			ast.Walk(&contextAnalyzer{
+				ctx:         f.ctx,
+				context:     f.context,
+				ident:       f.ident,
+				tgoImported: f.tgoImported,
+				exists:      exists || f.exists || f.simpleStmt(v.Init),
+			}, v)
+		case *ast.SwitchStmt:
+			ast.Walk(&contextAnalyzer{
+				ctx:         f.ctx,
+				context:     f.context,
+				ident:       f.ident,
+				tgoImported: f.tgoImported,
+				exists:      exists || f.exists || f.simpleStmt(v.Init),
+			}, v)
+		case *ast.TypeSwitchStmt:
+			ast.Walk(&contextAnalyzer{
+				ctx:         f.ctx,
+				context:     f.context,
+				ident:       f.ident,
+				tgoImported: f.tgoImported,
+				exists:      exists || f.exists || f.simpleStmt(v.Init),
+			}, v)
+		case *ast.CommClause:
+			ast.Walk(&contextAnalyzer{
+				ctx:         f.ctx,
+				context:     f.context,
+				ident:       f.ident,
+				tgoImported: f.tgoImported,
+				exists:      exists || f.exists || f.simpleStmt(v.Comm),
+			}, v)
+		case *ast.ForStmt:
+			ast.Walk(&contextAnalyzer{
+				ctx:         f.ctx,
+				context:     f.context,
+				ident:       f.ident,
+				tgoImported: f.tgoImported,
+				exists:      exists || f.exists || f.simpleStmt(v.Init),
+			}, v)
+		case *ast.RangeStmt:
+			panic("TODO")
+		case *ast.LabeledStmt:
+			panic("unreachable")
+		default:
+			ast.Walk(&contextAnalyzer{
+				ctx:         f.ctx,
+				context:     f.context,
+				ident:       f.ident,
+				tgoImported: f.tgoImported,
+				exists:      exists || f.exists,
+			}, v)
 		}
+	}
+}
+
+func (f *contextAnalyzer) Visit(list ast.Node) ast.Visitor {
+	switch n := list.(type) {
+	case *ast.BlockStmt:
+		f.analyzeStmts(n.List)
 		return nil
 	case *ast.FuncDecl:
 		if f.exists {
@@ -278,7 +276,7 @@ type tagPairsAnalyzer struct {
 }
 
 func (f *tagPairsAnalyzer) Visit(node ast.Node) ast.Visitor {
-	switch n := node.(type) {
+	switch n := list.(type) {
 	case *ast.BlockStmt:
 		f.checkTagPairs(n.List)
 	case *ast.OpenTagStmt:
@@ -346,7 +344,7 @@ type branchAnalyzer struct {
 }
 
 func (f *branchAnalyzer) Visit(node ast.Node) ast.Visitor {
-	switch n := node.(type) {
+	switch n := list.(type) {
 	case *ast.FuncDecl, *ast.FuncLit:
 		return &branchAnalyzer{ctx: f.ctx} // reset depths
 	case *ast.ForStmt, *ast.RangeStmt:
