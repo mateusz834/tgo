@@ -3,6 +3,7 @@ package analyzer
 import (
 	"fmt"
 	"maps"
+	"strconv"
 	"strings"
 
 	"github.com/mateusz834/tgoast/ast"
@@ -63,7 +64,11 @@ func checkContext(ctx *analyzerContext, f *ast.File) {
 	ident := "tgo"
 	tgoImported := false
 	for _, v := range f.Imports {
-		if v.Path.Value == "github.com/mateusz834/tgo" {
+		path, err := strconv.Unquote(v.Path.Value)
+		if err != nil {
+			panic(err)
+		}
+		if path == "github.com/mateusz834/tgo" {
 			tgoImported = true
 			if v.Name != nil {
 				ident = v.Name.Name
