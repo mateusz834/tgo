@@ -202,16 +202,73 @@ func (f *contextAnalyzer) analyzeStmts(list []ast.Stmt) {
 	}
 }
 
+func (f *contextAnalyzer) checkFieldList(fl *ast.FieldList) bool {
+	if fl == nil {
+		return false
+	}
+	for _, v := range fl.List {
+		for _, v := range v.Names {
+			if v.Name == f.ident {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func (f *contextAnalyzer) checkFuncType(ft *ast.FuncType) (tgoFunc bool, shadowingTgo bool) {
+	shadowingTgo = f.checkFieldList(ft.Params) || f.checkFieldList(ft.Results)
+	if len(ft.Params.List) == 0 || ft.Results == nil || len(ft.Results.List) != 1 {
+		return
+	}
+
+	okReturn := false
+	switch v := ast.Unparen(ft.Results.List[0].Type).(type) {
+	case *ast.Ident:
+		if v.Name == "error" {
+			okReturn = true
+		}
+	}
+
+	switch v := ast.Unparen(ft.Params.List[0].Type).(type) {
+	case *ast.SelectorExpr:
+		if i, ok := v.X.(*ast.Ident); ok {
+			if i.Name == f.ident {
+				tgoFunc = okReturn && v.Sel.Name == "Ctx"
+				return
+			}
+		}
+	}
+
+	return
+}
+
 func (f *contextAnalyzer) Visit(list ast.Node) ast.Visitor {
 	switch n := list.(type) {
 	case *ast.BlockStmt:
 		f.analyzeStmts(n.List)
 		return nil
 	case *ast.FuncDecl:
-		if f.exists {
-			return &contextAnalyzer{context: contextNotTgo, ctx: f.ctx}
+		tgo, exists := f.checkFuncType(n.Type)
+		if f.checkFieldList(n.Recv) {
+			exists = true
 		}
-		return &contextAnalyzer{context: contextTgoBody, ctx: f.ctx}
+		if tgo && !f.exists {
+			return &contextAnalyzer{
+				ctx:         f.ctx,
+				context:     contextTgoBody,
+				ident:       f.ident,
+				tgoImported: f.tgoImported,
+				exists:      exists,
+			}
+		}
+		return &contextAnalyzer{
+			ctx:         f.ctx,
+			context:     contextNotTgo,
+			ident:       f.ident,
+			tgoImported: f.tgoImported,
+			exists:      exists || f.exists,
+		}
 	case *ast.FuncLit:
 		if f.exists {
 			return &contextAnalyzer{context: contextNotTgo, ctx: f.ctx}
@@ -267,7 +324,13 @@ func (f *contextAnalyzer) Visit(list ast.Node) ast.Visitor {
 		}
 		return nil
 	default:
-		return &contextAnalyzer{context: contextNotTgo, ctx: f.ctx}
+		return &contextAnalyzer{
+			ctx:         f.ctx,
+			context:     f.context,
+			ident:       f.ident,
+			tgoImported: f.tgoImported,
+			exists:      f.exists,
+		}
 	}
 }
 
@@ -276,7 +339,7 @@ type tagPairsAnalyzer struct {
 }
 
 func (f *tagPairsAnalyzer) Visit(node ast.Node) ast.Visitor {
-	switch n := list.(type) {
+	switch n := node.(type) {
 	case *ast.BlockStmt:
 		f.checkTagPairs(n.List)
 	case *ast.OpenTagStmt:
@@ -344,7 +407,7 @@ type branchAnalyzer struct {
 }
 
 func (f *branchAnalyzer) Visit(node ast.Node) ast.Visitor {
-	switch n := list.(type) {
+	switch n := node.(type) {
 	case *ast.FuncDecl, *ast.FuncLit:
 		return &branchAnalyzer{ctx: f.ctx} // reset depths
 	case *ast.ForStmt, *ast.RangeStmt:

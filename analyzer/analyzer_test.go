@@ -84,6 +84,8 @@ func TestAnalyze(t *testing.T) {
 				t.Fatal(err)
 			}
 
+			ast.Print(fset, f)
+
 			var gotErrors strings.Builder
 			if err := Analyze(fset, f); err != nil {
 				for _, v := range err.(AnalyzeErrors) {
