@@ -60,6 +60,7 @@ func checkContext(ctx *analyzerContext, f *ast.File) {
 		if err != nil {
 			panic(err)
 		}
+		// TODO: multiple same imports :)
 		if path == "github.com/mateusz834/tgo" {
 			tgoImported = true
 			if v.Name != nil {
