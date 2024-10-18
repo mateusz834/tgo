@@ -1,8 +1,6 @@
 package templates
 
-import "github.com/mateusz834/tgo"
-
-func test(tgo.Ctx) error {
+func test() {
 	<div>
 	</div>
 }

@@ -1,0 +1,18 @@
+package templates
+
+import "github.com/mateusz834/tgo"
+
+func Template1(_ tgo.Ctx) error {
+	<div>
+	</div>
+}
+
+func Template2(a tgo.Ctx) error {
+	<div>
+	</div>
+}
+
+func Template3(a tgo.Ctx) (e error) {
+	<div>
+	</div>
+}

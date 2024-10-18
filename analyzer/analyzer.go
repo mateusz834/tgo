@@ -52,14 +52,6 @@ type analyzerContext struct {
 	fset   *token.FileSet
 }
 
-type context uint8
-
-const (
-	contextNotTgo context = iota
-	contextTgoBody
-	contextTgoTag
-)
-
 func checkContext(ctx *analyzerContext, f *ast.File) {
 	ident := "tgo"
 	tgoImported := false
@@ -80,32 +72,55 @@ func checkContext(ctx *analyzerContext, f *ast.File) {
 		panic("oho, figure this out then :)")
 	}
 
+	// TODO: we are only "type-checking" one file, describe
+	// why it is safe to do, and why we went this way,
+	// not depending on go/types, go/packages, perf
+	// document that we do not support type aliases.
+	// But we can fuzz agaisnt go/types :).
+
 	ast.Walk(&contextAnalyzer{
-		ctx:         ctx,
-		context:     contextNotTgo,
-		ident:       ident,
-		tgoImported: tgoImported,
+		ctx: &contextAnalyzerContext{
+			ctx:         ctx,
+			ident:       ident,
+			tgoImported: tgoImported,
+		},
+		context: contextNotTgo,
 	}, f)
 }
 
-type contextAnalyzer struct {
-	ctx *analyzerContext
-
-	context     context
+type contextAnalyzerContext struct {
+	ctx         *analyzerContext
 	ident       string
 	tgoImported bool
-	exists      bool
+}
+
+type context uint8
+
+const (
+	contextNotTgo context = iota
+	contextTgoBody
+	contextTgoTag
+)
+
+type contextAnalyzer struct {
+	ctx     *contextAnalyzerContext
+	context context
+	exists  bool
 }
 
 func (f *contextAnalyzer) simpleStmt(v ast.Stmt) bool {
-	if v, ok := v.(*ast.AssignStmt); ok {
+	switch v := v.(type) {
+	case *ast.AssignStmt:
 		for _, v := range v.Lhs {
 			if v, ok := v.(*ast.Ident); ok {
-				if v.Name == f.ident {
+				if v.Name == f.ctx.ident {
 					return true
 				}
 			}
 		}
+	case nil, *ast.IncDecStmt, *ast.ExprStmt, *ast.SendStmt:
+	default:
+		panic(fmt.Sprintf("unreachable %T", v))
 	}
 	return false
 }
@@ -113,8 +128,12 @@ func (f *contextAnalyzer) simpleStmt(v ast.Stmt) bool {
 func (f *contextAnalyzer) analyzeStmts(list []ast.Stmt) {
 	exists := false
 	for _, v := range list {
-		if l, ok := v.(*ast.LabeledStmt); ok {
-			v = l.Stmt
+		for {
+			if l, ok := v.(*ast.LabeledStmt); ok {
+				v = l.Stmt
+				continue
+			}
+			break
 		}
 
 		switch v := v.(type) {
@@ -124,13 +143,13 @@ func (f *contextAnalyzer) analyzeStmts(list []ast.Stmt) {
 				switch v := v.(type) {
 				case *ast.ValueSpec:
 					for _, v := range v.Names {
-						if v.Name == f.ident {
+						if v.Name == f.ctx.ident {
 							exists = true
 							break
 						}
 					}
 				case *ast.TypeSpec:
-					if v.Name.Name == f.ident {
+					if v.Name.Name == f.ctx.ident {
 						exists = true
 					}
 				default:
@@ -138,65 +157,61 @@ func (f *contextAnalyzer) analyzeStmts(list []ast.Stmt) {
 				}
 			}
 		case *ast.AssignStmt:
-			for _, v := range v.Lhs {
-				if v, ok := v.(*ast.Ident); ok {
-					if v.Name == f.ident {
-						exists = true
-						break
-					}
-				}
+			if f.simpleStmt(v) {
+				exists = true
 			}
 		case *ast.IfStmt:
 			ast.Walk(&contextAnalyzer{
-				ctx:         f.ctx,
-				context:     f.context,
-				ident:       f.ident,
-				tgoImported: f.tgoImported,
-				exists:      exists || f.exists || f.simpleStmt(v.Init),
+				ctx:     f.ctx,
+				context: f.context,
+				exists:  exists || f.exists || f.simpleStmt(v.Init),
 			}, v)
 		case *ast.SwitchStmt:
 			ast.Walk(&contextAnalyzer{
-				ctx:         f.ctx,
-				context:     f.context,
-				ident:       f.ident,
-				tgoImported: f.tgoImported,
-				exists:      exists || f.exists || f.simpleStmt(v.Init),
+				ctx:     f.ctx,
+				context: f.context,
+				exists:  exists || f.exists || f.simpleStmt(v.Init),
 			}, v)
 		case *ast.TypeSwitchStmt:
 			ast.Walk(&contextAnalyzer{
-				ctx:         f.ctx,
-				context:     f.context,
-				ident:       f.ident,
-				tgoImported: f.tgoImported,
-				exists:      exists || f.exists || f.simpleStmt(v.Init),
+				ctx:     f.ctx,
+				context: f.context,
+				exists:  exists || f.exists || f.simpleStmt(v.Init),
 			}, v)
 		case *ast.CommClause:
 			ast.Walk(&contextAnalyzer{
-				ctx:         f.ctx,
-				context:     f.context,
-				ident:       f.ident,
-				tgoImported: f.tgoImported,
-				exists:      exists || f.exists || f.simpleStmt(v.Comm),
+				ctx:     f.ctx,
+				context: f.context,
+				exists:  exists || f.exists || f.simpleStmt(v.Comm),
 			}, v)
 		case *ast.ForStmt:
 			ast.Walk(&contextAnalyzer{
-				ctx:         f.ctx,
-				context:     f.context,
-				ident:       f.ident,
-				tgoImported: f.tgoImported,
-				exists:      exists || f.exists || f.simpleStmt(v.Init),
+				ctx:     f.ctx,
+				context: f.context,
+				exists:  exists || f.exists || f.simpleStmt(v.Init),
 			}, v)
 		case *ast.RangeStmt:
-			panic("TODO")
+			expr := func(x ast.Expr) bool {
+				switch x := x.(type) {
+				case *ast.BasicLit:
+					if x.Value == f.ctx.ident {
+						return true
+					}
+				}
+				return false
+			}
+			ast.Walk(&contextAnalyzer{
+				ctx:     f.ctx,
+				context: f.context,
+				exists:  exists || f.exists || expr(v.Key) || expr(v.Value),
+			}, v)
 		case *ast.LabeledStmt:
 			panic("unreachable")
 		default:
 			ast.Walk(&contextAnalyzer{
-				ctx:         f.ctx,
-				context:     f.context,
-				ident:       f.ident,
-				tgoImported: f.tgoImported,
-				exists:      exists || f.exists,
+				ctx:     f.ctx,
+				context: f.context,
+				exists:  exists || f.exists,
 			}, v)
 		}
 	}
@@ -208,7 +223,7 @@ func (f *contextAnalyzer) checkFieldList(fl *ast.FieldList) bool {
 	}
 	for _, v := range fl.List {
 		for _, v := range v.Names {
-			if v.Name == f.ident {
+			if v.Name == f.ctx.ident {
 				return true
 			}
 		}
@@ -217,6 +232,10 @@ func (f *contextAnalyzer) checkFieldList(fl *ast.FieldList) bool {
 }
 
 func (f *contextAnalyzer) checkFuncType(ft *ast.FuncType) (tgoFunc bool, shadowingTgo bool) {
+	if f.checkFieldList(ft.TypeParams) {
+		return true, true
+	}
+
 	shadowingTgo = f.checkFieldList(ft.Params) || f.checkFieldList(ft.Results)
 	if len(ft.Params.List) == 0 || ft.Results == nil || len(ft.Results.List) != 1 {
 		return
@@ -233,7 +252,7 @@ func (f *contextAnalyzer) checkFuncType(ft *ast.FuncType) (tgoFunc bool, shadowi
 	switch v := ast.Unparen(ft.Params.List[0].Type).(type) {
 	case *ast.SelectorExpr:
 		if i, ok := v.X.(*ast.Ident); ok {
-			if i.Name == f.ident {
+			if i.Name == f.ctx.ident {
 				tgoFunc = okReturn && v.Sel.Name == "Ctx"
 				return
 			}
@@ -255,25 +274,30 @@ func (f *contextAnalyzer) Visit(list ast.Node) ast.Visitor {
 		}
 		if tgo && !f.exists {
 			return &contextAnalyzer{
-				ctx:         f.ctx,
-				context:     contextTgoBody,
-				ident:       f.ident,
-				tgoImported: f.tgoImported,
-				exists:      exists,
+				ctx:     f.ctx,
+				context: contextTgoBody,
+				exists:  exists,
 			}
 		}
 		return &contextAnalyzer{
-			ctx:         f.ctx,
-			context:     contextNotTgo,
-			ident:       f.ident,
-			tgoImported: f.tgoImported,
-			exists:      exists || f.exists,
+			ctx:     f.ctx,
+			context: contextNotTgo,
+			exists:  exists || f.exists,
 		}
 	case *ast.FuncLit:
-		if f.exists {
-			return &contextAnalyzer{context: contextNotTgo, ctx: f.ctx}
+		tgo, exists := f.checkFuncType(n.Type)
+		if tgo && !f.exists {
+			return &contextAnalyzer{
+				ctx:     f.ctx,
+				context: contextTgoBody,
+				exists:  exists,
+			}
 		}
-		return &contextAnalyzer{context: contextTgoBody, ctx: f.ctx}
+		return &contextAnalyzer{
+			ctx:     f.ctx,
+			context: contextNotTgo,
+			exists:  exists || f.exists,
+		}
 	case *ast.IfStmt,
 		*ast.SwitchStmt, *ast.CaseClause,
 		*ast.ForStmt, *ast.SelectStmt,
@@ -283,37 +307,37 @@ func (f *contextAnalyzer) Visit(list ast.Node) ast.Visitor {
 		return f
 	case *ast.TemplateLiteralExpr:
 		if f.context != contextTgoBody {
-			f.ctx.errors = append(f.ctx.errors, AnalyzeError{
+			f.ctx.ctx.errors = append(f.ctx.ctx.errors, AnalyzeError{
 				Message:  "template literal is not allowed in this context",
-				StartPos: f.ctx.fset.Position(n.Pos()),
-				EndPos:   f.ctx.fset.Position(n.End()),
+				StartPos: f.ctx.ctx.fset.Position(n.Pos()),
+				EndPos:   f.ctx.ctx.fset.Position(n.End()),
 			})
 		}
 		return &contextAnalyzer{context: contextNotTgo, ctx: f.ctx}
 	case *ast.OpenTagStmt:
 		if f.context != contextTgoBody {
-			f.ctx.errors = append(f.ctx.errors, AnalyzeError{
+			f.ctx.ctx.errors = append(f.ctx.ctx.errors, AnalyzeError{
 				Message:  "open tag is not allowed in this context",
-				StartPos: f.ctx.fset.Position(n.Pos()),
-				EndPos:   f.ctx.fset.Position(n.End()),
+				StartPos: f.ctx.ctx.fset.Position(n.Pos()),
+				EndPos:   f.ctx.ctx.fset.Position(n.End()),
 			})
 		}
 		return &contextAnalyzer{context: contextTgoTag, ctx: f.ctx}
 	case *ast.EndTagStmt:
 		if f.context != contextTgoBody {
-			f.ctx.errors = append(f.ctx.errors, AnalyzeError{
+			f.ctx.ctx.errors = append(f.ctx.ctx.errors, AnalyzeError{
 				Message:  "end tag is not allowed in this context",
-				StartPos: f.ctx.fset.Position(n.Pos()),
-				EndPos:   f.ctx.fset.Position(n.End()),
+				StartPos: f.ctx.ctx.fset.Position(n.Pos()),
+				EndPos:   f.ctx.ctx.fset.Position(n.End()),
 			})
 		}
 		return nil
 	case *ast.AttributeStmt:
 		if f.context != contextTgoTag {
-			f.ctx.errors = append(f.ctx.errors, AnalyzeError{
+			f.ctx.ctx.errors = append(f.ctx.ctx.errors, AnalyzeError{
 				Message:  "attribute is not allowed in this context",
-				StartPos: f.ctx.fset.Position(n.Pos()),
-				EndPos:   f.ctx.fset.Position(n.End()),
+				StartPos: f.ctx.ctx.fset.Position(n.Pos()),
+				EndPos:   f.ctx.ctx.fset.Position(n.End()),
 			})
 		}
 		if v, ok := n.Value.(*ast.TemplateLiteralExpr); ok {
@@ -325,11 +349,9 @@ func (f *contextAnalyzer) Visit(list ast.Node) ast.Visitor {
 		return nil
 	default:
 		return &contextAnalyzer{
-			ctx:         f.ctx,
-			context:     f.context,
-			ident:       f.ident,
-			tgoImported: f.tgoImported,
-			exists:      f.exists,
+			ctx:     f.ctx,
+			context: contextNotTgo,
+			exists:  f.exists,
 		}
 	}
 }
