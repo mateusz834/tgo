@@ -1,0 +1,31 @@
+package templates
+
+func test() {
+	<div>
+	</div>
+}
+
+func test(tgo.Ctx) error {
+	<div>
+	</div>
+}
+
+func test() error {
+	<div>
+	</div>
+}
+
+func test(tgo.Ctx) {
+	<div>
+	</div>
+}
+======
+test.tgo:4:2: open tag is not allowed in this context
+test.tgo:5:2: end tag is not allowed in this context
+test.tgo:9:2: open tag is not allowed in this context
+test.tgo:10:2: end tag is not allowed in this context
+test.tgo:14:2: open tag is not allowed in this context
+test.tgo:15:2: end tag is not allowed in this context
+test.tgo:19:2: open tag is not allowed in this context
+test.tgo:20:2: end tag is not allowed in this context
+test.tgo:4:2: open tag is not allowed in this context (and 7 more errors)

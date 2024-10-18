@@ -273,7 +273,7 @@ func (f *contextAnalyzer) Visit(list ast.Node) ast.Visitor {
 		if f.checkFieldList(n.Recv) {
 			exists = true
 		}
-		if tgo && !f.exists {
+		if tgo && !f.exists && f.ctx.tgoImported {
 			return &contextAnalyzer{
 				ctx:     f.ctx,
 				context: contextTgoBody,
@@ -287,7 +287,7 @@ func (f *contextAnalyzer) Visit(list ast.Node) ast.Visitor {
 		}
 	case *ast.FuncLit:
 		tgo, exists := f.checkFuncType(n.Type)
-		if tgo && !f.exists {
+		if tgo && !f.exists && f.ctx.tgoImported {
 			return &contextAnalyzer{
 				ctx:     f.ctx,
 				context: contextTgoBody,
