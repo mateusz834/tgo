@@ -161,6 +161,11 @@ func (f *contextAnalyzer) analyzeStmts(list []ast.Stmt) {
 				}
 			}
 		case *ast.AssignStmt:
+			ast.Walk(&contextAnalyzer{
+				ctx:             f.ctx,
+				context:         f.context,
+				shadowedImports: shadowed.clone(),
+			}, v)
 			shadowed = orImports(shadowed, f.simpleStmt(v))
 		case *ast.IfStmt:
 			ast.Walk(&contextAnalyzer{
@@ -195,8 +200,8 @@ func (f *contextAnalyzer) analyzeStmts(list []ast.Stmt) {
 		case *ast.RangeStmt:
 			expr := func(x ast.Expr) (s shadowedImports) {
 				switch x := x.(type) {
-				case *ast.BasicLit:
-					f.setShadowed(&s, x.Value)
+				case *ast.Ident:
+					f.setShadowed(&s, x.Name)
 				}
 				return
 			}
@@ -269,13 +274,13 @@ func (f *contextAnalyzer) Visit(list ast.Node) ast.Visitor {
 			return &contextAnalyzer{
 				ctx:             f.ctx,
 				context:         contextTgoBody,
-				shadowedImports: orImports(f.shadowedImports, shadowed),
+				shadowedImports: shadowed,
 			}
 		}
 		return &contextAnalyzer{
 			ctx:             f.ctx,
 			context:         contextNotTgo,
-			shadowedImports: orImports(f.shadowedImports, shadowed),
+			shadowedImports: shadowed,
 		}
 	case *ast.FuncLit:
 		tgo, shadowed := f.checkFuncType(f.shadowedImports, n.Type)
@@ -283,13 +288,13 @@ func (f *contextAnalyzer) Visit(list ast.Node) ast.Visitor {
 			return &contextAnalyzer{
 				ctx:             f.ctx,
 				context:         contextTgoBody,
-				shadowedImports: orImports(f.shadowedImports, shadowed),
+				shadowedImports: shadowed,
 			}
 		}
 		return &contextAnalyzer{
 			ctx:             f.ctx,
 			context:         contextNotTgo,
-			shadowedImports: orImports(f.shadowedImports, shadowed),
+			shadowedImports: shadowed,
 		}
 	case *ast.IfStmt,
 		*ast.SwitchStmt, *ast.CaseClause,

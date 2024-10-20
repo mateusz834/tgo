@@ -1,0 +1,50 @@
+package tgo
+
+import "github.com/mateusz834/tgo"
+
+func test1() {
+	tgo := func(tgo.Ctx) error {
+		<div></div>
+	}
+	for _, v := range "test" {
+		func(tgo.Ctx) error {
+			<div></div>
+		}
+	}
+}
+
+func test2() {
+	for t := 0; true; {
+		func(tgo.Ctx) error {
+			<div></div>
+		}
+	}
+	for t := range "test" {
+		func(tgo.Ctx) error {
+			<div></div>
+		}
+	}
+	for k, v := range "test" {
+		func(tgo.Ctx) error {
+			<div></div>
+		}
+	}
+}
+
+func test3() {
+	for tgo := 0; true; {
+		func(tgo.Ctx) error {
+			<div></div>
+		}
+	}
+	for tgo := range "test" {
+		func(tgo.Ctx) error {
+			<div></div>
+		}
+	}
+	for k, tgo := range "test" {
+		func(tgo.Ctx) error {
+			<div></div>
+		}
+	}
+}
