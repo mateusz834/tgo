@@ -8,6 +8,11 @@ import (
 	"github.com/mateusz834/tgoast/ast"
 )
 
+const (
+	tgoModule      = "github.com/mateusz834/tgo"
+	tgoPackageName = "tgo"
+)
+
 func checkContext(ctx *analyzerContext, f *ast.File) {
 	tgoImports := []string{}
 	for _, v := range f.Imports {
@@ -15,8 +20,8 @@ func checkContext(ctx *analyzerContext, f *ast.File) {
 		if err != nil {
 			panic(err)
 		}
-		if path == "github.com/mateusz834/tgo" {
-			ident := "tgo"
+		if path == tgoModule {
+			ident := tgoPackageName
 			if v.Name != nil {
 				ident = v.Name.Name
 			}
@@ -225,7 +230,7 @@ func (f *contextAnalyzer) checkFieldList(fl *ast.FieldList) (s shadowedImports) 
 
 func (f *contextAnalyzer) checkFuncType(shadowedImports shadowedImports, ft *ast.FuncType) (tgoFunc bool, shadowedByFunc shadowedImports) {
 	shadowedBefore := orImports(shadowedImports, f.checkFieldList(ft.TypeParams))
-	shadowedByFunc = orImports(shadowedBefore, shadowedImports, f.checkFieldList(ft.Params), f.checkFieldList(ft.Results))
+	shadowedByFunc = orImports(shadowedBefore, f.checkFieldList(ft.Params), f.checkFieldList(ft.Results))
 	if len(ft.Params.List) == 0 || ft.Results == nil || len(ft.Results.List) != 1 {
 		return
 	}
