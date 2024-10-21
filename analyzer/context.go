@@ -62,64 +62,11 @@ const (
 
 type contextAnalyzer struct {
 	ctx             *contextAnalyzerContext
-	shadowedImports shadowedImports
+	shadowedImports bitField
 	context         context
 }
 
-type shadowedImports struct {
-	other    map[int]struct{}
-	bitField uint64
-}
-
-func (s shadowedImports) clone() shadowedImports {
-	return shadowedImports{
-		bitField: s.bitField,
-		other:    maps.Clone(s.other),
-	}
-}
-
-func (s *shadowedImports) set(n int) {
-	if n < 63 {
-		s.bitField |= 1 << n
-		return
-	}
-	if s.other == nil {
-		s.other = map[int]struct{}{}
-	}
-	s.other[n] = struct{}{}
-}
-
-func (s shadowedImports) isSet(n int) bool {
-	if n < 63 {
-		return s.bitField&1<<n != 0
-	}
-	_, ok := s.other[n]
-	return ok
-}
-
-func orImports(o ...shadowedImports) shadowedImports {
-	out := o[0].clone()
-	for _, v := range o[1:] {
-		out.bitField |= v.bitField
-		for k := range v.other {
-			if out.other == nil {
-				out.other = make(map[int]struct{})
-			}
-			out.other[k] = struct{}{}
-		}
-	}
-	return out
-}
-
-func (f *contextAnalyzer) setShadowed(s *shadowedImports, n string) {
-	for i, v := range f.ctx.tgoImports {
-		if v == n {
-			s.set(i)
-		}
-	}
-}
-
-func (f *contextAnalyzer) simpleStmt(v ast.Stmt) (s shadowedImports) {
+func (f *contextAnalyzer) simpleStmt(v ast.Stmt) (s bitField) {
 	switch v := v.(type) {
 	case *ast.AssignStmt:
 		for _, v := range v.Lhs {
@@ -166,39 +113,39 @@ func (f *contextAnalyzer) analyzeStmts(list []ast.Stmt) {
 				context:         f.context,
 				shadowedImports: shadowed.clone(),
 			}, v)
-			shadowed = orImports(shadowed, f.simpleStmt(v))
+			shadowed = orBitField(shadowed, f.simpleStmt(v))
 		case *ast.IfStmt:
 			ast.Walk(&contextAnalyzer{
 				ctx:             f.ctx,
 				context:         f.context,
-				shadowedImports: orImports(shadowed, f.simpleStmt(v.Init)),
+				shadowedImports: orBitField(shadowed, f.simpleStmt(v.Init)),
 			}, v)
 		case *ast.SwitchStmt:
 			ast.Walk(&contextAnalyzer{
 				ctx:             f.ctx,
 				context:         f.context,
-				shadowedImports: orImports(shadowed, f.simpleStmt(v.Init)),
+				shadowedImports: orBitField(shadowed, f.simpleStmt(v.Init)),
 			}, v)
 		case *ast.TypeSwitchStmt:
 			ast.Walk(&contextAnalyzer{
 				ctx:             f.ctx,
 				context:         f.context,
-				shadowedImports: orImports(shadowed, f.simpleStmt(v.Init)),
+				shadowedImports: orBitField(shadowed, f.simpleStmt(v.Init)),
 			}, v)
 		case *ast.CommClause:
 			ast.Walk(&contextAnalyzer{
 				ctx:             f.ctx,
 				context:         f.context,
-				shadowedImports: orImports(shadowed, f.simpleStmt(v.Comm)),
+				shadowedImports: orBitField(shadowed, f.simpleStmt(v.Comm)),
 			}, v)
 		case *ast.ForStmt:
 			ast.Walk(&contextAnalyzer{
 				ctx:             f.ctx,
 				context:         f.context,
-				shadowedImports: orImports(shadowed, f.simpleStmt(v.Init)),
+				shadowedImports: orBitField(shadowed, f.simpleStmt(v.Init)),
 			}, v)
 		case *ast.RangeStmt:
-			expr := func(x ast.Expr) (s shadowedImports) {
+			expr := func(x ast.Expr) (s bitField) {
 				switch x := x.(type) {
 				case *ast.Ident:
 					f.setShadowed(&s, x.Name)
@@ -208,7 +155,7 @@ func (f *contextAnalyzer) analyzeStmts(list []ast.Stmt) {
 			ast.Walk(&contextAnalyzer{
 				ctx:             f.ctx,
 				context:         f.context,
-				shadowedImports: orImports(shadowed, expr(v.Key), expr(v.Value)),
+				shadowedImports: orBitField(shadowed, expr(v.Key), expr(v.Value)),
 			}, v)
 		case *ast.LabeledStmt:
 			panic("unreachable")
@@ -222,7 +169,7 @@ func (f *contextAnalyzer) analyzeStmts(list []ast.Stmt) {
 	}
 }
 
-func (f *contextAnalyzer) checkFieldList(fl *ast.FieldList) (s shadowedImports) {
+func (f *contextAnalyzer) checkFieldList(fl *ast.FieldList) (s bitField) {
 	if fl != nil {
 		for _, v := range fl.List {
 			for _, v := range v.Names {
@@ -233,9 +180,9 @@ func (f *contextAnalyzer) checkFieldList(fl *ast.FieldList) (s shadowedImports) 
 	return
 }
 
-func (f *contextAnalyzer) checkFuncType(shadowedImports shadowedImports, ft *ast.FuncType) (tgoFunc bool, shadowedByFunc shadowedImports) {
-	shadowedBefore := orImports(shadowedImports, f.checkFieldList(ft.TypeParams))
-	shadowedByFunc = orImports(shadowedBefore, f.checkFieldList(ft.Params), f.checkFieldList(ft.Results))
+func (f *contextAnalyzer) checkFuncType(shadowedImports bitField, ft *ast.FuncType) (tgoFunc bool, shadowedByFunc bitField) {
+	shadowedBefore := orBitField(shadowedImports, f.checkFieldList(ft.TypeParams))
+	shadowedByFunc = orBitField(shadowedBefore, f.checkFieldList(ft.Params), f.checkFieldList(ft.Results))
 	if len(ft.Params.List) == 0 || ft.Results == nil || len(ft.Results.List) != 1 {
 		return
 	}
@@ -269,7 +216,7 @@ func (f *contextAnalyzer) Visit(list ast.Node) ast.Visitor {
 		f.analyzeStmts(n.List)
 		return nil
 	case *ast.FuncDecl:
-		tgo, shadowed := f.checkFuncType(orImports(f.shadowedImports, f.checkFieldList(n.Recv)), n.Type)
+		tgo, shadowed := f.checkFuncType(orBitField(f.shadowedImports, f.checkFieldList(n.Recv)), n.Type)
 		if tgo {
 			return &contextAnalyzer{
 				ctx:             f.ctx,
@@ -349,7 +296,59 @@ func (f *contextAnalyzer) Visit(list ast.Node) ast.Visitor {
 		return &contextAnalyzer{
 			ctx:             f.ctx,
 			context:         contextNotTgo,
-			shadowedImports: orImports(f.shadowedImports),
+			shadowedImports: orBitField(f.shadowedImports),
+		}
+	}
+}
+
+type bitField struct {
+	other    map[int]struct{}
+	bitField uint64
+}
+
+func (s bitField) clone() bitField {
+	return bitField{
+		other:    maps.Clone(s.other),
+		bitField: s.bitField,
+	}
+}
+
+func (s *bitField) set(n int) {
+	if n < 63 {
+		s.bitField |= 1 << n
+		return
+	}
+	if s.other == nil {
+		s.other = map[int]struct{}{}
+	}
+	s.other[n] = struct{}{}
+}
+
+func (s bitField) isSet(n int) bool {
+	if n < 63 {
+		return s.bitField&1<<n != 0
+	}
+	_, ok := s.other[n]
+	return ok
+}
+
+func orBitField(o ...bitField) (out bitField) {
+	for _, v := range o {
+		out.bitField |= v.bitField
+		for k := range v.other {
+			if out.other == nil {
+				out.other = make(map[int]struct{})
+			}
+			out.other[k] = struct{}{}
+		}
+	}
+	return out
+}
+
+func (f *contextAnalyzer) setShadowed(s *bitField, n string) {
+	for i, v := range f.ctx.tgoImports {
+		if v == n {
+			s.set(i)
 		}
 	}
 }

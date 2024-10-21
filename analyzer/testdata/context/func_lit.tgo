@@ -48,3 +48,13 @@ func test3() {
 		}
 	}
 }
+======
+test.tgo:11:4: open tag is not allowed in this context
+test.tgo:11:9: end tag is not allowed in this context
+test.tgo:37:4: open tag is not allowed in this context
+test.tgo:37:9: end tag is not allowed in this context
+test.tgo:42:4: open tag is not allowed in this context
+test.tgo:42:9: end tag is not allowed in this context
+test.tgo:47:4: open tag is not allowed in this context
+test.tgo:47:9: end tag is not allowed in this context
+test.tgo:11:4: open tag is not allowed in this context (and 7 more errors)
