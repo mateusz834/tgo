@@ -217,32 +217,26 @@ func (f *contextAnalyzer) Visit(list ast.Node) ast.Visitor {
 		return nil
 	case *ast.FuncDecl:
 		tgo, shadowed := f.checkFuncType(orBitField(f.shadowedImports, f.checkFieldList(n.Recv)), n.Type)
-		if tgo {
-			return &contextAnalyzer{
-				ctx:             f.ctx,
-				context:         contextTgoBody,
-				shadowedImports: shadowed,
-			}
-		}
-		return &contextAnalyzer{
+		c := &contextAnalyzer{
 			ctx:             f.ctx,
 			context:         contextNotTgo,
 			shadowedImports: shadowed,
 		}
+		if tgo {
+			c.context = contextTgoBody
+		}
+		return c
 	case *ast.FuncLit:
 		tgo, shadowed := f.checkFuncType(f.shadowedImports, n.Type)
-		if tgo {
-			return &contextAnalyzer{
-				ctx:             f.ctx,
-				context:         contextTgoBody,
-				shadowedImports: shadowed,
-			}
-		}
-		return &contextAnalyzer{
+		c := &contextAnalyzer{
 			ctx:             f.ctx,
 			context:         contextNotTgo,
 			shadowedImports: shadowed,
 		}
+		if tgo {
+			c.context = contextTgoBody
+		}
+		return c
 	case *ast.IfStmt,
 		*ast.SwitchStmt, *ast.CaseClause,
 		*ast.ForStmt, *ast.SelectStmt,
