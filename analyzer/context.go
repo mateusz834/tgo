@@ -13,7 +13,10 @@ const (
 	tgoPackageName = "tgo"
 )
 
-func checkContext(ctx *analyzerContext, f *ast.File) {
+//TODO: factor this out into a small "type checker" (tgo checker), that produces a map[ast.Node]struct{}
+// and a separate context checker that uses the map to checks the file for errors (div not allowed in this context).
+
+func checkContext(ctx *analyzerContext, f *ast.File) map[ast.Node]struct{} {
 	tgoImports := []string{}
 	for _, v := range f.Imports {
 		path, err := strconv.Unquote(v.Path.Value)
@@ -38,18 +41,22 @@ func checkContext(ctx *analyzerContext, f *ast.File) {
 	// document that we do not support type aliases.
 	// But we can fuzz agaisnt go/types :).
 
-	ast.Walk(&contextAnalyzer{
+	c := &contextAnalyzer{
 		ctx: &contextAnalyzerContext{
 			ctx:        ctx,
 			tgoImports: tgoImports,
+			tgoFuncs:   make(map[ast.Node]struct{}),
 		},
 		context: contextNotTgo,
-	}, f)
+	}
+	ast.Walk(c, f)
+	return c.ctx.tgoFuncs
 }
 
 type contextAnalyzerContext struct {
 	ctx        *analyzerContext
 	tgoImports []string
+	tgoFuncs   map[ast.Node]struct{}
 }
 
 type context uint8
@@ -224,6 +231,7 @@ func (f *contextAnalyzer) Visit(list ast.Node) ast.Visitor {
 		}
 		if tgo {
 			c.context = contextTgoBody
+			f.ctx.tgoFuncs[n] = struct{}{}
 		}
 		return c
 	case *ast.FuncLit:
@@ -235,6 +243,7 @@ func (f *contextAnalyzer) Visit(list ast.Node) ast.Visitor {
 		}
 		if tgo {
 			c.context = contextTgoBody
+			f.ctx.tgoFuncs[n] = struct{}{}
 		}
 		return c
 	case *ast.IfStmt,
