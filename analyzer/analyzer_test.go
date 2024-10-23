@@ -115,8 +115,8 @@ func fuzzAddDir(f *testing.F, testdata string) {
 }
 
 func FuzzContextAnalyzer(f *testing.F) {
-	fuzzAddDir(f, "./testdata/context")
-	fuzzAddDir(f, ".")
+	//fuzzAddDir(f, "./testdata/context")
+	//fuzzAddDir(f, ".")
 
 	f.Add(`package main
 
@@ -128,12 +128,9 @@ func main() {
 func a(tgo.Ctx) error {
 	return nil
 }
-`)
+`, "", "")
 
-	const tgoModuleSrc = `package tgo
-
-type Ctx struct{}
-`
+	const tgoModuleSrc = "package tgo\ntype Ctx struct{}"
 
 	fset := gotoken.NewFileSet()
 	tgoModuleFile, err := goparser.ParseFile(fset, "tgo.go", tgoModuleSrc, goparser.SkipObjectResolution)
@@ -154,12 +151,24 @@ type Ctx struct{}
 	ctxType := tgoPkg.Scope().Lookup("Ctx").Type()
 	errorType := gotypes.Universe.Lookup("error").Type()
 
-	f.Fuzz(func(t *testing.T, src string) {
+	f.Fuzz(func(t *testing.T, src, additionalPath, additionalSrc string) {
 		gofset := gotoken.NewFileSet()
 		gof, err := goparser.ParseFile(gofset, "test.go", src, goparser.SkipObjectResolution)
 		if err != nil {
 			return
 		}
+
+		additionalFile, err := goparser.ParseFile(gofset, "test.go", src, goparser.SkipObjectResolution)
+		if err != nil {
+			return
+		}
+
+		additionalPackageCfg := gotypes.Config{
+			Importer: funcImporter(func(path string) (*gotypes.Package, error) {
+				return nil, errors.New("imports not allowed")
+			}),
+		}
+		additionalPkg, _ := additionalPackageCfg.Check(additionalPath, gofset, []*goast.File{additionalFile}, nil)
 
 		tgofset := token.NewFileSet()
 		tgof, err := parser.ParseFile(tgofset, "test.go", src, parser.SkipObjectResolution)
@@ -183,8 +192,9 @@ type Ctx struct{}
 			Importer: funcImporter(func(path string) (*gotypes.Package, error) {
 				if path == "github.com/mateusz834/tgo" {
 					return tgoPkg, nil
+				} else if additionalPkg != nil && path == additionalPath {
+					return additionalPkg, nil
 				}
-				// TODO: add a fake package that fuzz can fuzz :).
 				return nil, errors.New("custom imports not allowed")
 			}),
 		}
