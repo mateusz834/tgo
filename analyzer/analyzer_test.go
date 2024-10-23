@@ -206,6 +206,7 @@ type Ctx struct{}
 			if !ok {
 				panic("unreachable")
 			}
+			// TODO: Identical does Unalias, the checher does not follow them.
 			return gotypes.Identical(tv.Type, ctxType) && gotypes.Identical(tvRet.Type, errorType)
 		}
 		goast.Inspect(gof, func(n goast.Node) bool {
