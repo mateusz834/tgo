@@ -5,6 +5,7 @@ import (
 	"maps"
 	"strings"
 
+	"github.com/mateusz834/tgo/tgofuncs"
 	"github.com/mateusz834/tgoast/ast"
 	"github.com/mateusz834/tgoast/token"
 )
@@ -112,6 +113,114 @@ func (f *tagPairsAnalyzer) checkTagPairs(stmt []ast.Stmt) {
 			StartPos: f.ctx.fset.Position(v.start),
 			EndPos:   f.ctx.fset.Position(v.end),
 		})
+	}
+}
+
+func checkContext(ctx *analyzerContext, f *ast.File) {
+	// TODO: we are only "type-checking" one file, describe
+	// why it is safe to do, and why we went this way,
+	// not depending on go/types, go/packages, perf
+	// document that we do not support type aliases.
+	// But we can fuzz agaisnt go/types :).
+
+	info := tgofuncs.Check(f)
+
+	c := &contextAnalyzer{
+		ctx: &contextAnalyzerContext{
+			ctx:      ctx,
+			tgoFuncs: make(map[ast.Node]struct{}),
+		},
+		context: contextNotTgo,
+	}
+	for _, v := range info.TgoFuncs {
+		c.ctx.tgoFuncs[v] = struct{}{}
+	}
+	ast.Walk(c, f)
+}
+
+type contextAnalyzerContext struct {
+	ctx      *analyzerContext
+	tgoFuncs map[ast.Node]struct{}
+}
+
+type context uint8
+
+const (
+	contextNotTgo context = iota
+	contextTgoBody
+	contextTgoTag
+)
+
+type contextAnalyzer struct {
+	ctx     *contextAnalyzerContext
+	context context
+}
+
+func (f *contextAnalyzer) Visit(list ast.Node) ast.Visitor {
+	switch n := list.(type) {
+	case *ast.FuncDecl, *ast.FuncLit:
+		c := &contextAnalyzer{
+			ctx:     f.ctx,
+			context: contextNotTgo,
+		}
+		if _, ok := f.ctx.tgoFuncs[n]; ok {
+			c.context = contextTgoBody
+		}
+		return c
+	case *ast.IfStmt,
+		*ast.SwitchStmt, *ast.CaseClause,
+		*ast.ForStmt, *ast.SelectStmt,
+		*ast.CommClause, *ast.RangeStmt,
+		*ast.TypeSwitchStmt, *ast.ExprStmt,
+		*ast.LabeledStmt, *ast.BlockStmt:
+		return f
+	case *ast.TemplateLiteralExpr:
+		if f.context != contextTgoBody {
+			f.ctx.ctx.errors = append(f.ctx.ctx.errors, AnalyzeError{
+				Message:  "template literal is not allowed in this context",
+				StartPos: f.ctx.ctx.fset.Position(n.Pos()),
+				EndPos:   f.ctx.ctx.fset.Position(n.End()),
+			})
+		}
+		return &contextAnalyzer{context: contextNotTgo, ctx: f.ctx}
+	case *ast.OpenTagStmt:
+		if f.context != contextTgoBody {
+			f.ctx.ctx.errors = append(f.ctx.ctx.errors, AnalyzeError{
+				Message:  "open tag is not allowed in this context",
+				StartPos: f.ctx.ctx.fset.Position(n.Pos()),
+				EndPos:   f.ctx.ctx.fset.Position(n.End()),
+			})
+		}
+		return &contextAnalyzer{context: contextTgoTag, ctx: f.ctx}
+	case *ast.EndTagStmt:
+		if f.context != contextTgoBody {
+			f.ctx.ctx.errors = append(f.ctx.ctx.errors, AnalyzeError{
+				Message:  "end tag is not allowed in this context",
+				StartPos: f.ctx.ctx.fset.Position(n.Pos()),
+				EndPos:   f.ctx.ctx.fset.Position(n.End()),
+			})
+		}
+		return nil
+	case *ast.AttributeStmt:
+		if f.context != contextTgoTag {
+			f.ctx.ctx.errors = append(f.ctx.ctx.errors, AnalyzeError{
+				Message:  "attribute is not allowed in this context",
+				StartPos: f.ctx.ctx.fset.Position(n.Pos()),
+				EndPos:   f.ctx.ctx.fset.Position(n.End()),
+			})
+		}
+		if v, ok := n.Value.(*ast.TemplateLiteralExpr); ok {
+			a := &contextAnalyzer{context: contextNotTgo, ctx: f.ctx}
+			for _, v := range v.Parts {
+				ast.Walk(a, v)
+			}
+		}
+		return nil
+	default:
+		return &contextAnalyzer{
+			ctx:     f.ctx,
+			context: contextNotTgo,
+		}
 	}
 }
 

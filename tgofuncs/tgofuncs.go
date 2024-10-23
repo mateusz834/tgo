@@ -1,4 +1,4 @@
-package analyzer
+package tgofuncs
 
 import (
 	"fmt"
@@ -13,10 +13,11 @@ const (
 	tgoPackageName = "tgo"
 )
 
-//TODO: factor this out into a small "type checker" (tgo checker), that produces a map[ast.Node]struct{}
-// and a separate context checker that uses the map to checks the file for errors (div not allowed in this context).
+type Info struct {
+	TgoFuncs []ast.Node // *ast.FuncDecl or *ast.FuncLit.
+}
 
-func checkContext(ctx *analyzerContext, f *ast.File) map[ast.Node]struct{} {
+func Check(f *ast.File) Info {
 	tgoImports := []string{}
 	for _, v := range f.Imports {
 		path, err := strconv.Unquote(v.Path.Value)
@@ -43,34 +44,23 @@ func checkContext(ctx *analyzerContext, f *ast.File) map[ast.Node]struct{} {
 
 	c := &contextAnalyzer{
 		ctx: &contextAnalyzerContext{
-			ctx:        ctx,
 			tgoImports: tgoImports,
-			tgoFuncs:   make(map[ast.Node]struct{}),
 		},
-		context: contextNotTgo,
 	}
 	ast.Walk(c, f)
-	return c.ctx.tgoFuncs
+	return Info{
+		TgoFuncs: c.ctx.tgoFuncs,
+	}
 }
 
 type contextAnalyzerContext struct {
-	ctx        *analyzerContext
 	tgoImports []string
-	tgoFuncs   map[ast.Node]struct{}
+	tgoFuncs   []ast.Node
 }
-
-type context uint8
-
-const (
-	contextNotTgo context = iota
-	contextTgoBody
-	contextTgoTag
-)
 
 type contextAnalyzer struct {
 	ctx             *contextAnalyzerContext
 	shadowedImports bitField
-	context         context
 }
 
 func (f *contextAnalyzer) simpleStmt(v ast.Stmt) (s bitField) {
@@ -117,38 +107,32 @@ func (f *contextAnalyzer) analyzeStmts(list []ast.Stmt) {
 		case *ast.AssignStmt:
 			ast.Walk(&contextAnalyzer{
 				ctx:             f.ctx,
-				context:         f.context,
 				shadowedImports: shadowed.clone(),
 			}, v)
 			shadowed = orBitField(shadowed, f.simpleStmt(v))
 		case *ast.IfStmt:
 			ast.Walk(&contextAnalyzer{
 				ctx:             f.ctx,
-				context:         f.context,
 				shadowedImports: orBitField(shadowed, f.simpleStmt(v.Init)),
 			}, v)
 		case *ast.SwitchStmt:
 			ast.Walk(&contextAnalyzer{
 				ctx:             f.ctx,
-				context:         f.context,
 				shadowedImports: orBitField(shadowed, f.simpleStmt(v.Init)),
 			}, v)
 		case *ast.TypeSwitchStmt:
 			ast.Walk(&contextAnalyzer{
 				ctx:             f.ctx,
-				context:         f.context,
 				shadowedImports: orBitField(shadowed, f.simpleStmt(v.Init)),
 			}, v)
 		case *ast.CommClause:
 			ast.Walk(&contextAnalyzer{
 				ctx:             f.ctx,
-				context:         f.context,
 				shadowedImports: orBitField(shadowed, f.simpleStmt(v.Comm)),
 			}, v)
 		case *ast.ForStmt:
 			ast.Walk(&contextAnalyzer{
 				ctx:             f.ctx,
-				context:         f.context,
 				shadowedImports: orBitField(shadowed, f.simpleStmt(v.Init)),
 			}, v)
 		case *ast.RangeStmt:
@@ -161,7 +145,6 @@ func (f *contextAnalyzer) analyzeStmts(list []ast.Stmt) {
 			}
 			ast.Walk(&contextAnalyzer{
 				ctx:             f.ctx,
-				context:         f.context,
 				shadowedImports: orBitField(shadowed, expr(v.Key), expr(v.Value)),
 			}, v)
 		case *ast.LabeledStmt:
@@ -169,7 +152,6 @@ func (f *contextAnalyzer) analyzeStmts(list []ast.Stmt) {
 		default:
 			ast.Walk(&contextAnalyzer{
 				ctx:             f.ctx,
-				context:         f.context,
 				shadowedImports: shadowed.clone(),
 			}, v)
 		}
@@ -224,81 +206,33 @@ func (f *contextAnalyzer) Visit(list ast.Node) ast.Visitor {
 		return nil
 	case *ast.FuncDecl:
 		tgo, shadowed := f.checkFuncType(orBitField(f.shadowedImports, f.checkFieldList(n.Recv)), n.Type)
-		c := &contextAnalyzer{
+		if tgo {
+			f.ctx.tgoFuncs = append(f.ctx.tgoFuncs, n)
+		}
+		return &contextAnalyzer{
 			ctx:             f.ctx,
-			context:         contextNotTgo,
 			shadowedImports: shadowed,
 		}
-		if tgo {
-			c.context = contextTgoBody
-			f.ctx.tgoFuncs[n] = struct{}{}
-		}
-		return c
 	case *ast.FuncLit:
 		tgo, shadowed := f.checkFuncType(f.shadowedImports, n.Type)
-		c := &contextAnalyzer{
+		if tgo {
+			f.ctx.tgoFuncs = append(f.ctx.tgoFuncs, n)
+		}
+		return &contextAnalyzer{
 			ctx:             f.ctx,
-			context:         contextNotTgo,
 			shadowedImports: shadowed,
 		}
-		if tgo {
-			c.context = contextTgoBody
-			f.ctx.tgoFuncs[n] = struct{}{}
-		}
-		return c
 	case *ast.IfStmt,
 		*ast.SwitchStmt, *ast.CaseClause,
 		*ast.ForStmt, *ast.SelectStmt,
 		*ast.CommClause, *ast.RangeStmt,
 		*ast.TypeSwitchStmt, *ast.ExprStmt,
 		*ast.LabeledStmt:
+		panic("nope?")
 		return f
-	case *ast.TemplateLiteralExpr:
-		if f.context != contextTgoBody {
-			f.ctx.ctx.errors = append(f.ctx.ctx.errors, AnalyzeError{
-				Message:  "template literal is not allowed in this context",
-				StartPos: f.ctx.ctx.fset.Position(n.Pos()),
-				EndPos:   f.ctx.ctx.fset.Position(n.End()),
-			})
-		}
-		return &contextAnalyzer{context: contextNotTgo, ctx: f.ctx}
-	case *ast.OpenTagStmt:
-		if f.context != contextTgoBody {
-			f.ctx.ctx.errors = append(f.ctx.ctx.errors, AnalyzeError{
-				Message:  "open tag is not allowed in this context",
-				StartPos: f.ctx.ctx.fset.Position(n.Pos()),
-				EndPos:   f.ctx.ctx.fset.Position(n.End()),
-			})
-		}
-		return &contextAnalyzer{context: contextTgoTag, ctx: f.ctx}
-	case *ast.EndTagStmt:
-		if f.context != contextTgoBody {
-			f.ctx.ctx.errors = append(f.ctx.ctx.errors, AnalyzeError{
-				Message:  "end tag is not allowed in this context",
-				StartPos: f.ctx.ctx.fset.Position(n.Pos()),
-				EndPos:   f.ctx.ctx.fset.Position(n.End()),
-			})
-		}
-		return nil
-	case *ast.AttributeStmt:
-		if f.context != contextTgoTag {
-			f.ctx.ctx.errors = append(f.ctx.ctx.errors, AnalyzeError{
-				Message:  "attribute is not allowed in this context",
-				StartPos: f.ctx.ctx.fset.Position(n.Pos()),
-				EndPos:   f.ctx.ctx.fset.Position(n.End()),
-			})
-		}
-		if v, ok := n.Value.(*ast.TemplateLiteralExpr); ok {
-			a := &contextAnalyzer{context: contextNotTgo, ctx: f.ctx}
-			for _, v := range v.Parts {
-				ast.Walk(a, v)
-			}
-		}
-		return nil
 	default:
 		return &contextAnalyzer{
 			ctx:             f.ctx,
-			context:         contextNotTgo,
 			shadowedImports: orBitField(f.shadowedImports),
 		}
 	}
