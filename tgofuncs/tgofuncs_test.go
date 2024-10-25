@@ -41,12 +41,9 @@ func FuzzContextAnalyzer(f *testing.F) {
 	//fuzzAddDir(f, "./testdata/context")
 	//fuzzAddDir(f, ".")
 
-	f.Add(`package main
+	f.Add(`package templates
 
 import "github.com/mateusz834/tgo"
-
-func main() {
-}
 
 func a(tgo.Ctx) error {
 	return nil
@@ -157,12 +154,12 @@ func a(tgo.Ctx) error {
 		}) {
 			t.Logf("source:\n%v", src)
 			t.Logf("quoted source:\n%q", src)
-			for n := range got.TgoFuncs {
+			for _, n := range got.TgoFuncs {
 				var b strings.Builder
 				ast.Fprint(&b, tgofset, n, nil)
 				t.Logf("got:\n%s", b.String())
 			}
-			for n := range want {
+			for _, n := range want {
 				var b strings.Builder
 				goast.Fprint(&b, gofset, n, nil)
 				t.Logf("want:\n%s", b.String())
