@@ -205,14 +205,21 @@ func (f *contextAnalyzer) Visit(list ast.Node) ast.Visitor {
 		f.analyzeStmts(n.List)
 		return nil
 	case *ast.CaseClause:
-		f.analyzeStmts(n.Body)
-		return nil
-	case *ast.CommClause:
+		for _, v := range n.List {
+			ast.Walk(&contextAnalyzer{
+				ctx:             f.ctx,
+				shadowedImports: f.shadowedImports.clone(),
+			}, v)
+		}
 		f.analyzeStmts(n.Body)
 		return nil
 	case *ast.OpenTagStmt:
 		f.analyzeStmts(n.Body)
 		return nil
+	case *ast.CommClause:
+		// SelectStmt contains a BlockStmt, which contains CommClauses only,
+		// they are already handled by analyzeStmts.
+		panic("unreachable")
 	case *ast.FuncDecl:
 		tgo, shadowed := f.checkFuncType(orBitField(f.shadowedImports, f.checkFieldList(n.Recv)), n.Type)
 		if tgo {
