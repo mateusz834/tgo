@@ -1,0 +1,6 @@
+package templates
+
+func test() {
+	if tgo := func() string {_ = func(tgo.Ctx) error {}; return "test"}; true {
+	}
+}

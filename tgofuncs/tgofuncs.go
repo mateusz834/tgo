@@ -119,6 +119,7 @@ func (f *contextAnalyzer) analyzeStmts(list []ast.Stmt) {
 			}, v)
 			shadowed = orBitField(shadowed, f.simpleStmt(v))
 		case *ast.IfStmt:
+			// TODO: this is wrong inside Init?
 			ast.Walk(&contextAnalyzer{
 				ctx:             f.ctx,
 				shadowedImports: orBitField(shadowed, f.simpleStmt(v.Init)),

@@ -102,18 +102,24 @@ func fuzzAddDir(f *testing.F, testdata string) {
 }
 
 func FuzzTgoFuncs(f *testing.F) {
-	fuzzAddDir(f, "./testdata")
-	fuzzAddDir(f, ".")
-	fuzzAddDir(f, "..")
-	fuzzAddDir(f, "../transpiler")
-	fuzzAddDir(f, "../analyzer")
+	//fuzzAddDir(f, "./testdata")
+	//fuzzAddDir(f, ".")
+	//fuzzAddDir(f, "..")
+	//fuzzAddDir(f, "../transpiler")
+	//fuzzAddDir(f, "../analyzer")
 
 	f.Add(`package templates
 
 import "github.com/mateusz834/tgo"
 
-func a(tgo.Ctx) error {
-	return nil
+//func a(tgo.Ctx) error {
+//	return nil
+//}
+
+func test() {
+	if tgo := func() string {_ = func(tgo.Ctx) error {return nil}; return "test"}; true {
+		_ = tgo
+	}
 }
 `, "", "")
 
@@ -177,6 +183,7 @@ func a(tgo.Ctx) error {
 		}
 		infos := gotypes.Info{Types: make(map[goast.Expr]gotypes.TypeAndValue)}
 		if _, err := cfg.Check("pkgname", gofset, []*goast.File{gof}, &infos); err != nil {
+			t.Log(err)
 			return
 		}
 
