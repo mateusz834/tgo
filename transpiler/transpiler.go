@@ -28,6 +28,11 @@ func Transpile(f *ast.File, fs *token.FileSet, src string) string {
 	return string(t.out)
 }
 
+/*
+// Assert that no other file in this package overrides the error builtin interface.
+var _ = (*tgo.Error)((*error)(nil))
+*/
+
 type transpiler struct {
 	f   *ast.File
 	fs  *token.FileSet

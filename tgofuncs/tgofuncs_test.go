@@ -2,6 +2,7 @@ package tgofuncs
 
 import (
 	"errors"
+	"flag"
 	"os"
 	"path/filepath"
 	"slices"
@@ -18,6 +19,69 @@ import (
 	"github.com/mateusz834/tgoast/token"
 )
 
+var update = flag.Bool("update", false, "")
+
+func TestTgoFuncs(t *testing.T) {
+	const testdata = "./testdata"
+	files, err := os.ReadDir(testdata)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, v := range files {
+		if v.IsDir() {
+			continue
+		}
+		t.Run(v.Name(), func(t *testing.T) {
+			fileName := filepath.Join(testdata, v.Name())
+			c, err := os.ReadFile(fileName)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			tgo, errors, separatorFound := strings.Cut(string(c), "======\n")
+
+			fset := token.NewFileSet()
+			f, err := parser.ParseFile(fset, "test.tgo", tgo, parser.SkipObjectResolution|parser.ParseComments)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			ast.Print(fset, f)
+
+			var got strings.Builder
+			info := Check(f)
+			for _, v := range info.TgoFuncs {
+				got.WriteString(fset.Position(v.Pos()).String())
+				got.WriteString("\n")
+			}
+
+			if *update {
+				out := tgo
+				if got.String() != "" {
+					out += "======\n" + got.String()
+				}
+				if err := os.WriteFile(fileName, []byte(out), 0666); err != nil {
+					t.Fatal(err)
+				}
+				return
+			}
+
+			if !separatorFound {
+				if got.String() != "" {
+					t.Logf("source:\n%v", tgo)
+					t.Fatalf("unexpected tgo funcs, got:\n%v\nwant: <empty>", got.String())
+				}
+				return
+			}
+
+			if got.String() != errors {
+				t.Logf("source:\n%v", tgo)
+				t.Fatalf("unexpected tgo funcs, got:\n%v\nwant:\n%v", got.String(), errors)
+			}
+		})
+	}
+}
+
 func fuzzAddDir(f *testing.F, testdata string) {
 	files, err := os.ReadDir(testdata)
 	if err != nil {
@@ -33,13 +97,16 @@ func fuzzAddDir(f *testing.F, testdata string) {
 		if err != nil {
 			f.Fatal(err)
 		}
-		f.Add(string(content))
+		f.Add(string(content), "", "")
 	}
 }
 
-func FuzzContextAnalyzer(f *testing.F) {
-	//fuzzAddDir(f, "./testdata/context")
-	//fuzzAddDir(f, ".")
+func FuzzTgoFuncs(f *testing.F) {
+	fuzzAddDir(f, "./testdata")
+	fuzzAddDir(f, ".")
+	fuzzAddDir(f, "..")
+	fuzzAddDir(f, "../transpiler")
+	fuzzAddDir(f, "../analyzer")
 
 	f.Add(`package templates
 
@@ -50,7 +117,7 @@ func a(tgo.Ctx) error {
 }
 `, "", "")
 
-	const tgoModuleSrc = "package tgo\ntype Ctx struct{}"
+	const tgoModuleSrc = "package tgo\ntype Ctx struct{}\ntype Error = error"
 
 	fset := gotoken.NewFileSet()
 	tgoModuleFile, err := goparser.ParseFile(fset, "tgo.go", tgoModuleSrc, goparser.SkipObjectResolution)
@@ -94,12 +161,6 @@ func a(tgo.Ctx) error {
 		tgof, err := parser.ParseFile(tgofset, "test.go", src, parser.SkipObjectResolution)
 		if err != nil {
 			t.Fatal(err) // succesfully parsed by the Go parser, this should not happen.
-		}
-
-		for _, v := range tgof.Imports {
-			if v.Name != nil && v.Name.Name == "." {
-				t.Skip()
-			}
 		}
 
 		got := Check(tgof)

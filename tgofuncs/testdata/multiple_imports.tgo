@@ -1,0 +1,19 @@
+package templates
+
+import (
+	"github.com/mateusz834/tgo"
+	tgoalias "github.com/mateusz834/tgo"
+)
+
+func test1(tgo.Ctx) error {
+	<div>
+	</div>
+}
+
+func test2(tgoalias.Ctx) error {
+	<div>
+	</div>
+}
+======
+test.tgo:8:1
+test.tgo:13:1

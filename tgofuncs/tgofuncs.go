@@ -18,7 +18,10 @@ type Info struct {
 }
 
 func Check(f *ast.File) Info {
-	tgoImports := []string{}
+	var (
+		tgoImports   []string
+		hasDotImport bool
+	)
 	for _, v := range f.Imports {
 		path, err := strconv.Unquote(v.Path.Value)
 		if err != nil {
@@ -27,10 +30,13 @@ func Check(f *ast.File) Info {
 		if path == tgoModule {
 			ident := tgoPackageName
 			if v.Name != nil {
+				if v.Name.Name == "." {
+					hasDotImport = true
+					continue
+				} else if v.Name.Name == "_" {
+					continue
+				}
 				ident = v.Name.Name
-			}
-			if ident == "." {
-				panic("oho, figure this out then :)")
 			}
 			tgoImports = append(tgoImports, ident)
 		}
@@ -44,7 +50,8 @@ func Check(f *ast.File) Info {
 
 	c := &contextAnalyzer{
 		ctx: &contextAnalyzerContext{
-			tgoImports: tgoImports,
+			tgoImports:   tgoImports,
+			hasDotImport: hasDotImport,
 		},
 	}
 	ast.Walk(c, f)
@@ -54,8 +61,9 @@ func Check(f *ast.File) Info {
 }
 
 type contextAnalyzerContext struct {
-	tgoImports []string
-	tgoFuncs   []ast.Node
+	tgoFuncs     []ast.Node
+	tgoImports   []string
+	hasDotImport bool
 }
 
 type contextAnalyzer struct {
@@ -179,9 +187,23 @@ func (f *contextAnalyzer) checkFuncType(shadowedImports bitField, ft *ast.FuncTy
 	okReturn := false
 	switch v := ast.Unparen(ft.Results.List[0].Type).(type) {
 	case *ast.Ident:
-		if v.Name == "error" {
+		if v.Name == "error" && !shadowedBefore.isSetError() {
+			okReturn = true
+		} else if f.ctx.hasDotImport && v.Name == "Error" && !shadowedBefore.isSetTgoError() {
 			okReturn = true
 		}
+	case *ast.SelectorExpr:
+		if ident, ok := v.X.(*ast.Ident); ok {
+			for i, importName := range f.ctx.tgoImports {
+				if ident.Name == importName && !shadowedBefore.isSet(i) {
+					okReturn = v.Sel.Name == "Error"
+				}
+			}
+		}
+	}
+
+	if !okReturn {
+		return
 	}
 
 	switch v := ast.Unparen(ft.Params.List[0].Type).(type) {
@@ -189,10 +211,15 @@ func (f *contextAnalyzer) checkFuncType(shadowedImports bitField, ft *ast.FuncTy
 		if ident, ok := v.X.(*ast.Ident); ok {
 			for i, importName := range f.ctx.tgoImports {
 				if ident.Name == importName && !shadowedBefore.isSet(i) {
-					tgoFunc = okReturn && v.Sel.Name == "Ctx"
+					tgoFunc = v.Sel.Name == "Ctx"
 					return
 				}
 			}
+		}
+	case *ast.Ident:
+		if f.ctx.hasDotImport && v.Name == "Ctx" && !shadowedBefore.isSetTgoCtx() {
+			tgoFunc = true
+			return
 		}
 	}
 
@@ -246,6 +273,14 @@ func (f *contextAnalyzer) Visit(list ast.Node) ast.Visitor {
 	}
 }
 
+const (
+	bitTgoCtx   = 63
+	bitTgoError = 62
+	bitError    = 61
+
+	bitsForImports = 60
+)
+
 type bitField struct {
 	other    map[int]struct{}
 	bitField uint64
@@ -272,7 +307,7 @@ func (b bitField) clone() bitField {
 }
 
 func (b bitField) isSet(n int) bool {
-	if n < 63 {
+	if n < bitsForImports {
 		return b.bitField&1<<n != 0
 	}
 	_, ok := b.other[n]
@@ -280,7 +315,7 @@ func (b bitField) isSet(n int) bool {
 }
 
 func (b *bitField) set(n int) {
-	if n < 63 {
+	if n < bitsForImports {
 		b.bitField |= 1 << n
 		return
 	}
@@ -290,10 +325,42 @@ func (b *bitField) set(n int) {
 	b.other[n] = struct{}{}
 }
 
+func (b bitField) isSetTgoCtx() bool {
+	return b.bitField&bitTgoCtx != 0
+}
+
+func (b bitField) isSetTgoError() bool {
+	return b.bitField&bitTgoError != 0
+}
+
+func (b bitField) isSetError() bool {
+	return b.bitField&bitError != 0
+}
+
+func (b bitField) setTgoCtx() {
+	b.bitField |= bitTgoCtx
+}
+
+func (b *bitField) setTgoError() {
+	b.bitField |= bitTgoError
+}
+
+func (b *bitField) setError() {
+	b.bitField |= bitError
+}
+
 func (b *bitField) setShadowed(c *contextAnalyzer, n string) {
 	for i, v := range c.ctx.tgoImports {
 		if v == n {
 			b.set(i)
 		}
+	}
+	switch n {
+	case "Error":
+		b.setTgoError()
+	case "Ctx":
+		b.setTgoCtx()
+	case "error":
+		b.setError()
 	}
 }

@@ -1,0 +1,23 @@
+package templates
+
+import "github.com/mateusz834/tgo"
+
+func test() {
+	<div>
+	</div>
+}
+
+func test() error {
+	<div>
+	</div>
+}
+
+func test(tgo.Ctx) {
+	<div>
+	</div>
+}
+
+func test(t tgo.Ctx) (int, error) {
+	<div>
+	</div>
+}
