@@ -1,21 +1,13 @@
 package templates
 
 func test() {
-	<div>
-	</div>
 }
 
 func test(tgo.Ctx) error {
-	<div>
-	</div>
 }
 
 func test() error {
-	<div>
-	</div>
 }
 
 func test(tgo.Ctx) {
-	<div>
-	</div>
 }

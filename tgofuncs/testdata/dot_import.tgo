@@ -1,0 +1,21 @@
+package templates
+
+import . "github.com/mateusz834/tgo"
+
+func test(Ctx) error {
+}
+
+func test2() {
+	_ = func(Ctx) error {
+	}
+}
+
+func test3() {
+	Ctx := "test"
+	_ = func(Ctx) error {
+	}
+}
+======
+test.tgo:5:1
+test.tgo:9:6
+test.tgo:15:6

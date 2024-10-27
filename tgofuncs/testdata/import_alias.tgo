@@ -3,8 +3,6 @@ package templates
 import tgoalias "github.com/mateusz834/tgo"
 
 func test(tgoalias.Ctx) error {
-	<div>
-	</div>
 }
 ======
 test.tgo:5:1
