@@ -217,8 +217,9 @@ func (f *contextAnalyzer) checkFuncType(shadowedImports bitField, ft *ast.FuncTy
 	case *ast.SelectorExpr:
 		if ident, ok := v.X.(*ast.Ident); ok {
 			for i, importName := range f.ctx.tgoImports {
-				if ident.Name == importName && !shadowedBefore.isSet(i) {
-					okReturn = v.Sel.Name == "Error"
+				if ident.Name == importName && v.Sel.Name == "Error" && !shadowedBefore.isSet(i) {
+					okReturn = true
+					break
 				}
 			}
 		}
