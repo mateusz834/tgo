@@ -42,18 +42,49 @@ func Check(f *ast.File) Info {
 		}
 	}
 
-	// TODO: we are only "type-checking" one file, describe
-	// why it is safe to do, and why we went this way,
-	// not depending on go/types, go/packages, perf
-	// document that we do not support type aliases.
-	// But we can fuzz agaisnt go/types :).
-
 	c := &contextAnalyzer{
 		ctx: &contextAnalyzerContext{
 			tgoImports:   tgoImports,
 			hasDotImport: hasDotImport,
 		},
 	}
+
+	for _, v := range f.Decls {
+		switch v := v.(type) {
+		case *ast.FuncDecl:
+			c.shadowedImports.setShadowed(c, v.Name.Name)
+		case *ast.GenDecl:
+			for _, s := range v.Specs {
+				switch s := s.(type) {
+				case *ast.ImportSpec:
+					path, err := strconv.Unquote(s.Path.Value)
+					if err != nil {
+						panic(err)
+					}
+					if s.Name != nil && path != tgoModule {
+						c.shadowedImports.setShadowed(c, s.Name.Name)
+					}
+				case *ast.TypeSpec:
+					c.shadowedImports.setShadowed(c, s.Name.Name)
+				case *ast.ValueSpec:
+					for _, v := range s.Names {
+						c.shadowedImports.setShadowed(c, v.Name)
+					}
+				default:
+					panic("unreachable")
+				}
+			}
+		default:
+			panic("unreachable")
+		}
+	}
+
+	// TODO: we are only "type-checking" one file, describe
+	// why it is safe to do, and why we went this way,
+	// not depending on go/types, go/packages, perf
+	// document that we do not support type aliases.
+	// But we can fuzz agaisnt go/types :).
+
 	ast.Walk(c, f)
 	return Info{
 		TgoFuncs: c.ctx.tgoFuncs,

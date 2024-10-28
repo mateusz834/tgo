@@ -1,0 +1,9 @@
+package templates
+
+import (
+	"github.com/mateusz834/tgo"
+	tgo "test"
+)
+
+func test(tgo.Ctx) error {
+}
