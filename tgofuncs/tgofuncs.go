@@ -123,12 +123,8 @@ func (f *contextAnalyzer) analyzeStmts(list []ast.Stmt) {
 				ast.Walk(&contextAnalyzer{ctx: f.ctx, shadowedImports: shadowed.clone()}, v.Init)
 			}
 			s := orBitField(shadowed, f.simpleStmt(v.Init))
-			if v.Cond != nil {
-				ast.Walk(&contextAnalyzer{ctx: f.ctx, shadowedImports: s.clone()}, v.Cond)
-			}
-			if v.Body != nil {
-				ast.Walk(&contextAnalyzer{ctx: f.ctx, shadowedImports: s.clone()}, v.Body)
-			}
+			ast.Walk(&contextAnalyzer{ctx: f.ctx, shadowedImports: s.clone()}, v.Cond)
+			ast.Walk(&contextAnalyzer{ctx: f.ctx, shadowedImports: s.clone()}, v.Body)
 			if v.Else != nil {
 				ast.Walk(&contextAnalyzer{ctx: f.ctx, shadowedImports: s.clone()}, v.Else)
 			}
