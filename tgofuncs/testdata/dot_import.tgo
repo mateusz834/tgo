@@ -18,4 +18,3 @@ func test3() {
 ======
 test.tgo:5:1
 test.tgo:9:6
-test.tgo:15:6

@@ -264,8 +264,8 @@ func (f *contextAnalyzer) checkFuncType(shadowedImports bitField, ft *ast.FuncTy
 	case *ast.SelectorExpr:
 		if ident, ok := v.X.(*ast.Ident); ok {
 			for i, importName := range f.ctx.tgoImports {
-				if ident.Name == importName && !shadowedBefore.isSet(i) {
-					tgoFunc = v.Sel.Name == "Ctx"
+				if ident.Name == importName && v.Sel.Name == "Ctx" && !shadowedBefore.isSet(i) {
+					tgoFunc = true
 					return
 				}
 			}
@@ -380,27 +380,27 @@ func (b *bitField) set(n int) {
 }
 
 func (b bitField) isSetTgoCtx() bool {
-	return b.bitField&bitTgoCtx != 0
+	return b.bitField&(1<<bitTgoCtx) != 0
 }
 
 func (b bitField) isSetTgoError() bool {
-	return b.bitField&bitTgoError != 0
+	return b.bitField&(1<<bitTgoError) != 0
 }
 
 func (b bitField) isSetError() bool {
-	return b.bitField&bitError != 0
+	return b.bitField&(1<<bitError) != 0
 }
 
-func (b bitField) setTgoCtx() {
-	b.bitField |= bitTgoCtx
+func (b *bitField) setTgoCtx() {
+	b.bitField |= 1 << bitTgoCtx
 }
 
 func (b *bitField) setTgoError() {
-	b.bitField |= bitTgoError
+	b.bitField |= 1 << bitTgoError
 }
 
 func (b *bitField) setError() {
-	b.bitField |= bitError
+	b.bitField |= 1 << bitError
 }
 
 func (b *bitField) setShadowed(c *contextAnalyzer, n string) {

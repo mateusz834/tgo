@@ -46,8 +46,6 @@ func TestTgoFuncs(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			ast.Print(fset, f)
-
 			var got strings.Builder
 			info := Check(f)
 			for _, v := range info.TgoFuncs {
