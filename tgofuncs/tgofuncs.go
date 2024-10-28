@@ -137,9 +137,7 @@ func (f *contextAnalyzer) analyzeStmts(list []ast.Stmt) {
 				ast.Walk(&contextAnalyzer{ctx: f.ctx, shadowedImports: shadowed.clone()}, v.Init)
 			}
 			s := orBitField(shadowed, f.simpleStmt(v.Init))
-			if v.Body != nil {
-				ast.Walk(&contextAnalyzer{ctx: f.ctx, shadowedImports: s.clone()}, v.Body)
-			}
+			ast.Walk(&contextAnalyzer{ctx: f.ctx, shadowedImports: s.clone()}, v.Body)
 			if v.Tag != nil {
 				ast.Walk(&contextAnalyzer{ctx: f.ctx, shadowedImports: s.clone()}, v.Tag)
 			}
@@ -147,10 +145,8 @@ func (f *contextAnalyzer) analyzeStmts(list []ast.Stmt) {
 			if v.Init != nil {
 				ast.Walk(&contextAnalyzer{ctx: f.ctx, shadowedImports: shadowed.clone()}, v.Init)
 			}
-			s := orBitField(shadowed, f.simpleStmt(v.Init))
-			if v.Assign != nil {
-				ast.Walk(&contextAnalyzer{ctx: f.ctx, shadowedImports: s.clone()}, v.Assign)
-			}
+			ast.Walk(&contextAnalyzer{ctx: f.ctx, shadowedImports: shadowed.clone()}, v.Assign)
+			s := orBitField(shadowed, f.simpleStmt(v.Init), f.simpleStmt(v.Assign))
 			if v.Body != nil {
 				ast.Walk(&contextAnalyzer{ctx: f.ctx, shadowedImports: s.clone()}, v.Body)
 			}
@@ -158,10 +154,8 @@ func (f *contextAnalyzer) analyzeStmts(list []ast.Stmt) {
 			if v.Comm != nil {
 				ast.Walk(&contextAnalyzer{ctx: f.ctx, shadowedImports: shadowed.clone()}, v.Comm)
 			}
-			s := orBitField(shadowed, f.simpleStmt(v.Comm))
-			for _, n := range v.Body {
-				ast.Walk(&contextAnalyzer{ctx: f.ctx, shadowedImports: s.clone()}, n)
-			}
+			c := &contextAnalyzer{ctx: f.ctx, shadowedImports: orBitField(shadowed, f.simpleStmt(v.Comm))}
+			c.analyzeStmts(v.Body)
 		case *ast.ForStmt:
 			if v.Init != nil {
 				ast.Walk(&contextAnalyzer{ctx: f.ctx, shadowedImports: shadowed.clone()}, v.Init)
@@ -173,9 +167,7 @@ func (f *contextAnalyzer) analyzeStmts(list []ast.Stmt) {
 			if v.Post != nil {
 				ast.Walk(&contextAnalyzer{ctx: f.ctx, shadowedImports: s.clone()}, v.Post)
 			}
-			if v.Body != nil {
-				ast.Walk(&contextAnalyzer{ctx: f.ctx, shadowedImports: s.clone()}, v.Body)
-			}
+			ast.Walk(&contextAnalyzer{ctx: f.ctx, shadowedImports: s.clone()}, v.Body)
 		case *ast.RangeStmt:
 			ast.Walk(&contextAnalyzer{ctx: f.ctx, shadowedImports: shadowed.clone()}, v.X)
 			expr := func(x ast.Expr) (s bitField) {

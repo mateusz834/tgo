@@ -19,8 +19,6 @@ import (
 	"github.com/mateusz834/tgoast/token"
 )
 
-// TODO: type-check files in TestTgoFuncs
-
 var update = flag.Bool("update", false, "")
 
 func TestTgoFuncs(t *testing.T) {
