@@ -1,0 +1,8 @@
+package templates
+
+import . "github.com/mateusz834/tgo"
+
+type Error struct{}
+
+func test(Ctx) Error {
+}
