@@ -124,11 +124,10 @@ func checkContext(ctx *analyzerContext, f *ast.File) {
 	// But we can fuzz agaisnt go/types :).
 
 	info := tgofuncs.Check(f)
-
 	c := &contextAnalyzer{
 		ctx: &contextAnalyzerContext{
 			ctx:      ctx,
-			tgoFuncs: make(map[ast.Node]struct{}),
+			tgoFuncs: make(map[ast.Node]struct{}, len(info.TgoFuncs)),
 		},
 		context: contextNotTgo,
 	}
