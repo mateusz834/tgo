@@ -134,7 +134,7 @@ func test() {
 			return nil, errors.New("imports not allowed")
 		}),
 	}
-	tgoPkg, err := cfg.Check("github.com/mateusz834/tgo", fset, []*goast.File{tgoModuleFile}, nil)
+	tgoPkg, err := cfg.Check(tgoModule, fset, []*goast.File{tgoModuleFile}, nil)
 	if err != nil {
 		f.Fatal(err)
 	}
@@ -171,7 +171,7 @@ func test() {
 
 		cfg := gotypes.Config{
 			Importer: funcImporter(func(path string) (*gotypes.Package, error) {
-				if path == "github.com/mateusz834/tgo" {
+				if path == tgoModule {
 					return tgoPkg, nil
 				} else if additionalPkg != nil && path == additionalPath {
 					return additionalPkg, nil
@@ -181,7 +181,6 @@ func test() {
 		}
 		infos := gotypes.Info{Types: make(map[goast.Expr]gotypes.TypeAndValue)}
 		if _, err := cfg.Check("pkgname", gofset, []*goast.File{gof}, &infos); err != nil {
-			t.Log(err)
 			return
 		}
 
