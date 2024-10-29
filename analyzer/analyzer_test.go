@@ -20,6 +20,9 @@ func TestAnalyze(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, v := range files {
+		if v.IsDir() {
+			continue
+		}
 		t.Run(v.Name(), func(t *testing.T) {
 			fileName := filepath.Join(testdata, v.Name())
 			c, err := os.ReadFile(fileName)
