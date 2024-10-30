@@ -28,8 +28,9 @@ func TestAnalyze(t *testing.T) {
 					t := []tgotest.Error{}
 					for _, v := range err.(AnalyzeErrors) {
 						t = append(t, tgotest.Error{
-							Msg:  fmt.Sprintf("col(%v): %v", v.StartPos.Column, v.Message),
-							Line: v.StartPos.Line,
+							Msg:    fmt.Sprintf("col(%v): %v", v.StartPos.Column, v.Message),
+							Line:   v.StartPos.Line,
+							Column: v.StartPos.Column,
 						})
 					}
 					return t

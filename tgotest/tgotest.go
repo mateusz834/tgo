@@ -3,6 +3,7 @@ package tgotest
 import (
 	"cmp"
 	"flag"
+	"fmt"
 	"os"
 	"slices"
 	"strings"
@@ -15,8 +16,8 @@ import (
 )
 
 type Error struct {
-	Msg  string
-	Line int
+	Msg          string
+	Line, Column int
 }
 
 var update = flag.Bool("update", false, "")
@@ -26,21 +27,36 @@ const (
 	errConcat = " ERROR: "
 )
 
-func Test(t *testing.T, path string, testFunc func(fset *token.FileSet, f *ast.File) []Error) {
-	t.Helper()
+var printerConfig = printer.Config{Tabwidth: 8, Mode: printer.UseSpaces | printer.TabIndent}
 
+func Test(t *testing.T, path string, testFunc func(fset *token.FileSet, f *ast.File) []Error) {
 	contents, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	// TODO: error when file is not formatted
-	// TODO: when -update then format then print and parse (so that postion info is the same after another print)
-
 	fset := token.NewFileSet()
 	f, err := parser.ParseFile(fset, "test.tgo", contents, parser.SkipObjectResolution|parser.ParseComments)
 	if err != nil {
 		t.Fatal(err)
+	}
+
+	var s strings.Builder
+	if err := printerConfig.Fprint(&s, fset, f); err != nil {
+		t.Fatal(err)
+	}
+
+	if *update {
+		// When -update then print and parse, so that postion info (column) is the same after another print.
+		fset = token.NewFileSet()
+		f, err = parser.ParseFile(fset, "test.tgo", s.String(), parser.ParseComments|parser.SkipObjectResolution)
+		if err != nil {
+			t.Fatal(err)
+		}
+	} else if s.String() != string(contents) {
+		// Printing might change the source, so require formatted code, otherwise
+		// the Column (from token.Position) might change, making error message in comments invalid.
+		t.Fatalf("%v is not formatted (run tests with -update)", path)
 	}
 
 	got := testFunc(fset, f)
@@ -52,7 +68,18 @@ func Test(t *testing.T, path string, testFunc func(fset *token.FileSet, f *ast.F
 		for _, c := range cg.List {
 			if strings.HasPrefix(c.Text, prefix) {
 				for _, v := range strings.Split(c.Text[len(prefix):], errConcat) {
-					want = append(want, Error{Msg: v, Line: fset.PositionFor(c.Pos(), false).Line})
+					var column int
+					var msg string
+					if _, err := fmt.Sscanf(v, "col(%v): %v", &column, &msg); err != nil {
+						t.Fatal(err)
+					} else if column == 0 || msg == "" {
+						t.Fatal("invalid comment")
+					}
+					want = append(want, Error{
+						Msg:    msg,
+						Line:   fset.PositionFor(c.Pos(), false).Line,
+						Column: column,
+					})
 				}
 				continue
 			}
@@ -66,7 +93,7 @@ func Test(t *testing.T, path string, testFunc func(fset *token.FileSet, f *ast.F
 	if *update {
 		g := make(map[int][]string)
 		for _, v := range got {
-			g[v.Line] = append(g[v.Line], v.Msg)
+			g[v.Line] = append(g[v.Line], fmt.Sprintf("col(%v): %v", v.Column, v.Msg))
 		}
 		for line, errs := range g {
 			newComments = append(newComments, &ast.CommentGroup{
@@ -81,9 +108,8 @@ func Test(t *testing.T, path string, testFunc func(fset *token.FileSet, f *ast.F
 		})
 
 		f.Comments = newComments
-		c := printer.Config{Tabwidth: 8, Mode: printer.UseSpaces | printer.TabIndent}
 		var out strings.Builder
-		if err := c.Fprint(&out, fset, f); err != nil {
+		if err := printerConfig.Fprint(&out, fset, f); err != nil {
 			t.Fatal(err)
 		}
 

@@ -2,7 +2,6 @@ package tgofuncs
 
 import (
 	"errors"
-	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
@@ -37,8 +36,9 @@ func TestTgoFuncs(t *testing.T) {
 				t := []tgotest.Error{}
 				for _, v := range info.TgoFuncs {
 					t = append(t, tgotest.Error{
-						Msg:  fmt.Sprintf("col(%v): tgofunc", fset.Position(v.Pos()).Column),
-						Line: fset.Position(v.Pos()).Line,
+						Msg:    "tgofunc",
+						Line:   fset.Position(v.Pos()).Line,
+						Column: fset.Position(v.Pos()).Column,
 					})
 				}
 				return t
