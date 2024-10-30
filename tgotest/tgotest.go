@@ -34,6 +34,9 @@ func Test(t *testing.T, path string, testFunc func(fset *token.FileSet, f *ast.F
 		t.Fatal(err)
 	}
 
+	// TODO: error when file is not formatted
+	// TODO: when -update then format then print and parse (so that postion info is the same after another print)
+
 	fset := token.NewFileSet()
 	f, err := parser.ParseFile(fset, "test.tgo", contents, parser.SkipObjectResolution|parser.ParseComments)
 	if err != nil {
