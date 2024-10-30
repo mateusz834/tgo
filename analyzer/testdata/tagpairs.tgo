@@ -63,19 +63,3 @@ func test4(tgo.Ctx) error {
 		<div>
 	}
 }
-======
-test.tgo:11:2: unclosed tag
-test.tgo:15:2: missing open tag
-test.tgo:20:2: unexpected close tag: "span", want: "div"
-test.tgo:25:3: unclosed tag
-test.tgo:29:3: missing open tag
-test.tgo:33:3: unclosed tag
-test.tgo:38:3: unexpected close tag: "span", want: "div"
-test.tgo:42:3: unclosed tag
-test.tgo:47:3: unclosed tag
-test.tgo:49:3: unclosed tag
-test.tgo:54:3: unclosed tag
-test.tgo:56:3: unclosed tag
-test.tgo:61:3: unclosed tag
-test.tgo:63:3: unclosed tag
-test.tgo:11:2: unclosed tag (and 13 more errors)

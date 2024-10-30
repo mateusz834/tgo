@@ -2,7 +2,7 @@ package tgofuncs
 
 import (
 	"errors"
-	"flag"
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
@@ -14,12 +14,11 @@ import (
 	gotoken "go/token"
 	gotypes "go/types"
 
+	"github.com/mateusz834/tgo/tgotest"
 	"github.com/mateusz834/tgoast/ast"
 	"github.com/mateusz834/tgoast/parser"
 	"github.com/mateusz834/tgoast/token"
 )
-
-var update = flag.Bool("update", false, "")
 
 func TestTgoFuncs(t *testing.T) {
 	const testdata = "./testdata"
@@ -33,49 +32,17 @@ func TestTgoFuncs(t *testing.T) {
 		}
 		t.Run(v.Name(), func(t *testing.T) {
 			fileName := filepath.Join(testdata, v.Name())
-			c, err := os.ReadFile(fileName)
-			if err != nil {
-				t.Fatal(err)
-			}
-
-			tgo, errors, separatorFound := strings.Cut(string(c), "======\n")
-
-			fset := token.NewFileSet()
-			f, err := parser.ParseFile(fset, "test.tgo", tgo, parser.SkipObjectResolution|parser.ParseComments)
-			if err != nil {
-				t.Fatal(err)
-			}
-
-			var got strings.Builder
-			info := Check(f)
-			for _, v := range info.TgoFuncs {
-				got.WriteString(fset.Position(v.Pos()).String())
-				got.WriteString("\n")
-			}
-
-			if *update {
-				out := tgo
-				if got.String() != "" {
-					out += "======\n" + got.String()
+			tgotest.Test(t, fileName, func(fset *token.FileSet, f *ast.File) []tgotest.Error {
+				info := Check(f)
+				t := []tgotest.Error{}
+				for _, v := range info.TgoFuncs {
+					t = append(t, tgotest.Error{
+						Msg:  fmt.Sprintf("col(%v): tgofunc", fset.Position(v.Pos()).Column),
+						Line: fset.Position(v.Pos()).Line,
+					})
 				}
-				if err := os.WriteFile(fileName, []byte(out), 0666); err != nil {
-					t.Fatal(err)
-				}
-				return
-			}
-
-			if !separatorFound {
-				if got.String() != "" {
-					t.Logf("source:\n%v", tgo)
-					t.Fatalf("unexpected tgo funcs, got:\n%v\nwant: <empty>", got.String())
-				}
-				return
-			}
-
-			if got.String() != errors {
-				t.Logf("source:\n%v", tgo)
-				t.Fatalf("unexpected tgo funcs, got:\n%v\nwant:\n%v", got.String(), errors)
-			}
+				return t
+			})
 		})
 	}
 }

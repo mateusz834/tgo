@@ -3,7 +3,7 @@ package tgo
 import "github.com/mateusz834/tgo"
 
 func test1() {
-	tgo := func(tgo.Ctx) error {
+	tgo := func(tgo.Ctx) error { // ERROR: col(9): tgofunc
 	}
 	for _, v := range "test" {
 		func(tgo.Ctx) error {
@@ -13,15 +13,15 @@ func test1() {
 
 func test2() {
 	for t := 0; true; {
-		func(tgo.Ctx) error {
+		func(tgo.Ctx) error { // ERROR: col(3): tgofunc
 		}
 	}
 	for t := range "test" {
-		func(tgo.Ctx) error {
+		func(tgo.Ctx) error { // ERROR: col(3): tgofunc
 		}
 	}
 	for k, v := range "test" {
-		func(tgo.Ctx) error {
+		func(tgo.Ctx) error { // ERROR: col(3): tgofunc
 		}
 	}
 }
@@ -40,8 +40,3 @@ func test3() {
 		}
 	}
 }
-======
-test.tgo:6:9
-test.tgo:16:3
-test.tgo:20:3
-test.tgo:24:3

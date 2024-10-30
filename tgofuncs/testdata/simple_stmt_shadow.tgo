@@ -3,20 +3,14 @@ package templates
 import "github.com/mateusz834/tgo"
 
 func test() {
-	if tgo := func() int {_ = func(tgo.Ctx) error {}; return 0}; true {
+	if tgo := func() int { _ = func(tgo.Ctx) error {}; return 0 }; true { // ERROR: col(29): tgofunc
 	}
-	if tgo := func() int {_ = func(tgo.Ctx) error {}; return 0}; tgo == 1 {
+	if tgo := func() int { _ = func(tgo.Ctx) error {}; return 0 }; tgo == 1 { // ERROR: col(29): tgofunc
 	}
-	for tgo := func() int {_ = func(tgo.Ctx) error {}; return 0}; true; {
+	for tgo := func() int { _ = func(tgo.Ctx) error {}; return 0 }; true; { // ERROR: col(30): tgofunc
 	}
-	for tgo := func() int {_ = func(tgo.Ctx) error {}; return 0}; tgo == 1; {
+	for tgo := func() int { _ = func(tgo.Ctx) error {}; return 0 }; tgo == 1; { // ERROR: col(30): tgofunc
 	}
-	for tgo := range func(yield func(int) bool) {_ = func(tgo.Ctx) error {}} {
+	for tgo := range func(yield func(int) bool) { _ = func(tgo.Ctx) error {} } { // ERROR: col(52): tgofunc
 	}
 }
-======
-test.tgo:6:28
-test.tgo:8:28
-test.tgo:10:29
-test.tgo:12:29
-test.tgo:14:51

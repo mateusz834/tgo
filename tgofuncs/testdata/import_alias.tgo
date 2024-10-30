@@ -2,7 +2,5 @@ package templates
 
 import tgoalias "github.com/mateusz834/tgo"
 
-func test(tgoalias.Ctx) error {
+func test(tgoalias.Ctx) error { // ERROR: col(1): tgofunc
 }
-======
-test.tgo:5:1

@@ -16,11 +16,12 @@ func test1(tgo.Ctx) error {
 			@attr5
 		}
 
-		for _,v := range "test" {
+		for _, v := range "test" {
 			@attr6
 		}
 
-		l: for _,v := range "test" {
+	l:
+		for _, v := range "test" {
 			@attr6
 			break l
 		}
@@ -71,12 +72,13 @@ func test1(tgo.Ctx) error {
 				"\{"test"}"
 			}
 
-			for _,v := range "test" {
+			for _, v := range "test" {
 				"test"
 				"\{"test"}"
 			}
 
-			l: for _,v := range "test" {
+		l:
+			for _, v := range "test" {
 				"test"
 				"\{"test"}"
 				break l
@@ -119,62 +121,40 @@ func test1(tgo.Ctx) error {
 
 func test2(tgo.Ctx) error {
 	<div
-		"\{"test"}"
+		"\{"test"}" // ERROR: col(3): template literal is not allowed in this context
 		"test"
 	>
-		@attr1
-		@attr2="value"
-		@attr3="value \{"test"}"
+		@attr1                   // ERROR: col(3): attribute is not allowed in this context
+		@attr2="value"           // ERROR: col(3): attribute is not allowed in this context
+		@attr3="value \{"test"}" // ERROR: col(3): attribute is not allowed in this context
 	</div>
 	_ = func(tgo.Ctx) error {
 		<div
-			"\{"test"}"
+			"\{"test"}" // ERROR: col(4): template literal is not allowed in this context
 			"test"
 		>
-			@attr1
-			@attr2="value"
-			@attr3="value \{"test"}"
+			@attr1                   // ERROR: col(4): attribute is not allowed in this context
+			@attr2="value"           // ERROR: col(4): attribute is not allowed in this context
+			@attr3="value \{"test"}" // ERROR: col(4): attribute is not allowed in this context
 		</div>
 	}
 }
 
 func test3() {
-	<div>
-	</div>
-	@attr1
-	@attr2="value"
-	@attr3="value \{"test"}"
+	<div> // ERROR: col(2): open tag is not allowed in this context
+	</div>                   // ERROR: col(2): end tag is not allowed in this context
+	@attr1                   // ERROR: col(2): attribute is not allowed in this context
+	@attr2="value"           // ERROR: col(2): attribute is not allowed in this context
+	@attr3="value \{"test"}" // ERROR: col(2): attribute is not allowed in this context
 	"test"
-	"\{"test"}"
+	"\{"test"}" // ERROR: col(2): template literal is not allowed in this context
 	_ = func() {
-		<div>
-		</div>
-		@attr1
-		@attr2="value"
-		@attr3="value \{"test"}"
+		<div> // ERROR: col(3): open tag is not allowed in this context
+		</div>                   // ERROR: col(3): end tag is not allowed in this context
+		@attr1                   // ERROR: col(3): attribute is not allowed in this context
+		@attr2="value"           // ERROR: col(3): attribute is not allowed in this context
+		@attr3="value \{"test"}" // ERROR: col(3): attribute is not allowed in this context
 		"test"
-		"\{"test"}"
+		"\{"test"}" // ERROR: col(3): template literal is not allowed in this context
 	}
 }
-======
-test.tgo:122:3: template literal is not allowed in this context
-test.tgo:125:3: attribute is not allowed in this context
-test.tgo:126:3: attribute is not allowed in this context
-test.tgo:127:3: attribute is not allowed in this context
-test.tgo:131:4: template literal is not allowed in this context
-test.tgo:134:4: attribute is not allowed in this context
-test.tgo:135:4: attribute is not allowed in this context
-test.tgo:136:4: attribute is not allowed in this context
-test.tgo:142:2: open tag is not allowed in this context
-test.tgo:143:2: end tag is not allowed in this context
-test.tgo:144:2: attribute is not allowed in this context
-test.tgo:145:2: attribute is not allowed in this context
-test.tgo:146:2: attribute is not allowed in this context
-test.tgo:148:2: template literal is not allowed in this context
-test.tgo:150:3: open tag is not allowed in this context
-test.tgo:151:3: end tag is not allowed in this context
-test.tgo:152:3: attribute is not allowed in this context
-test.tgo:153:3: attribute is not allowed in this context
-test.tgo:154:3: attribute is not allowed in this context
-test.tgo:156:3: template literal is not allowed in this context
-test.tgo:122:3: template literal is not allowed in this context (and 19 more errors)

@@ -5,16 +5,16 @@ import (
 	"github.com/mateusz834/tgo"
 )
 
-func test(Ctx) error {
+func test(Ctx) error { // ERROR: col(1): tgofunc
 }
 
-func test2(tgo.Ctx) error {
+func test2(tgo.Ctx) error { // ERROR: col(1): tgofunc
 }
 
 func test3() {
-	_ = func(Ctx) error {
+	_ = func(Ctx) error { // ERROR: col(6): tgofunc
 	}
-	_ = func(tgo.Ctx) error {
+	_ = func(tgo.Ctx) error { // ERROR: col(6): tgofunc
 	}
 }
 
@@ -26,8 +26,3 @@ func test4() {
 	_ = func(tgoCtx) error {
 	}
 }
-======
-test.tgo:8:1
-test.tgo:11:1
-test.tgo:15:6
-test.tgo:17:6

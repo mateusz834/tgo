@@ -3,14 +3,15 @@ package tgotest
 import (
 	"cmp"
 	"flag"
-	"go/ast"
-	"go/parser"
-	"go/printer"
-	"go/token"
 	"os"
 	"slices"
 	"strings"
 	"testing"
+
+	"github.com/mateusz834/tgoast/ast"
+	"github.com/mateusz834/tgoast/parser"
+	"github.com/mateusz834/tgoast/printer"
+	"github.com/mateusz834/tgoast/token"
 )
 
 type Error struct {
@@ -20,7 +21,10 @@ type Error struct {
 
 var update = flag.Bool("update", false, "")
 
-const prefix = "//ERROR: "
+const (
+	prefix    = "// ERROR: "
+	errConcat = " ERROR: "
+)
 
 func Test(t *testing.T, path string, testFunc func(fset *token.FileSet, f *ast.File) []Error) {
 	t.Helper()
@@ -44,7 +48,9 @@ func Test(t *testing.T, path string, testFunc func(fset *token.FileSet, f *ast.F
 		newCommentGroup := &ast.CommentGroup{}
 		for _, c := range cg.List {
 			if strings.HasPrefix(c.Text, prefix) {
-				want = append(want, Error{Msg: c.Text[len(prefix):], Line: fset.PositionFor(c.Pos(), false).Line})
+				for _, v := range strings.Split(c.Text[len(prefix):], errConcat) {
+					want = append(want, Error{Msg: v, Line: fset.PositionFor(c.Pos(), false).Line})
+				}
 				continue
 			}
 			newCommentGroup.List = append(newCommentGroup.List, c)
@@ -55,11 +61,15 @@ func Test(t *testing.T, path string, testFunc func(fset *token.FileSet, f *ast.F
 	}
 
 	if *update {
+		g := make(map[int][]string)
 		for _, v := range got {
+			g[v.Line] = append(g[v.Line], v.Msg)
+		}
+		for line, errs := range g {
 			newComments = append(newComments, &ast.CommentGroup{
 				List: []*ast.Comment{{
-					Slash: fset.File(f.FileStart).LineStart(v.Line+1) - 1,
-					Text:  prefix + v.Msg,
+					Slash: fset.File(f.FileStart).LineStart(line+1) - 1,
+					Text:  prefix + strings.Join(errs, errConcat),
 				}},
 			})
 		}

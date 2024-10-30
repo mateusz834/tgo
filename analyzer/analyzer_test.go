@@ -1,17 +1,15 @@
 package analyzer
 
 import (
-	"flag"
+	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 
-	"github.com/mateusz834/tgoast/parser"
+	"github.com/mateusz834/tgo/tgotest"
+	"github.com/mateusz834/tgoast/ast"
 	"github.com/mateusz834/tgoast/token"
 )
-
-var update = flag.Bool("update", false, "")
 
 func TestAnalyze(t *testing.T) {
 	const testdata = "./testdata"
@@ -25,52 +23,19 @@ func TestAnalyze(t *testing.T) {
 		}
 		t.Run(v.Name(), func(t *testing.T) {
 			fileName := filepath.Join(testdata, v.Name())
-			c, err := os.ReadFile(fileName)
-			if err != nil {
-				t.Fatal(err)
-			}
-
-			tgo, errors, separatorFound := strings.Cut(string(c), "======\n")
-
-			fset := token.NewFileSet()
-			f, err := parser.ParseFile(fset, "test.tgo", tgo, parser.SkipObjectResolution|parser.ParseComments)
-			if err != nil {
-				t.Fatal(err)
-			}
-
-			var gotErrors strings.Builder
-			if err := Analyze(fset, f); err != nil {
-				for _, v := range err.(AnalyzeErrors) {
-					gotErrors.WriteString(v.Error())
-					gotErrors.WriteString("\n")
+			tgotest.Test(t, fileName, func(fset *token.FileSet, f *ast.File) []tgotest.Error {
+				if err := Analyze(fset, f); err != nil {
+					t := []tgotest.Error{}
+					for _, v := range err.(AnalyzeErrors) {
+						t = append(t, tgotest.Error{
+							Msg:  fmt.Sprintf("col(%v): %v", v.StartPos.Column, v.Message),
+							Line: v.StartPos.Line,
+						})
+					}
+					return t
 				}
-				gotErrors.WriteString(err.Error())
-				gotErrors.WriteString("\n")
-			}
-
-			if *update {
-				out := tgo
-				if gotErrors.String() != "" {
-					out += "======\n" + gotErrors.String()
-				}
-				if err := os.WriteFile(fileName, []byte(out), 0666); err != nil {
-					t.Fatal(err)
-				}
-				return
-			}
-
-			if !separatorFound {
-				if gotErrors.String() != "" {
-					t.Logf("source:\n%v", tgo)
-					t.Fatalf("unexpected errors, got:\n%v\nwant: <empty>", gotErrors.String())
-				}
-				return
-			}
-
-			if gotErrors.String() != errors {
-				t.Logf("source:\n%v", tgo)
-				t.Fatalf("unexpected errors, got:\n%v\nwant:\n%v", gotErrors.String(), errors)
-			}
+				return nil
+			})
 		})
 	}
 }

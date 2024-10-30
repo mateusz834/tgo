@@ -5,40 +5,40 @@ import "github.com/mateusz834/tgo"
 func test1(tgo.Ctx) error {
 	for _, v := range "a" {
 		<div>
-			break
+			break // ERROR: col(4): unexpected break statement in the middle of a tag body, ensure that all open tags are closed
 		</div>
 	}
 
 	for _, v := range "a" {
 		<div>
 			if v == 'a' {
-				break
+				break // ERROR: col(5): unexpected break statement in the middle of a tag body, ensure that all open tags are closed
 			}
 		</div>
 	}
 
 	for _, v := range "a" {
 		<div>
-			continue
+			continue // ERROR: col(4): unexpected continue statement in the middle of a tag body, ensure that all open tags are closed
 		</div>
 	}
 
 	for true {
 		<div>
-			break
+			break // ERROR: col(4): unexpected break statement in the middle of a tag body, ensure that all open tags are closed
 		</div>
 	}
 
 	for true {
 		<div>
-			continue
+			continue // ERROR: col(4): unexpected continue statement in the middle of a tag body, ensure that all open tags are closed
 		</div>
 	}
 
 	switch "test" {
 	case "test":
 		<div>
-			break
+			break // ERROR: col(4): unexpected break statement in the middle of a tag body, ensure that all open tags are closed
 		</div>
 	case "test2":
 		<div>
@@ -46,34 +46,34 @@ func test1(tgo.Ctx) error {
 		fallthrough
 	default:
 		<div>
-			break
+			break // ERROR: col(4): unexpected break statement in the middle of a tag body, ensure that all open tags are closed
 		</div>
 	}
 
 	switch any("test").(type) {
 	case int:
 		<div>
-			break
+			break // ERROR: col(4): unexpected break statement in the middle of a tag body, ensure that all open tags are closed
 		</div>
 	default:
 		<div>
-			break
+			break // ERROR: col(4): unexpected break statement in the middle of a tag body, ensure that all open tags are closed
 		</div>
 	}
 
 	select {
 	case <-make(chan int):
 		<div>
-			break
+			break // ERROR: col(4): unexpected break statement in the middle of a tag body, ensure that all open tags are closed
 		</div>
 	default:
 		<div>
-			break
+			break // ERROR: col(4): unexpected break statement in the middle of a tag body, ensure that all open tags are closed
 		</div>
 	}
 
 	<div>
-		return nil
+		return nil // ERROR: col(3): unexpected return statement in the middle of a tag body, ensure that all open tags are closed
 	</div>
 }
 
@@ -93,27 +93,11 @@ outer:
 		<div>
 			for _, v := range "a" {
 				if v == 'a' {
-					break outer
+					break outer // ERROR: col(6): unexpected break statement in the middle of a tag body, ensure that all open tags are closed
 				} else {
-					continue outer
+					continue outer // ERROR: col(6): unexpected continue statement in the middle of a tag body, ensure that all open tags are closed
 				}
 			}
 		</div>
 	}
 }
-======
-test.tgo:8:4: unexpected break statement in the middle of a tag body, ensure that all open tags are closed
-test.tgo:15:5: unexpected break statement in the middle of a tag body, ensure that all open tags are closed
-test.tgo:22:4: unexpected continue statement in the middle of a tag body, ensure that all open tags are closed
-test.tgo:28:4: unexpected break statement in the middle of a tag body, ensure that all open tags are closed
-test.tgo:34:4: unexpected continue statement in the middle of a tag body, ensure that all open tags are closed
-test.tgo:41:4: unexpected break statement in the middle of a tag body, ensure that all open tags are closed
-test.tgo:49:4: unexpected break statement in the middle of a tag body, ensure that all open tags are closed
-test.tgo:56:4: unexpected break statement in the middle of a tag body, ensure that all open tags are closed
-test.tgo:60:4: unexpected break statement in the middle of a tag body, ensure that all open tags are closed
-test.tgo:67:4: unexpected break statement in the middle of a tag body, ensure that all open tags are closed
-test.tgo:71:4: unexpected break statement in the middle of a tag body, ensure that all open tags are closed
-test.tgo:76:3: unexpected return statement in the middle of a tag body, ensure that all open tags are closed
-test.tgo:96:6: unexpected break statement in the middle of a tag body, ensure that all open tags are closed
-test.tgo:98:6: unexpected continue statement in the middle of a tag body, ensure that all open tags are closed
-test.tgo:8:4: unexpected break statement in the middle of a tag body, ensure that all open tags are closed (and 13 more errors)
