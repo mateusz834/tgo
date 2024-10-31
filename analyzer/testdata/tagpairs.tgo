@@ -8,58 +8,59 @@ func test1(tgo.Ctx) error {
 }
 
 func test2(tgo.Ctx) error {
-	<div>
+	<div> // ERROR: col(2): unclosed tag
 }
 
 func test3(tgo.Ctx) error {
-	</div>
+	</div> // ERROR: col(2): missing open tag
 }
 
 func test4(tgo.Ctx) error {
 	<div>
-	</span>
+	</span> // ERROR: col(2): unexpected close tag: "span", want: "div"
 }
 
 func test4(tgo.Ctx) error {
 	{
-		<div>
+		<div> // ERROR: col(3): unclosed tag
 	}
 
 	if a == 3 {
-		</span>
+		</span> // ERROR: col(3): missing open tag
 	}
 
 	for true {
-		<span>
+		<span> // ERROR: col(3): unclosed tag
 	}
 
 	for _ = range 4 {
 		<div>
-		</span>
+		</span> // ERROR: col(3): unexpected close tag: "span", want: "div"
 	}
 
-	l: for _,v := range "test" {
-		<div>
+l:
+	for _, v := range "test" {
+		<div> // ERROR: col(3): unclosed tag
 	}
 
 	switch "test" {
 	case "test":
-		<div>
+		<div> // ERROR: col(3): unclosed tag
 	default:
-		<div>
+		<div> // ERROR: col(3): unclosed tag
 	}
 
 	select {
 	case _ = <-make(chan int):
-		<div>
+		<div> // ERROR: col(3): unclosed tag
 	default:
-		<div>
+		<div> // ERROR: col(3): unclosed tag
 	}
 
 	switch v.(type) {
 	case int:
-		<div>
+		<div> // ERROR: col(3): unclosed tag
 	default:
-		<div>
+		<div> // ERROR: col(3): unclosed tag
 	}
 }
