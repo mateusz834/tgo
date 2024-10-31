@@ -2,11 +2,11 @@ package templates
 
 import . "github.com/mateusz834/tgo"
 
-func test(Ctx) error { // ERROR: col(1): tgofunc
+func test(Ctx) error { // ERROR: col(1): "tgofunc"
 }
 
 func test2() {
-	_ = func(Ctx) error { // ERROR: col(6): tgofunc
+	_ = func(Ctx) error { // ERROR: col(6): "tgofunc"
 	}
 }
 

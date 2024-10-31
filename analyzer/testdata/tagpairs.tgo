@@ -8,59 +8,59 @@ func test1(tgo.Ctx) error {
 }
 
 func test2(tgo.Ctx) error {
-	<div> // ERROR: col(2): unclosed tag
+	<div> // ERROR: col(2): "unclosed tag"
 }
 
 func test3(tgo.Ctx) error {
-	</div> // ERROR: col(2): missing open tag
+	</div> // ERROR: col(2): "missing open tag"
 }
 
 func test4(tgo.Ctx) error {
 	<div>
-	</span> // ERROR: col(2): unexpected close tag: "span", want: "div"
+	</span> // ERROR: col(2): "unexpected close tag: \"span\", want: \"div\""
 }
 
 func test4(tgo.Ctx) error {
 	{
-		<div> // ERROR: col(3): unclosed tag
+		<div> // ERROR: col(3): "unclosed tag"
 	}
 
 	if a == 3 {
-		</span> // ERROR: col(3): missing open tag
+		</span> // ERROR: col(3): "missing open tag"
 	}
 
 	for true {
-		<span> // ERROR: col(3): unclosed tag
+		<span> // ERROR: col(3): "unclosed tag"
 	}
 
 	for _ = range 4 {
 		<div>
-		</span> // ERROR: col(3): unexpected close tag: "span", want: "div"
+		</span> // ERROR: col(3): "unexpected close tag: \"span\", want: \"div\""
 	}
 
 l:
 	for _, v := range "test" {
-		<div> // ERROR: col(3): unclosed tag
+		<div> // ERROR: col(3): "unclosed tag"
 	}
 
 	switch "test" {
 	case "test":
-		<div> // ERROR: col(3): unclosed tag
+		<div> // ERROR: col(3): "unclosed tag"
 	default:
-		<div> // ERROR: col(3): unclosed tag
+		<div> // ERROR: col(3): "unclosed tag"
 	}
 
 	select {
 	case _ = <-make(chan int):
-		<div> // ERROR: col(3): unclosed tag
+		<div> // ERROR: col(3): "unclosed tag"
 	default:
-		<div> // ERROR: col(3): unclosed tag
+		<div> // ERROR: col(3): "unclosed tag"
 	}
 
 	switch v.(type) {
 	case int:
-		<div> // ERROR: col(3): unclosed tag
+		<div> // ERROR: col(3): "unclosed tag"
 	default:
-		<div> // ERROR: col(3): unclosed tag
+		<div> // ERROR: col(3): "unclosed tag"
 	}
 }

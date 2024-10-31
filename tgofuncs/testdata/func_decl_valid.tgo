@@ -2,11 +2,11 @@ package templates
 
 import "github.com/mateusz834/tgo"
 
-func Template1(_ tgo.Ctx) error { // ERROR: col(1): tgofunc
+func Template1(_ tgo.Ctx) error { // ERROR: col(1): "tgofunc"
 }
 
-func Template2(a tgo.Ctx) error { // ERROR: col(1): tgofunc
+func Template2(a tgo.Ctx) error { // ERROR: col(1): "tgofunc"
 }
 
-func Template3(a tgo.Ctx) (e error) { // ERROR: col(1): tgofunc
+func Template3(a tgo.Ctx) (e error) { // ERROR: col(1): "tgofunc"
 }

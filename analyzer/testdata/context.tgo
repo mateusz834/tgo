@@ -121,40 +121,40 @@ func test1(tgo.Ctx) error {
 
 func test2(tgo.Ctx) error {
 	<div
-		"\{"test"}" // ERROR: col(3): template literal is not allowed in this context
+		"\{"test"}" // ERROR: col(3): "template literal is not allowed in this context"
 		"test"
 	>
-		@attr1                   // ERROR: col(3): attribute is not allowed in this context
-		@attr2="value"           // ERROR: col(3): attribute is not allowed in this context
-		@attr3="value \{"test"}" // ERROR: col(3): attribute is not allowed in this context
+		@attr1                   // ERROR: col(3): "attribute is not allowed in this context"
+		@attr2="value"           // ERROR: col(3): "attribute is not allowed in this context"
+		@attr3="value \{"test"}" // ERROR: col(3): "attribute is not allowed in this context"
 	</div>
 	_ = func(tgo.Ctx) error {
 		<div
-			"\{"test"}" // ERROR: col(4): template literal is not allowed in this context
+			"\{"test"}" // ERROR: col(4): "template literal is not allowed in this context"
 			"test"
 		>
-			@attr1                   // ERROR: col(4): attribute is not allowed in this context
-			@attr2="value"           // ERROR: col(4): attribute is not allowed in this context
-			@attr3="value \{"test"}" // ERROR: col(4): attribute is not allowed in this context
+			@attr1                   // ERROR: col(4): "attribute is not allowed in this context"
+			@attr2="value"           // ERROR: col(4): "attribute is not allowed in this context"
+			@attr3="value \{"test"}" // ERROR: col(4): "attribute is not allowed in this context"
 		</div>
 	}
 }
 
 func test3() {
-	<div> // ERROR: col(2): open tag is not allowed in this context
-	</div>                   // ERROR: col(2): end tag is not allowed in this context
-	@attr1                   // ERROR: col(2): attribute is not allowed in this context
-	@attr2="value"           // ERROR: col(2): attribute is not allowed in this context
-	@attr3="value \{"test"}" // ERROR: col(2): attribute is not allowed in this context
+	<div> // ERROR: col(2): "open tag is not allowed in this context"
+	</div>                   // ERROR: col(2): "end tag is not allowed in this context"
+	@attr1                   // ERROR: col(2): "attribute is not allowed in this context"
+	@attr2="value"           // ERROR: col(2): "attribute is not allowed in this context"
+	@attr3="value \{"test"}" // ERROR: col(2): "attribute is not allowed in this context"
 	"test"
-	"\{"test"}" // ERROR: col(2): template literal is not allowed in this context
+	"\{"test"}" // ERROR: col(2): "template literal is not allowed in this context"
 	_ = func() {
-		<div> // ERROR: col(3): open tag is not allowed in this context
-		</div>                   // ERROR: col(3): end tag is not allowed in this context
-		@attr1                   // ERROR: col(3): attribute is not allowed in this context
-		@attr2="value"           // ERROR: col(3): attribute is not allowed in this context
-		@attr3="value \{"test"}" // ERROR: col(3): attribute is not allowed in this context
+		<div> // ERROR: col(3): "open tag is not allowed in this context"
+		</div>                   // ERROR: col(3): "end tag is not allowed in this context"
+		@attr1                   // ERROR: col(3): "attribute is not allowed in this context"
+		@attr2="value"           // ERROR: col(3): "attribute is not allowed in this context"
+		@attr3="value \{"test"}" // ERROR: col(3): "attribute is not allowed in this context"
 		"test"
-		"\{"test"}" // ERROR: col(3): template literal is not allowed in this context
+		"\{"test"}" // ERROR: col(3): "template literal is not allowed in this context"
 	}
 }

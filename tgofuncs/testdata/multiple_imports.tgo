@@ -5,8 +5,8 @@ import (
 	tgoalias "github.com/mateusz834/tgo"
 )
 
-func test1(tgo.Ctx) error { // ERROR: col(1): tgofunc
+func test1(tgo.Ctx) error { // ERROR: col(1): "tgofunc"
 }
 
-func test2(tgoalias.Ctx) error { // ERROR: col(1): tgofunc
+func test2(tgoalias.Ctx) error { // ERROR: col(1): "tgofunc"
 }

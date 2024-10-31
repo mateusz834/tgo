@@ -5,40 +5,40 @@ import "github.com/mateusz834/tgo"
 func test1(tgo.Ctx) error {
 	for _, v := range "a" {
 		<div>
-			break // ERROR: col(4): unexpected break statement in the middle of a tag body, ensure that all open tags are closed
+			break // ERROR: col(4): "unexpected break statement in the middle of a tag body, ensure that all open tags are closed"
 		</div>
 	}
 
 	for _, v := range "a" {
 		<div>
 			if v == 'a' {
-				break // ERROR: col(5): unexpected break statement in the middle of a tag body, ensure that all open tags are closed
+				break // ERROR: col(5): "unexpected break statement in the middle of a tag body, ensure that all open tags are closed"
 			}
 		</div>
 	}
 
 	for _, v := range "a" {
 		<div>
-			continue // ERROR: col(4): unexpected continue statement in the middle of a tag body, ensure that all open tags are closed
+			continue // ERROR: col(4): "unexpected continue statement in the middle of a tag body, ensure that all open tags are closed"
 		</div>
 	}
 
 	for true {
 		<div>
-			break // ERROR: col(4): unexpected break statement in the middle of a tag body, ensure that all open tags are closed
+			break // ERROR: col(4): "unexpected break statement in the middle of a tag body, ensure that all open tags are closed"
 		</div>
 	}
 
 	for true {
 		<div>
-			continue // ERROR: col(4): unexpected continue statement in the middle of a tag body, ensure that all open tags are closed
+			continue // ERROR: col(4): "unexpected continue statement in the middle of a tag body, ensure that all open tags are closed"
 		</div>
 	}
 
 	switch "test" {
 	case "test":
 		<div>
-			break // ERROR: col(4): unexpected break statement in the middle of a tag body, ensure that all open tags are closed
+			break // ERROR: col(4): "unexpected break statement in the middle of a tag body, ensure that all open tags are closed"
 		</div>
 	case "test2":
 		<div>
@@ -46,34 +46,34 @@ func test1(tgo.Ctx) error {
 		fallthrough
 	default:
 		<div>
-			break // ERROR: col(4): unexpected break statement in the middle of a tag body, ensure that all open tags are closed
+			break // ERROR: col(4): "unexpected break statement in the middle of a tag body, ensure that all open tags are closed"
 		</div>
 	}
 
 	switch any("test").(type) {
 	case int:
 		<div>
-			break // ERROR: col(4): unexpected break statement in the middle of a tag body, ensure that all open tags are closed
+			break // ERROR: col(4): "unexpected break statement in the middle of a tag body, ensure that all open tags are closed"
 		</div>
 	default:
 		<div>
-			break // ERROR: col(4): unexpected break statement in the middle of a tag body, ensure that all open tags are closed
+			break // ERROR: col(4): "unexpected break statement in the middle of a tag body, ensure that all open tags are closed"
 		</div>
 	}
 
 	select {
 	case <-make(chan int):
 		<div>
-			break // ERROR: col(4): unexpected break statement in the middle of a tag body, ensure that all open tags are closed
+			break // ERROR: col(4): "unexpected break statement in the middle of a tag body, ensure that all open tags are closed"
 		</div>
 	default:
 		<div>
-			break // ERROR: col(4): unexpected break statement in the middle of a tag body, ensure that all open tags are closed
+			break // ERROR: col(4): "unexpected break statement in the middle of a tag body, ensure that all open tags are closed"
 		</div>
 	}
 
 	<div>
-		return nil // ERROR: col(3): unexpected return statement in the middle of a tag body, ensure that all open tags are closed
+		return nil // ERROR: col(3): "unexpected return statement in the middle of a tag body, ensure that all open tags are closed"
 	</div>
 }
 
@@ -93,9 +93,9 @@ outer:
 		<div>
 			for _, v := range "a" {
 				if v == 'a' {
-					break outer // ERROR: col(6): unexpected break statement in the middle of a tag body, ensure that all open tags are closed
+					break outer // ERROR: col(6): "unexpected break statement in the middle of a tag body, ensure that all open tags are closed"
 				} else {
-					continue outer // ERROR: col(6): unexpected continue statement in the middle of a tag body, ensure that all open tags are closed
+					continue outer // ERROR: col(6): "unexpected continue statement in the middle of a tag body, ensure that all open tags are closed"
 				}
 			}
 		</div>

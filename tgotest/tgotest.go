@@ -70,7 +70,7 @@ func Test(t *testing.T, path string, testFunc func(fset *token.FileSet, f *ast.F
 				for _, v := range strings.Split(c.Text[len(prefix):], errConcat) {
 					var column int
 					var msg string
-					if _, err := fmt.Sscanf(v, "col(%v): %v", &column, &msg); err != nil {
+					if _, err := fmt.Sscanf(v, "col(%v): %q", &column, &msg); err != nil {
 						t.Fatal(err)
 					} else if column == 0 || msg == "" {
 						t.Fatal("invalid comment")
@@ -93,7 +93,7 @@ func Test(t *testing.T, path string, testFunc func(fset *token.FileSet, f *ast.F
 	if *update {
 		g := make(map[int][]string)
 		for _, v := range got {
-			g[v.Line] = append(g[v.Line], fmt.Sprintf("col(%v): %v", v.Column, v.Msg))
+			g[v.Line] = append(g[v.Line], fmt.Sprintf("col(%v): %q", v.Column, v.Msg))
 		}
 		for line, errs := range g {
 			newComments = append(newComments, &ast.CommentGroup{
@@ -120,6 +120,13 @@ func Test(t *testing.T, path string, testFunc func(fset *token.FileSet, f *ast.F
 	}
 
 	if !slices.Equal(got, want) {
-		t.Fatal("unexpected errors")
+		var gotStr, wantStr strings.Builder
+		for _, v := range got {
+			gotStr.WriteString(fmt.Sprintf("line: %v, column: %v: %v\n", v.Line, v.Column, v.Msg))
+		}
+		for _, v := range want {
+			wantStr.WriteString(fmt.Sprintf("line: %v, column: %v: %v\n", v.Line, v.Column, v.Msg))
+		}
+		t.Fatalf("unexpected errors\ngot:\n%v\nwant:\n%v", gotStr.String(), wantStr.String())
 	}
 }
