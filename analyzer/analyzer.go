@@ -3,6 +3,7 @@ package analyzer
 import (
 	"fmt"
 	"maps"
+	"slices"
 	"strings"
 
 	"github.com/mateusz834/tgo/tgofuncs"
@@ -17,7 +18,12 @@ func Analyze(fset *token.FileSet, f *ast.File) error {
 	ast.Walk(&tagPairsAnalyzer{ctx: ctx}, f)
 	checkContext(ctx, f)
 	if len(ctx.errors) == 0 {
-		ast.Walk(&branchAnalyzer{ctx: ctx}, f)
+		ast.Walk(&branchAnalyzer{
+			ctx: &branchAnalyzerContext{
+				ctx:         ctx,
+				labelScopes: labelScopes(f),
+			},
+		}, f)
 	}
 	checkDirectives(ctx, f)
 	if len(ctx.errors) != 0 {
@@ -223,8 +229,45 @@ func (f *contextAnalyzer) Visit(list ast.Node) ast.Visitor {
 	}
 }
 
+type scope struct {
+	f     ast.Node // *ast.FuncDecl or *ast.FuncLit
+	depth int
+}
+
+type labelScopeAnalyzer struct {
+	out map[scope][]string
+	s   scope
+}
+
+func (f *labelScopeAnalyzer) Visit(n ast.Node) ast.Visitor {
+	switch n := n.(type) {
+	case *ast.FuncDecl, *ast.FuncLit:
+		return &labelScopeAnalyzer{out: f.out, s: scope{f: n}}
+	case *ast.OpenTagStmt:
+		// TODO: void elements
+		f.s.depth++
+	case *ast.EndTagStmt:
+		f.s.depth--
+	case *ast.LabeledStmt:
+		f.out[f.s] = append(f.out[f.s], n.Label.Name)
+	}
+	return f
+}
+
+func labelScopes(f *ast.File) map[scope][]string {
+	out := make(map[scope][]string)
+	ast.Walk(&labelScopeAnalyzer{out: out}, f)
+	return out
+}
+
+type branchAnalyzerContext struct {
+	ctx         *analyzerContext
+	labelScopes map[scope][]string
+}
+
 type branchAnalyzer struct {
-	ctx           *analyzerContext
+	ctx           *branchAnalyzerContext
+	f             ast.Node
 	depth         int
 	breakDepth    int
 	continueDepth int
@@ -234,7 +277,7 @@ type branchAnalyzer struct {
 func (f *branchAnalyzer) Visit(node ast.Node) ast.Visitor {
 	switch n := node.(type) {
 	case *ast.FuncDecl, *ast.FuncLit:
-		return &branchAnalyzer{ctx: f.ctx} // reset depths
+		return &branchAnalyzer{f: n, ctx: f.ctx} // reset depths
 	case *ast.ForStmt, *ast.RangeStmt:
 		return &branchAnalyzer{
 			ctx:           f.ctx,
@@ -296,10 +339,10 @@ func (f *branchAnalyzer) Visit(node ast.Node) ast.Visitor {
 				}
 			}
 			if depth != 0 {
-				f.ctx.errors = append(f.ctx.errors, AnalyzeError{
+				f.ctx.ctx.errors = append(f.ctx.ctx.errors, AnalyzeError{
 					Message:  "unexpected break statement in the middle of a tag body, ensure that all open tags are closed",
-					StartPos: f.ctx.fset.Position(n.Pos()),
-					EndPos:   f.ctx.fset.Position(n.End() - 1),
+					StartPos: f.ctx.ctx.fset.Position(n.Pos()),
+					EndPos:   f.ctx.ctx.fset.Position(n.End() - 1),
 				})
 			}
 		case token.CONTINUE:
@@ -310,20 +353,19 @@ func (f *branchAnalyzer) Visit(node ast.Node) ast.Visitor {
 				}
 			}
 			if depth != 0 {
-				f.ctx.errors = append(f.ctx.errors, AnalyzeError{
+				f.ctx.ctx.errors = append(f.ctx.ctx.errors, AnalyzeError{
 					Message:  "unexpected continue statement in the middle of a tag body, ensure that all open tags are closed",
-					StartPos: f.ctx.fset.Position(n.Pos()),
-					EndPos:   f.ctx.fset.Position(n.End() - 1),
+					StartPos: f.ctx.ctx.fset.Position(n.Pos()),
+					EndPos:   f.ctx.ctx.fset.Position(n.End() - 1),
 				})
 			}
 		case token.GOTO:
-			// TODO: can we make it better? Who even uses gotos.
-			// TODO: we can jump to already openned div :) FIX
-			if f.depth != 0 {
-				f.ctx.errors = append(f.ctx.errors, AnalyzeError{
-					Message:  "unexpected goto statement in the middle of a tag body, ensure that all open tags are closed",
-					StartPos: f.ctx.fset.Position(n.Pos()),
-					EndPos:   f.ctx.fset.Position(n.End() - 1),
+			labels := f.ctx.labelScopes[scope{f: f.f, depth: f.depth}]
+			if !slices.Contains(labels, n.Label.Name) {
+				f.ctx.ctx.errors = append(f.ctx.ctx.errors, AnalyzeError{
+					Message:  "unexpected goto statement, ensure that all tags are closed at the goto and the jump locaton",
+					StartPos: f.ctx.ctx.fset.Position(n.Pos()),
+					EndPos:   f.ctx.ctx.fset.Position(n.End() - 1),
 				})
 			}
 		case token.FALLTHROUGH:
@@ -333,10 +375,10 @@ func (f *branchAnalyzer) Visit(node ast.Node) ast.Visitor {
 		}
 	case *ast.ReturnStmt:
 		if f.depth != 0 {
-			f.ctx.errors = append(f.ctx.errors, AnalyzeError{
+			f.ctx.ctx.errors = append(f.ctx.ctx.errors, AnalyzeError{
 				Message:  "unexpected return statement in the middle of a tag body, ensure that all open tags are closed",
-				StartPos: f.ctx.fset.Position(n.Pos()),
-				EndPos:   f.ctx.fset.Position(n.End() - 1),
+				StartPos: f.ctx.ctx.fset.Position(n.Pos()),
+				EndPos:   f.ctx.ctx.fset.Position(n.End() - 1),
 			})
 		}
 	}

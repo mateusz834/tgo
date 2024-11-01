@@ -2,7 +2,7 @@ package templates
 
 import "github.com/mateusz834/tgo"
 
-func test1(tgo.Ctx) error {
+func test(tgo.Ctx) error {
 	for _, v := range "a" {
 		<div>
 			break // ERROR: col(4): "unexpected break statement in the middle of a tag body, ensure that all open tags are closed"
@@ -77,7 +77,14 @@ func test1(tgo.Ctx) error {
 	</div>
 }
 
-func test2(tgo.Ctx) error {
+func test(tgo.Ctx) error {
+	<div>
+		return nil // ERROR: col(3): "unexpected return statement in the middle of a tag body, ensure that all open tags are closed"
+	</div>
+	return nil
+}
+
+func test(tgo.Ctx) error {
 	for {
 		<div>
 			for _, v := range "a" {
@@ -94,10 +101,100 @@ outer:
 			for _, v := range "a" {
 				if v == 'a' {
 					break outer // ERROR: col(6): "unexpected break statement in the middle of a tag body, ensure that all open tags are closed"
-				} else {
+				} else if v == 'b' {
 					continue outer // ERROR: col(6): "unexpected continue statement in the middle of a tag body, ensure that all open tags are closed"
+				} else if v == 'c' {
+					break
+				} else {
+					continue
 				}
 			}
 		</div>
 	}
+}
+
+func test(tgo.Ctx) error {
+	<div>
+		goto end // ERROR: col(3): "unexpected goto statement, ensure that all tags are closed at the goto and the jump locaton"
+	</div>
+
+end:
+	panic("test")
+}
+
+func test(tgo.Ctx) error {
+	if true {
+		goto end // ERROR: col(3): "unexpected goto statement, ensure that all tags are closed at the goto and the jump locaton"
+	}
+
+	<div>
+	end:
+		"oops"
+	</div>
+}
+
+func test(tgo.Ctx) error {
+	<div>
+	start:
+		"oops"
+	</div>
+
+	if true {
+		goto start // ERROR: col(3): "unexpected goto statement, ensure that all tags are closed at the goto and the jump locaton"
+	}
+}
+
+func test(tgo.Ctx) error {
+start:
+	"str"
+	<div>
+	</div>
+
+	if true {
+		goto start
+	}
+
+}
+
+func test(tgo.Ctx) error {
+	<div>
+		if true {
+			goto end
+		}
+	end:
+		"a"
+	</div>
+}
+
+func test(tgo.Ctx) error {
+	<div>
+	start:
+		"a"
+		if true {
+			goto start
+		}
+	</div>
+}
+
+func test(tgo.Ctx) error {
+	<div>
+		if true {
+			goto end // ERROR: col(4): "unexpected goto statement, ensure that all tags are closed at the goto and the jump locaton"
+		}
+		<div>
+		end:
+			"a"
+		</div>
+	</div>
+}
+
+// TODO: this error message is bad, fix it
+func test(tgo.Ctx) error {
+	<div>
+	start:
+		"a"
+		if true {
+			goto NOTFOUND // ERROR: col(4): "unexpected goto statement, ensure that all tags are closed at the goto and the jump locaton"
+		}
+	</div>
 }
