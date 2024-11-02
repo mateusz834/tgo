@@ -1,13 +1,12 @@
 package transpiler
 
 import (
-	"errors"
+	"flag"
 	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
-	"strconv"
 	"strings"
 	"testing"
 	"unicode/utf8"
@@ -16,6 +15,7 @@ import (
 	"go/build/constraint"
 	goformat "go/format"
 	goparser "go/parser"
+	goprinter "go/printer"
 	goscanner "go/scanner"
 	gotoken "go/token"
 
@@ -23,6 +23,7 @@ import (
 	"github.com/mateusz834/tgoast/ast"
 	"github.com/mateusz834/tgoast/format"
 	"github.com/mateusz834/tgoast/parser"
+	"github.com/mateusz834/tgoast/printer"
 	"github.com/mateusz834/tgoast/scanner"
 	"github.com/mateusz834/tgoast/token"
 )
@@ -74,8 +75,11 @@ func test() {
 
 const tgosrc = `package templates
 
-func A() {
-	<div></div>
+import "github.com/mateusz834/tgo"
+
+func A(tgo.Ctx)error{
+A:
+	<A>
 }
 `
 
@@ -148,35 +152,11 @@ func TestTranspiler(t *testing.T) {
 	}
 }
 
-func gitDiff(tmpDir string, got, expect string) (string, error) {
-	gotPath := filepath.Join(tmpDir, "got")
-	gotFile, err := os.Create(gotPath)
-	if err != nil {
-		return "", err
-	}
-	defer gotFile.Close()
-	if _, err := gotFile.WriteString(got); err != nil {
-		return "", err
-	}
-
-	expectPath := filepath.Join(tmpDir, "expect")
-	expectFile, err := os.Create(expectPath)
-	if err != nil {
-		return "", err
-	}
-	defer expectFile.Close()
-	if _, err := expectFile.WriteString(expect); err != nil {
-		return "", err
-	}
-
-	var out strings.Builder
-	cmd := exec.Command("git", "diff", "-U 100000", "--no-index", "--color=always", "--ws-error-highlight=all", gotPath, expectPath)
-	cmd.Stdout = &out
-	if err := cmd.Run(); err != nil && cmd.ProcessState.ExitCode() != 1 {
-		return "", err
-	}
-	return out.String(), nil
-}
+var (
+	update          = flag.Bool("update", false, "")
+	printerConfig   = printer.Config{Tabwidth: 8, Mode: printer.UseSpaces | printer.TabIndent}
+	goPrinterConfig = goprinter.Config{Tabwidth: 8, Mode: goprinter.UseSpaces | goprinter.TabIndent}
+)
 
 func TestTranspile(t *testing.T) {
 	const testdata = "./testdata"
@@ -186,43 +166,73 @@ func TestTranspile(t *testing.T) {
 	}
 
 	for _, v := range files {
-		ext := filepath.Ext(v.Name())
-		if ext != ".tgo" {
+		if v.IsDir() {
 			continue
 		}
-
-		testFile := filepath.Join(testdata, v.Name())
-		expectFileName := filepath.Join(testdata, v.Name()[:len(v.Name())-len(".tgo")]+".go")
-		t.Run(testFile, func(t *testing.T) {
-			content, err := os.ReadFile(testFile)
-			if err != nil {
-				t.Fatal(err)
-			}
-			t.Logf("%v:\n%s", testFile, content)
-
-			fs := token.NewFileSet()
-			f, err := parser.ParseFile(fs, testFile, content, parser.ParseComments|parser.SkipObjectResolution)
+		t.Run(v.Name(), func(t *testing.T) {
+			file := filepath.Join(testdata, v.Name())
+			content, err := os.ReadFile(file)
 			if err != nil {
 				t.Fatal(err)
 			}
 
-			out := Transpile(f, fs, string(content))
-			t.Logf("transpiled %v:\n%s", testFile, out)
+			// TODO: support multiple file inputs (go and tgo) and outputs.
 
-			expect, err := os.ReadFile(expectFileName)
+			tgo, transpiled, _ := strings.Cut(string(content), "======\n")
+
+			fset := token.NewFileSet()
+			f, err := parser.ParseFile(fset, "test.tgo", tgo, parser.ParseComments|parser.SkipObjectResolution)
 			if err != nil {
-				if errors.Is(err, os.ErrNotExist) {
-					if err := os.WriteFile(expectFileName, []byte(out), 06660); err != nil {
-						t.Fatal(err)
-					}
-					return
+				t.Fatal(err)
+			}
+
+			if err := analyzer.Analyze(fset, f); err != nil {
+				for _, v := range err.(analyzer.AnalyzeErrors) {
+					t.Log(v)
 				}
 				t.Fatal(err)
 			}
 
-			if out != string(expect) {
+			var s strings.Builder
+			printerConfig.Fprint(&s, fset, f)
+
+			if *update {
+				fset = token.NewFileSet()
+				f, err = parser.ParseFile(fset, "test.tgo", s.String(), parser.ParseComments|parser.SkipObjectResolution)
+				if err != nil {
+					t.Fatal(err)
+				}
+				out := Transpile(f, fset, tgo)
+				if err := os.WriteFile(file, []byte(s.String()+"======\n"+out), 0660); err != nil {
+					t.Fatal(err)
+				}
+				tgo = s.String()
+				transpiled = out
+			}
+
+			out := Transpile(f, fset, tgo)
+
+			if s.String() != tgo {
+				t.Fatal("file not formatted (format with -update)")
+			}
+
+			gofset := gotoken.NewFileSet()
+			gof, err := goparser.ParseFile(gofset, "test.go", out, goparser.ParseComments|goparser.SkipObjectResolution)
+			if err != nil {
+				t.Fatalf("failed to parse transpiled source: %v", err)
+			}
+
+			var goFmted strings.Builder
+			goPrinterConfig.Fprint(&goFmted, gofset, gof)
+			if goFmted.String() != out {
+				t.Fatal("transpiled output not formatted")
+			}
+
+			// TODO: type-check output.
+
+			if out != string(transpiled) {
 				t.Log("make following changes to make this test pass:")
-				t.Log(gitDiff(t.TempDir(), out, string(expect)))
+				t.Log(gitDiff(t.TempDir(), out, string(transpiled)))
 				t.Fatal("difference found")
 			}
 		})
@@ -256,6 +266,8 @@ func FuzzFormattedTgoProducesFormattedGoSource(f *testing.F) {
 	fuzzAddDir(f, "../../tgoast/parser")
 	fuzzAddDir(f, "../../tgoast/parser/testdata")
 	fuzzAddDir(f, "../../tgoast/ast")
+	fuzzAddDir(f, "../analyzer/testdata")
+	fuzzAddDir(f, "../tgofuncs/testdata")
 
 	f.Add("a", `package main
 
@@ -372,25 +384,29 @@ package main
 		ast.Inspect(f, func(n ast.Node) bool {
 			switch n := n.(type) {
 			case *ast.BlockStmt:
-				hasOnlyEmptyStrs := true
-				for _, v := range n.List {
-					isEmptyStr := false
-					if v, ok := v.(*ast.ExprStmt); ok {
-						if v, ok := v.X.(*ast.BasicLit); ok && v.Kind == token.STRING {
-							str, err := strconv.Unquote(v.Value)
-							if err != nil {
-								panic(err) // unreachable, AST is valid
-							}
-							isEmptyStr = str == ""
-						}
-					}
-					if !isEmptyStr {
-						hasOnlyEmptyStrs = false
-						break
-					}
-				}
-				if hasOnlyEmptyStrs {
+				//hasOnlyEmptyStrs := true
+				//for _, v := range n.List {
+				//	isEmptyStr := false
+				//	if v, ok := v.(*ast.ExprStmt); ok {
+				//		if v, ok := v.X.(*ast.BasicLit); ok && v.Kind == token.STRING {
+				//			str, err := strconv.Unquote(v.Value)
+				//			if err != nil {
+				//				panic(err) // unreachable, AST is valid
+				//			}
+				//			isEmptyStr = str == ""
+				//		}
+				//	}
+				//	if !isEmptyStr {
+				//		hasOnlyEmptyStrs = false
+				//		break
+				//	}
+				//}
+				//if hasOnlyEmptyStrs {
+				//	expectedEmptyBlockStmtCount++
+				//}
+				if len(n.List) == 0 {
 					expectedEmptyBlockStmtCount++
+					_ = n
 				}
 			}
 			return true
@@ -409,8 +425,16 @@ package main
 
 		// Transpiler should not produce empty block stmts for empty tags (<div>)
 		// and for empty tag bodies (<div></div>).
-		if expectedEmptyBlockStmtCount != emptyBlockStmtCountGo {
-			t.Error("transpiled output contains an unexpected, empty *ast.BlockStmt")
+		if emptyBlockStmtCountGo != expectedEmptyBlockStmtCount {
+			var transpiled, input strings.Builder
+			ast.Fprint(&input, fset, f, ast.NotNilFilter)
+			goast.Fprint(&transpiled, fsetgo, fgo, goast.NotNilFilter)
+			t.Logf("input AST:\n%v", input.String())
+			t.Logf("transpiled AST:\n%v", transpiled.String())
+			t.Errorf(
+				"transpiled output contains an unexpected amount of *ast.BlockStmt: %v; want: %v",
+				emptyBlockStmtCountGo, expectedEmptyBlockStmtCount,
+			)
 		}
 
 		// The Go formatter moves comments around, bacause it treats every comment
@@ -539,4 +563,34 @@ package main
 			)
 		}
 	})
+}
+
+func gitDiff(tmpDir string, got, expect string) (string, error) {
+	gotPath := filepath.Join(tmpDir, "got")
+	gotFile, err := os.Create(gotPath)
+	if err != nil {
+		return "", err
+	}
+	defer gotFile.Close()
+	if _, err := gotFile.WriteString(got); err != nil {
+		return "", err
+	}
+
+	expectPath := filepath.Join(tmpDir, "expect")
+	expectFile, err := os.Create(expectPath)
+	if err != nil {
+		return "", err
+	}
+	defer expectFile.Close()
+	if _, err := expectFile.WriteString(expect); err != nil {
+		return "", err
+	}
+
+	var out strings.Builder
+	cmd := exec.Command("git", "diff", "-U 100000", "--no-index", "--color=always", "--ws-error-highlight=all", gotPath, expectPath)
+	cmd.Stdout = &out
+	if err := cmd.Run(); err != nil && cmd.ProcessState.ExitCode() != 1 {
+		return "", err
+	}
+	return out.String(), nil
 }

@@ -259,6 +259,15 @@ func (t *transpiler) transpileList(additionalIndent int, lastIndentLine int, lis
 		bodyScope = make([]scopeState, 0, 16)
 	)
 	for _, n := range list {
+		for {
+			if l, ok := n.(*ast.LabeledStmt); ok {
+				t.appendFromSource(l.Stmt.Pos())
+				n = l.Stmt
+				continue
+			}
+			break
+		}
+
 		var (
 			onelineDirective = t.fs.Position(t.lastPosWritten).Line == t.fs.Position(n.Pos()).Line
 
@@ -316,7 +325,6 @@ func (t *transpiler) transpileList(additionalIndent int, lastIndentLine int, lis
 				t.inStaticWrite = false
 				t.lineDirectiveMangled = false
 				t.writeLineDirective(onelineDirective, !firstWhite, t.lastPosWritten)
-				t.appendFromSource(n.Pos())
 			}
 		}
 
@@ -399,6 +407,15 @@ func (t *transpiler) transpileList(additionalIndent int, lastIndentLine int, lis
 				t.lastPosWritten = n.End()
 			}
 		case *ast.CaseClause:
+			//if len(n.List) != 0 {
+			//	n.List[0].Pos()
+			//	t.appendFromSource(n.Colon + 1)
+			//}
+			// TODO: n.List
+			t.appendFromSource(n.Colon + 1)
+			t.transpileList(additionalIndent+1, lastIndentLine, n.Body)
+		case *ast.CommClause:
+			// TODO: n.Comm
 			t.appendFromSource(n.Colon + 1)
 			t.transpileList(additionalIndent+1, lastIndentLine, n.Body)
 		default:
@@ -473,9 +490,6 @@ func (t *transpiler) staticWriteIndentGoString(additionalIndent int, s string) {
 	s, err := strconv.Unquote(s)
 	if err != nil {
 		panic(err) // unreachable, AST is valid
-	}
-	if s == "" {
-		return
 	}
 	s = strconv.Quote(html.EscapeString(s))
 	t.staticWriteIndent(additionalIndent, s[1:len(s)-1])
