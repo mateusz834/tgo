@@ -290,6 +290,7 @@ func (f *branchAnalyzer) Visit(node ast.Node) ast.Visitor {
 			continueDepth: 0,
 			labeledDepth:  maps.Clone(f.labeledDepth),
 			tagDepth:      f.tagDepth,
+			f:             f.f,
 		}
 	case *ast.SwitchStmt, *ast.SelectStmt, *ast.TypeSwitchStmt:
 		return &branchAnalyzer{
@@ -298,6 +299,7 @@ func (f *branchAnalyzer) Visit(node ast.Node) ast.Visitor {
 			continueDepth: f.continueDepth,
 			labeledDepth:  maps.Clone(f.labeledDepth),
 			tagDepth:      f.tagDepth,
+			f:             f.f,
 		}
 	case *ast.LabeledStmt:
 		b := &branchAnalyzer{
@@ -306,6 +308,7 @@ func (f *branchAnalyzer) Visit(node ast.Node) ast.Visitor {
 			continueDepth: f.continueDepth,
 			labeledDepth:  maps.Clone(f.labeledDepth),
 			tagDepth:      f.tagDepth,
+			f:             f.f,
 		}
 		if b.labeledDepth == nil {
 			b.labeledDepth = make(map[string]int)
