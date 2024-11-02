@@ -2,25 +2,25 @@ package templates
 
 import "github.com/mateusz834/tgo"
 
-func test1(tgo.Ctx) error {
+func test(tgo.Ctx) error {
 	<div>
 	</div>
 }
 
-func test2(tgo.Ctx) error {
+func test(tgo.Ctx) error {
 	<div> // ERROR: col(2): "unclosed tag"
 }
 
-func test3(tgo.Ctx) error {
+func test(tgo.Ctx) error {
 	</div> // ERROR: col(2): "missing open tag"
 }
 
-func test4(tgo.Ctx) error {
+func test(tgo.Ctx) error {
 	<div>
 	</span> // ERROR: col(2): "unexpected close tag: \"span\", want: \"div\""
 }
 
-func test4(tgo.Ctx) error {
+func test(tgo.Ctx) error {
 	{
 		<div> // ERROR: col(3): "unclosed tag"
 	}
@@ -63,4 +63,39 @@ l:
 	default:
 		<div> // ERROR: col(3): "unclosed tag"
 	}
+}
+
+func test(tgo.Ctx) error {
+A:
+	<div>
+	</div>
+}
+
+func test(tgo.Ctx) error {
+A:
+	<div> // ERROR: col(2): "unclosed tag"
+}
+
+func test(tgo.Ctx) error {
+A:
+	</div> // ERROR: col(2): "missing open tag"
+}
+
+func test(tgo.Ctx) error {
+A:
+B:
+	<div>
+	</div>
+}
+
+func test(tgo.Ctx) error {
+A:
+B:
+	<div> // ERROR: col(2): "unclosed tag"
+}
+
+func test(tgo.Ctx) error {
+A:
+B:
+	</div> // ERROR: col(2): "missing open tag"
 }

@@ -76,6 +76,16 @@ func (f *tagPairsAnalyzer) Visit(node ast.Node) ast.Visitor {
 	return f
 }
 
+func unlabel(v ast.Node) ast.Node {
+	for {
+		if n, ok := v.(*ast.LabeledStmt); ok {
+			v = n.Stmt
+			continue
+		}
+		return v
+	}
+}
+
 func (f *tagPairsAnalyzer) checkTagPairs(stmt []ast.Stmt) {
 	type namePos struct {
 		name       string
@@ -83,14 +93,14 @@ func (f *tagPairsAnalyzer) checkTagPairs(stmt []ast.Stmt) {
 	}
 	deep := make([]namePos, 0, 16)
 
-	for _, v := range stmt {
-		switch n := v.(type) {
+	for _, n := range stmt {
+		switch n := unlabel(n).(type) {
 		case *ast.OpenTagStmt:
 			// TODO(mateusz834): void elements
 			deep = append(deep, namePos{
 				name:  n.Name.Name,
-				start: v.Pos(),
-				end:   v.End() - 1,
+				start: n.Pos(),
+				end:   n.End() - 1,
 			})
 		case *ast.EndTagStmt:
 			if len(deep) == 0 {
@@ -371,7 +381,7 @@ func (f *branchAnalyzer) Visit(node ast.Node) ast.Visitor {
 			if len(f.tagDepth) != 0 {
 				s.tag = f.tagDepth[len(f.tagDepth)-1]
 			}
-			if !slices.Contains(f.ctx.labelScopes[s], n.Label.Name) {
+			if n.Label != nil && !slices.Contains(f.ctx.labelScopes[s], n.Label.Name) {
 				f.ctx.ctx.errors = append(f.ctx.ctx.errors, AnalyzeError{
 					Message:  "unexpected goto statement, ensure that all tags are closed at the goto and the jump locaton",
 					StartPos: f.ctx.ctx.fset.Position(n.Pos()),
