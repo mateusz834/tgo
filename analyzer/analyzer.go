@@ -230,26 +230,31 @@ func (f *contextAnalyzer) Visit(list ast.Node) ast.Visitor {
 }
 
 type scope struct {
-	f     ast.Node // *ast.FuncDecl or *ast.FuncLit
-	depth int
+	f   ast.Node // *ast.FuncDecl or *ast.FuncLit
+	tag *ast.OpenTagStmt
 }
 
 type labelScopeAnalyzer struct {
 	out map[scope][]string
-	s   scope
+	f   ast.Node // *ast.FuncDecl or *ast.FuncLit
+	s   []*ast.OpenTagStmt
 }
 
 func (f *labelScopeAnalyzer) Visit(n ast.Node) ast.Visitor {
 	switch n := n.(type) {
 	case *ast.FuncDecl, *ast.FuncLit:
-		return &labelScopeAnalyzer{out: f.out, s: scope{f: n}}
+		return &labelScopeAnalyzer{out: f.out, f: n}
 	case *ast.OpenTagStmt:
 		// TODO: void elements
-		f.s.depth++
+		f.s = append(f.s, n)
 	case *ast.EndTagStmt:
-		f.s.depth--
+		f.s = f.s[:len(f.s)-1]
 	case *ast.LabeledStmt:
-		f.out[f.s] = append(f.out[f.s], n.Label.Name)
+		s := scope{f: f.f}
+		if len(f.s) != 0 {
+			s.tag = f.s[len(f.s)-1]
+		}
+		f.out[s] = append(f.out[s], n.Label.Name)
 	}
 	return f
 }
@@ -267,40 +272,40 @@ type branchAnalyzerContext struct {
 
 type branchAnalyzer struct {
 	ctx           *branchAnalyzerContext
-	f             ast.Node
-	depth         int
 	breakDepth    int
 	continueDepth int
 	labeledDepth  map[string]int
+	tagDepth      []*ast.OpenTagStmt
+	f             ast.Node // *ast.FuncDecl or *ast.FuncLit
 }
 
 func (f *branchAnalyzer) Visit(node ast.Node) ast.Visitor {
 	switch n := node.(type) {
 	case *ast.FuncDecl, *ast.FuncLit:
-		return &branchAnalyzer{f: n, ctx: f.ctx} // reset depths
+		return &branchAnalyzer{ctx: f.ctx, f: n} // reset depths
 	case *ast.ForStmt, *ast.RangeStmt:
 		return &branchAnalyzer{
 			ctx:           f.ctx,
-			depth:         f.depth,
 			breakDepth:    0,
 			continueDepth: 0,
 			labeledDepth:  maps.Clone(f.labeledDepth),
+			tagDepth:      f.tagDepth,
 		}
 	case *ast.SwitchStmt, *ast.SelectStmt, *ast.TypeSwitchStmt:
 		return &branchAnalyzer{
 			ctx:           f.ctx,
-			depth:         f.depth,
 			breakDepth:    0,
 			continueDepth: f.continueDepth,
 			labeledDepth:  maps.Clone(f.labeledDepth),
+			tagDepth:      f.tagDepth,
 		}
 	case *ast.LabeledStmt:
 		b := &branchAnalyzer{
 			ctx:           f.ctx,
-			depth:         f.depth,
 			breakDepth:    0,
 			continueDepth: f.continueDepth,
 			labeledDepth:  maps.Clone(f.labeledDepth),
+			tagDepth:      f.tagDepth,
 		}
 		if b.labeledDepth == nil {
 			b.labeledDepth = make(map[string]int)
@@ -309,18 +314,17 @@ func (f *branchAnalyzer) Visit(node ast.Node) ast.Visitor {
 		return b
 	case *ast.OpenTagStmt:
 		// TODO(mateusz834): void elements
-		f.depth++
+		f.tagDepth = append(f.tagDepth, n)
 		f.continueDepth++
 		f.breakDepth++
 		for k := range f.labeledDepth {
 			f.labeledDepth[k]++
 		}
 	case *ast.EndTagStmt:
-		if f.depth == 0 || f.continueDepth == 0 || f.breakDepth == 0 {
+		if len(f.tagDepth) == 0 || f.continueDepth == 0 || f.breakDepth == 0 {
 			panic("unreachable")
 		}
-		// TODO(mateusz834): void elements
-		f.depth--
+		f.tagDepth = f.tagDepth[:len(f.tagDepth)-1]
 		f.continueDepth--
 		f.breakDepth--
 		for k, v := range f.labeledDepth {
@@ -360,8 +364,11 @@ func (f *branchAnalyzer) Visit(node ast.Node) ast.Visitor {
 				})
 			}
 		case token.GOTO:
-			labels := f.ctx.labelScopes[scope{f: f.f, depth: f.depth}]
-			if !slices.Contains(labels, n.Label.Name) {
+			s := scope{f: f.f}
+			if len(f.tagDepth) != 0 {
+				s.tag = f.tagDepth[len(f.tagDepth)-1]
+			}
+			if !slices.Contains(f.ctx.labelScopes[s], n.Label.Name) {
 				f.ctx.ctx.errors = append(f.ctx.ctx.errors, AnalyzeError{
 					Message:  "unexpected goto statement, ensure that all tags are closed at the goto and the jump locaton",
 					StartPos: f.ctx.ctx.fset.Position(n.Pos()),
@@ -374,7 +381,7 @@ func (f *branchAnalyzer) Visit(node ast.Node) ast.Visitor {
 			panic("unreachable")
 		}
 	case *ast.ReturnStmt:
-		if f.depth != 0 {
+		if len(f.tagDepth) != 0 {
 			f.ctx.ctx.errors = append(f.ctx.ctx.errors, AnalyzeError{
 				Message:  "unexpected return statement in the middle of a tag body, ensure that all open tags are closed",
 				StartPos: f.ctx.ctx.fset.Position(n.Pos()),

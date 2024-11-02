@@ -188,6 +188,18 @@ func test(tgo.Ctx) error {
 	</div>
 }
 
+func test(tgo.Ctx) error {
+	<div>
+		if true {
+			goto nexttag // ERROR: col(4): "unexpected goto statement, ensure that all tags are closed at the goto and the jump locaton"
+		}
+	</div>
+	<div>
+	nexttag:
+		"a"
+	</div>
+}
+
 // TODO: this error message is bad, fix it
 func test(tgo.Ctx) error {
 	<div>
