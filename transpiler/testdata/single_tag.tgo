@@ -8,6 +8,7 @@ func template(tgo.Ctx) error {
 
 func template2(tgo.Ctx) error {
 	<div>
+		"\{a}"
 	</div>
 }
 ======
@@ -26,10 +27,18 @@ func template(tgo.Ctx) error {
 }
 
 func template2(tgo.Ctx) error {
-	if err := __tgo_ctx.WriteString("<div></div>"); err != nil {
+	if err := __tgo_ctx.WriteString("<div>"); err != nil {
 		return err
 	}
-//line :12:1
+	{
+		if err := tgo.DynamicWrite(__tgo_ctx, ( /*line :11:6*/ a)); err != nil {
+			return err
+		}
+		if err := __tgo_ctx.WriteString("</div>"); err != nil {
+			return err
+		}
+	}
+//line :13:1
 }
 
 // Assert that no other file in this package overrides the error builtin interface.

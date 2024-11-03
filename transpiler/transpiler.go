@@ -480,7 +480,10 @@ func (t *transpiler) transpileTemplateLiteral(additionalIndent int, x *ast.Templ
 func (t *transpiler) dynamicWriteIndent(additionalIndent int, n *ast.TemplateLiteralPart) {
 	t.wantIndent(additionalIndent)
 
-	t.appendSource("if err := __tgo.DynamicWrite(__tgo_ctx, " +
+	// TODO: tgo might be shadowed, uhh ....
+	t.appendSource("if err := tgo.DynamicWrite(")
+	t.appendSource(t.tgoIdent)
+	t.appendSource(", " +
 		// We wrap n in parentheses to create a *ast.ParenExpr,
 		// because the Go parser does not preserve the position of commas.
 		// Without the parentheses, comments get moved before the comma during formatting.
@@ -537,7 +540,9 @@ func (t *transpiler) staticWriteIndent(additionalIndent int, s string) {
 	}
 	t.inStaticWrite = true
 	t.wantIndent(additionalIndent)
-	t.appendSource("if err := __tgo_ctx.WriteString(\"")
+	t.appendSource("if err := ")
+	t.appendSource(t.tgoIdent)
+	t.appendSource(".WriteString(\"")
 	t.appendSource(s)
 	t.tmp = append(t.tmp, "\"); err != nil {"...)
 	t.tmp = t.appendIndent(t.tmp, additionalIndent)
