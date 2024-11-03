@@ -3,20 +3,33 @@ package transpiler
 import (
 	"fmt"
 	"html"
+	"math"
 	"slices"
 	"strconv"
 	"strings"
 
 	"github.com/mateusz834/tgo/debug"
+	"github.com/mateusz834/tgo/tgofuncs"
 	"github.com/mateusz834/tgoast/ast"
 	"github.com/mateusz834/tgoast/token"
 )
 
 func Transpile(f *ast.File, fs *token.FileSet, src string) string {
+	info := tgofuncs.Check(f)
+
+	tgofuncs := make(map[ast.Node]struct{})
+	for _, v := range info.TgoFuncs {
+		tgofuncs[v] = struct{}{}
+	}
+
 	t := transpiler{
 		f:   f,
 		fs:  fs,
 		src: src,
+
+		tgofuncs: tgofuncs,
+		tgoIdent: tgoIdent(f),
+
 		out: slices.Grow([]byte{}, len(src)*2),
 
 		lastIndentation: "\n",
@@ -28,11 +41,6 @@ func Transpile(f *ast.File, fs *token.FileSet, src string) string {
 	return string(t.out)
 }
 
-/*
-// Assert that no other file in this package overrides the error builtin interface.
-var _ = (*tgo.Error)((*error)(nil))
-*/
-
 type transpiler struct {
 	f   *ast.File
 	fs  *token.FileSet
@@ -40,6 +48,9 @@ type transpiler struct {
 
 	out []byte
 	tmp []byte
+
+	tgofuncs map[ast.Node]struct{}
+	tgoIdent string
 
 	lastPosWritten token.Pos // last position processed by the transpiler of the src.
 
@@ -96,8 +107,32 @@ func (t *transpiler) transpile() {
 	t.appendSource("//line ")
 	t.appendSource(t.fs.File(t.f.FileStart).Name())
 	t.appendSource(":1:1\n")
+
 	ast.Inspect(t.f, t.inspect)
 	t.appendFromSource(t.f.FileEnd)
+
+	needsErrorAssert := false
+	for v := range t.tgofuncs {
+		switch v := v.(type) {
+		case *ast.FuncLit:
+			if v, ok := v.Type.Results.List[0].Type.(*ast.Ident); ok && v.Name == "error" {
+				needsErrorAssert = true
+				break
+			}
+		case *ast.FuncDecl:
+			if v, ok := v.Type.Results.List[0].Type.(*ast.Ident); ok && v.Name == "error" {
+				needsErrorAssert = true
+				break
+			}
+		}
+	}
+
+	if needsErrorAssert {
+		t.appendSource(`
+// Assert that no other file in this package overrides the error builtin interface.
+var _ = (*tgo.Error)((*error)(nil))
+`)
+	}
 }
 
 func (t *transpiler) addLineDirectiveBeforeRbrace(rbracePos token.Pos) {
@@ -509,4 +544,41 @@ func (t *transpiler) staticWriteIndent(additionalIndent int, s string) {
 	t.tmp = append(t.tmp, "\treturn err"...)
 	t.tmp = t.appendIndent(t.tmp, additionalIndent)
 	t.tmp = append(t.tmp, '}')
+}
+
+func tgoIdent(f *ast.File) string {
+	const defaultIdent = "__tgo_ctx"
+
+	used := false
+	ast.Inspect(f, func(n ast.Node) bool {
+		switch n := n.(type) {
+		case *ast.Ident:
+			if n.Name == defaultIdent {
+				used = true
+				return false
+			}
+		}
+		return true
+	})
+	if !used {
+		return defaultIdent
+	}
+
+	usedIdents := make(map[string]struct{})
+	ast.Inspect(f, func(n ast.Node) bool {
+		switch n := n.(type) {
+		case *ast.Ident:
+			usedIdents[n.Name] = struct{}{}
+		}
+		return true
+	})
+
+	for i := range uint(math.MaxUint) {
+		ident := defaultIdent + strconv.FormatUint(uint64(i), 10)
+		if _, ok := usedIdents[ident]; !ok {
+			return ident
+		}
+	}
+
+	panic("unreachable")
 }

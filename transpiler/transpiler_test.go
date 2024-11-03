@@ -228,7 +228,7 @@ func TestTranspile(t *testing.T) {
 				t.Fatal("transpiled output not formatted")
 			}
 
-			// TODO: type-check output.
+			// TODO: type-check output (also listing the errors in the file?)
 
 			if out != string(transpiled) {
 				t.Log("make following changes to make this test pass:")

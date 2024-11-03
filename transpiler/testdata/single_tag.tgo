@@ -31,3 +31,6 @@ func template2(tgo.Ctx) error {
 	}
 //line :12:1
 }
+
+// Assert that no other file in this package overrides the error builtin interface.
+var _ = (*tgo.Error)((*error)(nil))
