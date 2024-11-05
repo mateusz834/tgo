@@ -61,6 +61,14 @@ func Test(t *testing.T, path string, testFunc func(fset *token.FileSet, f *ast.F
 
 	got := testFunc(fset, f)
 
+	slices.SortFunc(got, func(x, y Error) int {
+		return cmp.Or(
+			cmp.Compare(x.Line, y.Line),
+			cmp.Compare(x.Column, y.Column),
+			cmp.Compare(x.Msg, y.Msg),
+		)
+	})
+
 	want := []Error{}
 	newComments := []*ast.CommentGroup{}
 	for _, cg := range f.Comments {

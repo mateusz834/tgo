@@ -1,0 +1,18 @@
+package templates
+
+import (
+	"github.com/mateusz834/tgo"
+	tgo2 "github.com/mateusz834/tgo"
+	tgo3 "github.com/mateusz834/tgo"
+)
+
+func test(tgo.Ctx) error { // ERROR: col(1): "tgofunc"
+	tgo := "test"
+	"\{"test"}" // ERROR: col(2): "ImportIdent: \"tgo2\""
+}
+
+func test(tgo.Ctx) error { // ERROR: col(1): "tgofunc"
+	tgo := "test"
+	tgo2 := "test"
+	"\{"test"}" // ERROR: col(2): "ImportIdent: \"tgo3\""
+}

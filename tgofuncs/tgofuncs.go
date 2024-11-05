@@ -333,7 +333,7 @@ func (f *contextAnalyzer) Visit(list ast.Node) ast.Visitor {
 			shadowedImports: shadowed,
 		}
 	case *ast.TemplateLiteralExpr:
-		if f.ctx.hasDotImport {
+		if f.ctx.hasDotImport && !f.shadowedImports.isSetTgoDynamicWrite() {
 			f.ctx.usableImportForTemplate[n] = ImportDetails{DotImport: true}
 		}
 		for i, v := range f.ctx.tgoImports {
@@ -393,7 +393,7 @@ func (b bitField) clone() bitField {
 
 func (b bitField) isSet(n int) bool {
 	if n < bitsForImports {
-		return b.bitField&1<<n != 0
+		return b.bitField&(1<<n) != 0
 	}
 	_, ok := b.other[n]
 	return ok
@@ -418,6 +418,10 @@ func (b bitField) isSetTgoError() bool {
 	return b.bitField&(1<<bitTgoError) != 0
 }
 
+func (b bitField) isSetTgoDynamicWrite() bool {
+	return b.bitField&(1<<bitTgoDynamicWrite) != 0
+}
+
 func (b bitField) isSetError() bool {
 	return b.bitField&(1<<bitError) != 0
 }
@@ -428,6 +432,10 @@ func (b *bitField) setTgoCtx() {
 
 func (b *bitField) setTgoError() {
 	b.bitField |= 1 << bitTgoError
+}
+
+func (b *bitField) setTgoDynamicWrite() {
+	b.bitField |= 1 << bitTgoDynamicWrite
 }
 
 func (b *bitField) setError() {
@@ -443,6 +451,8 @@ func (b *bitField) setShadowed(c *contextAnalyzer, n string) {
 	switch n {
 	case "Error":
 		b.setTgoError()
+	case "DynamicWrite":
+		b.setTgoDynamicWrite()
 	case "Ctx":
 		b.setTgoCtx()
 	case "error":

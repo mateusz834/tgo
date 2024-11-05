@@ -1,0 +1,9 @@
+package templates
+
+import (
+	. "github.com/mateusz834/tgo"
+)
+
+func test(Ctx) error { // ERROR: col(1): "tgofunc"
+	"\{"test"}" // ERROR: col(2): "DotImport"
+}

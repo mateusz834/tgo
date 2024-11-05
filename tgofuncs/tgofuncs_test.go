@@ -34,9 +34,9 @@ func TestTgoFuncs(t *testing.T) {
 			fileName := filepath.Join(testdata, v.Name())
 			tgotest.Test(t, fileName, func(fset *token.FileSet, f *ast.File) []tgotest.Error {
 				info := Check(f)
-				t := []tgotest.Error{}
+				errs := []tgotest.Error{}
 				for _, v := range info.TgoFuncs {
-					t = append(t, tgotest.Error{
+					errs = append(errs, tgotest.Error{
 						Msg:    "tgofunc",
 						Line:   fset.Position(v.Pos()).Line,
 						Column: fset.Position(v.Pos()).Column,
@@ -45,22 +45,25 @@ func TestTgoFuncs(t *testing.T) {
 				for k, v := range info.UsableImportForTemplate {
 					msg := fmt.Sprintf("ImportIdent: %q", v.ImportIdent)
 					if v.DotImport {
+						if v.ImportIdent != "" {
+							t.Errorf("v.DotImport == true && v.ImportIdent != \"\", but %q", v.ImportIdent)
+						}
 						msg = "DotImport"
 					}
-					t = append(t, tgotest.Error{
+					errs = append(errs, tgotest.Error{
 						Msg:    msg,
 						Line:   fset.Position(k.Pos()).Line,
 						Column: fset.Position(k.Pos()).Column,
 					})
 				}
 				if info.NeedsSpecialTgoImport {
-					t = append(t, tgotest.Error{
+					errs = append(errs, tgotest.Error{
 						Msg:    "NeedsSpecialTgoImport",
 						Line:   fset.Position(f.Package).Line,
 						Column: fset.Position(f.Package).Column,
 					})
 				}
-				return t
+				return errs
 			})
 		})
 	}
