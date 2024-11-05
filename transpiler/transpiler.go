@@ -28,7 +28,8 @@ func Transpile(f *ast.File, fs *token.FileSet, src string) string {
 		src: src,
 
 		tgofuncs: tgofuncs,
-		tgoIdent: tgoIdent(f),
+		tgoIdent: fileUniqueIdent(f, "__tgo_ctx"),
+		info:     info,
 
 		out: slices.Grow([]byte{}, len(src)*2),
 
@@ -111,8 +112,28 @@ func (t *transpiler) transpile() {
 	t.appendSource(":1:1\n")
 
 	if t.info.NeedsSpecialTgoImport {
-		// TODO:
-		t.tgoAddtionalImportIdent = tgoIdent(t.f)
+		t.tgoAddtionalImportIdent = fileUniqueIdent(t.f, "__tgo")
+
+		i := -1
+		for j, v := range t.f.Decls {
+			if v, ok := v.(*ast.GenDecl); ok && v.Tok == token.IMPORT {
+				i = j
+				break
+			}
+		}
+
+		if i == -1 || len(t.f.Decls) == i-1 {
+			// NeedsSpecialTgoImport can only be set to true when there is a import
+			// and when more decls exist (there must be a tgo func).
+			panic("unreachable")
+		}
+
+		cur := t.f.Decls[i].(*ast.GenDecl)
+		t.appendFromSource(cur.End())
+		t.appendSource("\n\nimport ")
+		t.appendSource(t.tgoAddtionalImportIdent)
+		t.appendSource(" \"github.com/mateusz834/tgo\"\n")
+		t.writeLineDirective(false, false, cur.End())
 	}
 
 	ast.Inspect(t.f, t.inspect)
@@ -571,9 +592,7 @@ func (t *transpiler) staticWriteIndent(additionalIndent int, s string) {
 	t.tmp = append(t.tmp, '}')
 }
 
-func tgoIdent(f *ast.File) string {
-	const defaultIdent = "__tgo_ctx"
-
+func fileUniqueIdent(f *ast.File, defaultIdent string) string {
 	used := false
 	ast.Inspect(f, func(n ast.Node) bool {
 		switch n := n.(type) {

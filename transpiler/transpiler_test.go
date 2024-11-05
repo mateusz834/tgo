@@ -225,7 +225,7 @@ func TestTranspile(t *testing.T) {
 			var goFmted strings.Builder
 			goPrinterConfig.Fprint(&goFmted, gofset, gof)
 			if goFmted.String() != out {
-				t.Fatal("transpiled output not formatted")
+				t.Fatalf("transpiled output not formatted:\n%s\nwant:\n%s", out, goFmted.String())
 			}
 
 			// TODO: type-check output (also listing the errors in the file?)
