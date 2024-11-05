@@ -13,8 +13,15 @@ const (
 	tgoPackageName = "tgo"
 )
 
+type ImportDetails struct {
+	ImportIdent string
+	DotImport   bool
+}
+
 type Info struct {
-	TgoFuncs []ast.Node // *ast.FuncDecl or *ast.FuncLit.
+	TgoFuncs                []ast.Node // *ast.FuncDecl or *ast.FuncLit.
+	NeedsSpecialTgoImport   bool
+	UsableImportForTemplate map[*ast.TemplateLiteralExpr]ImportDetails
 }
 
 func Check(f *ast.File) Info {
@@ -44,8 +51,9 @@ func Check(f *ast.File) Info {
 
 	c := &contextAnalyzer{
 		ctx: &contextAnalyzerContext{
-			tgoImports:   tgoImports,
-			hasDotImport: hasDotImport,
+			tgoImports:              tgoImports,
+			usableImportForTemplate: make(map[*ast.TemplateLiteralExpr]ImportDetails),
+			hasDotImport:            hasDotImport,
 		},
 	}
 
@@ -87,12 +95,17 @@ func Check(f *ast.File) Info {
 
 	ast.Walk(c, f)
 	return Info{
-		TgoFuncs: c.ctx.tgoFuncs,
+		TgoFuncs:                c.ctx.tgoFuncs,
+		NeedsSpecialTgoImport:   c.ctx.needsSpecialTgoImport,
+		UsableImportForTemplate: c.ctx.usableImportForTemplate,
 	}
 }
 
 type contextAnalyzerContext struct {
-	tgoFuncs     []ast.Node
+	tgoFuncs                []ast.Node
+	needsSpecialTgoImport   bool
+	usableImportForTemplate map[*ast.TemplateLiteralExpr]ImportDetails
+
 	tgoImports   []string
 	hasDotImport bool
 }
@@ -319,6 +332,23 @@ func (f *contextAnalyzer) Visit(list ast.Node) ast.Visitor {
 			ctx:             f.ctx,
 			shadowedImports: shadowed,
 		}
+	case *ast.TemplateLiteralExpr:
+		if f.ctx.hasDotImport {
+			f.ctx.usableImportForTemplate[n] = ImportDetails{DotImport: true}
+		}
+		for i, v := range f.ctx.tgoImports {
+			if !f.shadowedImports.isSet(i) {
+				f.ctx.usableImportForTemplate[n] = ImportDetails{ImportIdent: v}
+				break
+			}
+		}
+		if _, ok := f.ctx.usableImportForTemplate[n]; !ok {
+			f.ctx.needsSpecialTgoImport = true
+		}
+		return &contextAnalyzer{
+			ctx:             f.ctx,
+			shadowedImports: f.shadowedImports.clone(),
+		}
 	default:
 		return &contextAnalyzer{
 			ctx:             f.ctx,
@@ -328,11 +358,12 @@ func (f *contextAnalyzer) Visit(list ast.Node) ast.Visitor {
 }
 
 const (
-	bitTgoCtx   = 63
-	bitTgoError = 62
-	bitError    = 61
+	bitTgoCtx          = 63
+	bitTgoError        = 62
+	bitTgoDynamicWrite = 61
+	bitError           = 60
 
-	bitsForImports = 60
+	bitsForImports = 59
 )
 
 type bitField struct {

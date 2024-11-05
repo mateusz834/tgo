@@ -2,6 +2,7 @@ package tgofuncs
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
@@ -39,6 +40,24 @@ func TestTgoFuncs(t *testing.T) {
 						Msg:    "tgofunc",
 						Line:   fset.Position(v.Pos()).Line,
 						Column: fset.Position(v.Pos()).Column,
+					})
+				}
+				for k, v := range info.UsableImportForTemplate {
+					msg := fmt.Sprintf("ImportIdent: %q", v.ImportIdent)
+					if v.DotImport {
+						msg = "DotImport"
+					}
+					t = append(t, tgotest.Error{
+						Msg:    msg,
+						Line:   fset.Position(k.Pos()).Line,
+						Column: fset.Position(k.Pos()).Column,
+					})
+				}
+				if info.NeedsSpecialTgoImport {
+					t = append(t, tgotest.Error{
+						Msg:    "NeedsSpecialTgoImport",
+						Line:   fset.Position(f.Package).Line,
+						Column: fset.Position(f.Package).Column,
 					})
 				}
 				return t

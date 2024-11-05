@@ -49,8 +49,10 @@ type transpiler struct {
 	out []byte
 	tmp []byte
 
-	tgofuncs map[ast.Node]struct{}
-	tgoIdent string
+	tgofuncs                map[ast.Node]struct{}
+	info                    tgofuncs.Info
+	tgoIdent                string
+	tgoAddtionalImportIdent string
 
 	lastPosWritten token.Pos // last position processed by the transpiler of the src.
 
@@ -107,6 +109,11 @@ func (t *transpiler) transpile() {
 	t.appendSource("//line ")
 	t.appendSource(t.fs.File(t.f.FileStart).Name())
 	t.appendSource(":1:1\n")
+
+	if t.info.NeedsSpecialTgoImport {
+		// TODO:
+		t.tgoAddtionalImportIdent = tgoIdent(t.f)
+	}
 
 	ast.Inspect(t.f, t.inspect)
 	t.appendFromSource(t.f.FileEnd)
@@ -471,17 +478,30 @@ func (t *transpiler) transpileTemplateLiteral(additionalIndent int, x *ast.Templ
 			t.staticWriteIndentGoString(additionalIndent, "\""+x.Strings[i]+"\"")
 		}
 		t.inStaticWrite = false
-		t.dynamicWriteIndent(additionalIndent, x.Parts[i])
+		t.dynamicWriteIndent(additionalIndent, x, x.Parts[i])
 	}
 	t.staticWriteIndentGoString(additionalIndent, "\""+x.Strings[len(x.Strings)-1])
 	t.lastPosWritten = x.End()
 }
 
-func (t *transpiler) dynamicWriteIndent(additionalIndent int, n *ast.TemplateLiteralPart) {
+func (t *transpiler) dynamicWriteIndent(additionalIndent int, x *ast.TemplateLiteralExpr, n *ast.TemplateLiteralPart) {
 	t.wantIndent(additionalIndent)
 
-	// TODO: tgo might be shadowed, uhh ....
-	t.appendSource("if err := tgo.DynamicWrite(")
+	t.appendSource("if err := ")
+	if d, ok := t.info.UsableImportForTemplate[x]; ok {
+		if d.DotImport {
+			t.appendSource("DynamicWrite(")
+		} else {
+			t.appendSource(d.ImportIdent)
+			t.appendSource(".DynamicWrite(")
+		}
+	} else if t.info.NeedsSpecialTgoImport {
+		t.appendSource(t.tgoAddtionalImportIdent)
+		t.appendSource(".DynamicWrite(")
+	} else {
+		panic("unreachable")
+	}
+
 	t.appendSource(t.tgoIdent)
 	t.appendSource(", " +
 		// We wrap n in parentheses to create a *ast.ParenExpr,
