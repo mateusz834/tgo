@@ -156,6 +156,7 @@ func (t *transpiler) transpile() {
 	}
 
 	if needsErrorAssert {
+		// TODO: import ident should not be static.
 		t.appendSource(`
 // Assert that no other file in this package overrides the error builtin interface.
 var _ = (*tgo.Error)((*error)(nil))
@@ -212,6 +213,34 @@ func (t *transpiler) inspect(n ast.Node) bool {
 		t.inStaticWrite = false
 	}()
 	switch n := n.(type) {
+	case *ast.FuncDecl:
+		if _, ok := t.tgofuncs[n]; ok {
+			if n.Type.Params.List[0].Names == nil {
+				t.appendFromSource(n.Type.Params.Opening + 1)
+				t.appendSource("__tgo_ctx")
+				t.writeLineDirective(true, true, n.Type.Params.Opening+1)
+				t.appendFromSource(n.Type.Params.Closing)
+			} else if n.Type.Params.List[0].Names[0].Name == "_" {
+				t.appendFromSource(n.Type.Params.List[0].Names[0].Pos())
+				t.appendSource(t.tgoIdent)
+				t.lastPosWritten = n.Type.Params.List[0].Names[0].End()
+				t.writeLineDirective(true, len(n.Type.Params.List) == 0, n.Type.Params.List[0].Names[0].End())
+				t.appendFromSource(n.Type.Params.Closing)
+			} else {
+				t.appendFromSource(n.Body.Lbrace + 1)
+				t.appendSource("\n\t")
+				t.appendSource(t.tgoIdent)
+				t.appendSource(" := ")
+				t.appendSource(n.Type.Params.List[0].Names[0].Name)
+				t.lineDirectiveMangled = true
+				t.transpileList(0, -1, n.Body.List)
+				t.addLineDirectiveBeforeRbrace(n.Body.Rbrace)
+				t.appendFromSource(n.Body.Rbrace + 1)
+				return false
+			}
+		}
+	case *ast.FuncLit:
+		_ = n
 	case *ast.BlockStmt:
 		// TODO: line directive before this and what about *ast.SwitchStmt and TypeSwitchStmt.
 		t.appendFromSource(n.Lbrace + 1)
