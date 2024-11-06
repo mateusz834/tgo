@@ -207,6 +207,38 @@ func (t *transpiler) addLineDirectiveBeforeRbrace(rbracePos token.Pos) {
 	}
 }
 
+func (t *transpiler) tgoFunc(n ast.Node, funcType *ast.FuncType, body *ast.BlockStmt) bool {
+	if _, ok := t.tgofuncs[n]; ok {
+		params := funcType.Params
+		param := params.List[0]
+		if param.Names == nil {
+			t.appendFromSource(params.Opening + 1)
+			t.appendSource("__tgo_ctx")
+			t.writeLineDirective(true, true, params.Opening+1)
+			t.appendFromSource(params.Closing)
+		} else if param.Names[0].Name == "_" {
+			t.appendFromSource(params.List[0].Names[0].Pos())
+			t.appendSource(t.tgoIdent)
+			t.lastPosWritten = params.List[0].Names[0].End()
+			t.writeLineDirective(true, len(params.List) == 0, params.List[0].Names[0].End())
+			t.appendFromSource(params.Closing)
+		} else {
+			//TODO: use iterwhite?
+			t.appendFromSource(body.Lbrace + 1)
+			t.wantIndent(1)
+			t.appendSource(t.tgoIdent)
+			t.appendSource(" := ")
+			t.appendSource(params.List[0].Names[0].Name)
+			t.lineDirectiveMangled = true
+			t.transpileList(0, -1, body.List)
+			t.addLineDirectiveBeforeRbrace(body.Rbrace)
+			t.appendFromSource(body.Rbrace + 1)
+			return false
+		}
+	}
+	return true
+}
+
 func (t *transpiler) inspect(n ast.Node) bool {
 	t.inStaticWrite = false
 	defer func() {
@@ -214,33 +246,9 @@ func (t *transpiler) inspect(n ast.Node) bool {
 	}()
 	switch n := n.(type) {
 	case *ast.FuncDecl:
-		if _, ok := t.tgofuncs[n]; ok {
-			if n.Type.Params.List[0].Names == nil {
-				t.appendFromSource(n.Type.Params.Opening + 1)
-				t.appendSource("__tgo_ctx")
-				t.writeLineDirective(true, true, n.Type.Params.Opening+1)
-				t.appendFromSource(n.Type.Params.Closing)
-			} else if n.Type.Params.List[0].Names[0].Name == "_" {
-				t.appendFromSource(n.Type.Params.List[0].Names[0].Pos())
-				t.appendSource(t.tgoIdent)
-				t.lastPosWritten = n.Type.Params.List[0].Names[0].End()
-				t.writeLineDirective(true, len(n.Type.Params.List) == 0, n.Type.Params.List[0].Names[0].End())
-				t.appendFromSource(n.Type.Params.Closing)
-			} else {
-				t.appendFromSource(n.Body.Lbrace + 1)
-				t.appendSource("\n\t")
-				t.appendSource(t.tgoIdent)
-				t.appendSource(" := ")
-				t.appendSource(n.Type.Params.List[0].Names[0].Name)
-				t.lineDirectiveMangled = true
-				t.transpileList(0, -1, n.Body.List)
-				t.addLineDirectiveBeforeRbrace(n.Body.Rbrace)
-				t.appendFromSource(n.Body.Rbrace + 1)
-				return false
-			}
-		}
+		return t.tgoFunc(n, n.Type, n.Body)
 	case *ast.FuncLit:
-		_ = n
+		return t.tgoFunc(n, n.Type, n.Body)
 	case *ast.BlockStmt:
 		// TODO: line directive before this and what about *ast.SwitchStmt and TypeSwitchStmt.
 		t.appendFromSource(n.Lbrace + 1)
