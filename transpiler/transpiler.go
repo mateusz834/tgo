@@ -238,22 +238,22 @@ func (t *transpiler) tgoFunc(n ast.Node, funcType *ast.FuncType, body *ast.Block
 			t.writeLineDirective(true, len(params.List) == 0, params.List[0].Names[0].End())
 			t.appendFromSource(params.Closing)
 		} else {
-			ident := ""
-			for v := range t.iterWhite(body.Lbrace+1, body.List[0].Pos()-1) {
-				switch v.whiteType {
-				case whiteIndent:
-					ident = v.text
-				}
-			}
+			//ident := ""
+			//for v := range t.iterWhite(body.Lbrace+1, body.List[0].Pos()-1) {
+			//	switch v.whiteType {
+			//	case whiteIndent:
+			//		ident = v.text
+			//	}
+			//}
 
 			t.appendFromSource(body.Lbrace + 1)
 			t.wantIndent(0)
 			t.appendSource(t.tgoIdent)
 			t.appendSource(" := ")
 			t.appendSource(params.List[0].Names[0].Name)
-			if ident == "" {
-				t.appendSource("; ")
-			}
+			//if ident == "" {
+			//	t.appendSource("; ")
+			//}
 			t.lineDirectiveMangled = true
 			t.transpileList(0, -1, body.List)
 			t.addLineDirectiveBeforeRbrace(body.Rbrace)

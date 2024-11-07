@@ -52,34 +52,35 @@ package templates
 import "github.com/mateusz834/tgo"
 
 func template(tgo tgo.Ctx) error {
+__tgo_ctx := tgo
 	if err := __tgo_ctx.WriteString("<div></div>"); err != nil {
 		return err
 	}
 //line :7:1
 }
 
-func template(tgo.Ctx) error {
+func template(__tgo_ctx /*line :9:15*/ tgo.Ctx) error {
 	if err := __tgo_ctx.WriteString("<div></div>"); err != nil {
 		return err
 	}
 //line :11:1
 }
 
-func template(_ tgo.Ctx) error {
+func template(__tgo_ctx /*line :13:17*/ tgo.Ctx) error {
 	if err := __tgo_ctx.WriteString("<div></div>"); err != nil {
 		return err
 	}
 //line :15:1
 }
 
-func template(_, _ tgo.Ctx) error {
+func template(__tgo_ctx /*line :17:17*/, _ tgo.Ctx) error {
 	if err := __tgo_ctx.WriteString("<div></div>"); err != nil {
 		return err
 	}
 //line :19:1
 }
 
-func template(_, test tgo.Ctx) error {
+func template(__tgo_ctx /*line :21:17*/, test tgo.Ctx) error {
 	if err := __tgo_ctx.WriteString("<div></div>"); err != nil {
 		return err
 	}
@@ -88,6 +89,7 @@ func template(_, test tgo.Ctx) error {
 
 func test() {
 	_ = func(tgo tgo.Ctx) error {
+	__tgo_ctx := tgo
 		if err := __tgo_ctx.WriteString("<div></div>"); err != nil {
 			return err
 		}
@@ -95,6 +97,7 @@ func test() {
 	}
 
 	_ = func(tgo tgo.Ctx) error {
+	__tgo_ctx := tgo
 		if err := __tgo_ctx.WriteString("<div></div>"); err != nil {
 			return err
 		}
