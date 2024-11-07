@@ -1,6 +1,7 @@
 package transpiler
 
 import (
+	"fmt"
 	"iter"
 
 	"github.com/mateusz834/tgoast/token"
@@ -90,7 +91,7 @@ func (t *transpiler) yieldIndent(src string, start, end token.Pos, yield func(it
 		case ' ', '\t', '\r':
 			continue
 		default:
-			panic("unreachable")
+			panic(fmt.Sprintf("unreachable %q", src[i]))
 		}
 	}
 	if len(src[lastSrcPos:endSrcPos]) > 0 {

@@ -209,6 +209,21 @@ func (t *transpiler) addLineDirectiveBeforeRbrace(rbracePos token.Pos) {
 
 func (t *transpiler) tgoFunc(n ast.Node, funcType *ast.FuncType, body *ast.BlockStmt) bool {
 	if _, ok := t.tgofuncs[n]; ok {
+		needsCtx := false
+		ast.Inspect(n, func(x ast.Node) bool {
+			if isTgo(x) {
+				needsCtx = true
+				return false
+			}
+			if _, ok := x.(*ast.FuncLit); ok && n != x {
+				return false
+			}
+			return true
+		})
+		if !needsCtx {
+			return true
+		}
+
 		params := funcType.Params
 		param := params.List[0]
 		if param.Names == nil {
@@ -223,12 +238,22 @@ func (t *transpiler) tgoFunc(n ast.Node, funcType *ast.FuncType, body *ast.Block
 			t.writeLineDirective(true, len(params.List) == 0, params.List[0].Names[0].End())
 			t.appendFromSource(params.Closing)
 		} else {
-			//TODO: use iterwhite?
+			ident := ""
+			for v := range t.iterWhite(body.Lbrace+1, body.List[0].Pos()-1) {
+				switch v.whiteType {
+				case whiteIndent:
+					ident = v.text
+				}
+			}
+
 			t.appendFromSource(body.Lbrace + 1)
-			t.wantIndent(1)
+			t.wantIndent(0)
 			t.appendSource(t.tgoIdent)
 			t.appendSource(" := ")
 			t.appendSource(params.List[0].Names[0].Name)
+			if ident == "" {
+				t.appendSource("; ")
+			}
 			t.lineDirectiveMangled = true
 			t.transpileList(0, -1, body.List)
 			t.addLineDirectiveBeforeRbrace(body.Rbrace)
@@ -379,6 +404,7 @@ func (t *transpiler) transpileList(additionalIndent int, lastIndentLine int, lis
 			afterFirst           = false
 			lastNewlineOrNodePos = n.Pos()
 		)
+		fmt.Printf("t.src[t.lastPosWritten:n.Pos()]: %q\n", t.src[t.posToOffset(t.lastPosWritten):t.posToOffset(n.Pos())])
 		for v := range t.iterWhite(t.lastPosWritten, n.Pos()) {
 			switch v.whiteType {
 			case whiteWhite:

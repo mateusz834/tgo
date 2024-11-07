@@ -197,17 +197,16 @@ func TestTranspile(t *testing.T) {
 			printerConfig.Fprint(&s, fset, f)
 
 			if *update {
+				tgo = s.String()
 				fset = token.NewFileSet()
-				f, err = parser.ParseFile(fset, "test.tgo", s.String(), parser.ParseComments|parser.SkipObjectResolution)
+				f, err = parser.ParseFile(fset, "test.tgo", tgo, parser.ParseComments|parser.SkipObjectResolution)
 				if err != nil {
 					t.Fatal(err)
 				}
-				out := Transpile(f, fset, tgo)
-				if err := os.WriteFile(file, []byte(s.String()+"======\n"+out), 0660); err != nil {
+				transpiled = Transpile(f, fset, tgo)
+				if err := os.WriteFile(file, []byte(tgo+"======\n"+transpiled), 0660); err != nil {
 					t.Fatal(err)
 				}
-				tgo = s.String()
-				transpiled = out
 			}
 
 			out := Transpile(f, fset, tgo)
@@ -230,9 +229,9 @@ func TestTranspile(t *testing.T) {
 
 			// TODO: type-check output (also listing the errors in the file?)
 
-			if out != string(transpiled) {
+			if out != transpiled {
 				t.Log("make following changes to make this test pass:")
-				t.Log(gitDiff(t.TempDir(), out, string(transpiled)))
+				t.Log(gitDiff(t.TempDir(), out, transpiled))
 				t.Fatal("difference found")
 			}
 		})
