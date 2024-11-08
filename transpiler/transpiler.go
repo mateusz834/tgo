@@ -378,21 +378,29 @@ func (t *transpiler) scopeEnd(s scopeState, additionalIndent int) {
 	t.implicitBlockStmtCount--
 }
 
+func unlabel(n ast.Stmt) (ast.Stmt, bool) {
+	labeled := false
+	for {
+		if l, ok := n.(*ast.LabeledStmt); ok {
+			n = l.Stmt
+			labeled = true
+			continue
+		}
+		break
+	}
+	return n, labeled
+}
+
 func (t *transpiler) transpileList(additionalIndent int, lastIndentLine int, list []ast.Stmt) {
 	var (
 		prev      ast.Node
 		bodyScope = make([]scopeState, 0, 16)
 	)
 	for _, n := range list {
-		for {
-			if l, ok := n.(*ast.LabeledStmt); ok {
-				t.appendFromSource(l.Stmt.Pos())
-				n = l.Stmt
-				continue
-			}
-			break
+		if unlabeled, labeled := unlabel(n); labeled && isTgo(unlabeled) {
+			t.appendFromSource(unlabeled.Pos())
+			n = unlabeled
 		}
-
 		var (
 			onelineDirective = t.fs.Position(t.lastPosWritten).Line == t.fs.Position(n.Pos()).Line
 

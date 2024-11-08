@@ -108,6 +108,7 @@ func TestTranspile(t *testing.T) {
 			gofset := gotoken.NewFileSet()
 			gof, err := goparser.ParseFile(gofset, "test.go", out, goparser.ParseComments|goparser.SkipObjectResolution)
 			if err != nil {
+				t.Logf("transpiled:\n%s", out)
 				t.Fatalf("failed to parse transpiled source: %v", err)
 			}
 
