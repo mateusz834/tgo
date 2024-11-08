@@ -398,6 +398,7 @@ func (t *transpiler) transpileList(additionalIndent int, lastIndentLine int, lis
 	)
 	for _, n := range list {
 		if unlabeled, labeled := unlabel(n); labeled && isTgo(unlabeled) {
+			// TODO: line directive?
 			t.appendFromSource(unlabeled.Pos())
 			n = unlabeled
 		}
