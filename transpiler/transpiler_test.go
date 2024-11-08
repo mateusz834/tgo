@@ -30,6 +30,40 @@ import (
 //func A(A){"\{a}\{""}l"}
 //func a(a string) { "a" }
 
+//const testSrc = `
+//package A//
+//import("github.com/mateusz834/tgo")
+//func A(tgo.Ctx)error{"\{""}"//
+//}
+//func A(tgo.Ctx)error{"\{""}"
+//func(tgo.Ctx)error{//
+//type tgo A
+//"\{""}"  }}`
+
+const testSrc = "package A//\nimport(\"github.com/mateusz834/tgo\") \nfunc A(tgo.Ctx)error{\"\\{\"\"}\"//\n}\nfunc A(tgo.Ctx)error{\"\\{\"\"}\"\nfunc(tgo.Ctx)error{//\ntype tgo A\n\"\\{\"\"}\"  }}"
+
+func TestTest(t *testing.T) {
+	fset := token.NewFileSet()
+	f, err := parser.ParseFile(fset, "0", testSrc, parser.SkipObjectResolution|parser.ParseComments)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	out := Transpile(f, fset, testSrc)
+
+	fsetgo := gotoken.NewFileSet()
+	fgo, err := goparser.ParseFile(fsetgo, "transpiled.go", out, goparser.ParseComments|goparser.SkipObjectResolution)
+	if err != nil {
+		if v, ok := err.(goscanner.ErrorList); ok {
+			for _, v := range v {
+				file := fsetgo.File(fgo.FileStart)
+				t.Logf("%v: %v", file.PositionFor(file.Pos(v.Pos.Offset), false), v)
+			}
+		}
+		t.Fatalf("goparser.ParseFile(Transpile(src)) = %v; want = <nil>", err)
+	}
+}
+
 var (
 	update          = flag.Bool("update", false, "")
 	printerConfig   = printer.Config{Tabwidth: 8, Mode: printer.UseSpaces | printer.TabIndent}
