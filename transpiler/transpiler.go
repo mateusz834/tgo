@@ -252,7 +252,7 @@ func (t *transpiler) tgoFunc(n ast.Node, funcType *ast.FuncType, body *ast.Block
 			t.appendSource(" := ")
 			t.appendSource(params.List[0].Names[0].Name)
 			if ident == "" {
-				t.appendSource("; ")
+				t.appendSource(";")
 			}
 			t.lineDirectiveMangled = true
 			t.transpileList(0, -1, body.List)

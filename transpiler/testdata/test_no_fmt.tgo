@@ -28,19 +28,19 @@ import __tgo "github.com/mateusz834/tgo"
 //line :5:1
 
 func test() {
-	_ = func(tgo tgo.Ctx) error {__tgo_ctx := tgo; 
+	_ = func(tgo tgo.Ctx) error {__tgo_ctx := tgo;
 	if err := __tgo_ctx.WriteString("<div></div>"); err != nil {
 		return err
 	} /*line :7:44*/ }
 }
 
-func test(tgo tgo.Ctx) error {__tgo_ctx := tgo; 
+func test(tgo tgo.Ctx) error {__tgo_ctx := tgo;
 	if err := __tgo_ctx.WriteString("<div></div>"); err != nil {
 		return err
 	} /*line :10:44*/ }
 
 func test() {
-	_ = func(tgo tgo.Ctx) error {__tgo_ctx := tgo;  /*line :13:32*/ a := 3; 
+	_ = func(tgo tgo.Ctx) error {__tgo_ctx := tgo; /*line :13:32*/ a := 3; 
 	if err := __tgo_ctx.WriteString("<div>"); err != nil {
 		return err
 	}
@@ -54,7 +54,7 @@ func test() {
 	} /*line :13:58*/ }
 }
 
-func test(tgo tgo.Ctx) error {__tgo_ctx := tgo;  /*line :16:32*/ a := 3; 
+func test(tgo tgo.Ctx) error {__tgo_ctx := tgo; /*line :16:32*/ a := 3; 
 	if err := __tgo_ctx.WriteString("<div>"); err != nil {
 		return err
 	}
