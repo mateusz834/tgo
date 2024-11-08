@@ -134,6 +134,21 @@ func (t *transpiler) transpile() {
 		t.appendSource(t.tgoAddtionalImportIdent)
 		t.appendSource(" \"github.com/mateusz834/tgo\"\n")
 		t.writeLineDirective(false, false, cur.End())
+
+		// TODO: this logic beloow is bad bad bad
+		// we need to do this differenlty and better
+
+	loop:
+		for v := range t.iterWhite(t.lastPosWritten, t.f.Decls[i+1].Pos()) {
+			switch v.whiteType {
+			case whiteWhite:
+				t.lastPosWritten = v.pos + token.Pos(len(v.text))
+			case whiteComment:
+				t.lastPosWritten = v.pos + token.Pos(len(v.text))
+			case whiteIndent:
+				break loop
+			}
+		}
 	}
 
 	ast.Inspect(t.f, t.inspect)

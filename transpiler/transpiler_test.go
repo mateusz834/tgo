@@ -50,6 +50,8 @@ func TestTest(t *testing.T) {
 	}
 
 	out := Transpile(f, fset, testSrc)
+	t.Logf("transpiled:\n%s", out)
+	t.Logf("transpiled:\n%q", out)
 
 	fsetgo := gotoken.NewFileSet()
 	fgo, err := goparser.ParseFile(fsetgo, "transpiled.go", out, goparser.ParseComments|goparser.SkipObjectResolution)
