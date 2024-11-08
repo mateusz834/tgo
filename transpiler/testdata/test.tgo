@@ -22,6 +22,11 @@ func template(_, test tgo.Ctx) error {
 	<div></div>
 }
 
+func template(test tgo.Ctx) error { // test
+	a := 3
+	<div></div>
+}
+
 func test() {
 	_ = func(tgo tgo.Ctx) error {
 		<div></div>
@@ -87,13 +92,22 @@ func template(__tgo_ctx /*line :21:17*/, test tgo.Ctx) error {
 //line :23:1
 }
 
+func template(test tgo.Ctx) error {
+	__tgo_ctx := test /*line :25:37*/ // test
+	a := 3
+	if err := __tgo_ctx.WriteString("<div></div>"); err != nil {
+		return err
+	}
+//line :28:1
+}
+
 func test() {
 	_ = func(tgo tgo.Ctx) error {
 		__tgo_ctx := tgo
 		if err := __tgo_ctx.WriteString("<div></div>"); err != nil {
 			return err
 		}
-//line :28:1
+//line :33:1
 	}
 
 	_ = func(tgo tgo.Ctx) error {
@@ -101,7 +115,7 @@ func test() {
 		if err := __tgo_ctx.WriteString("<div></div>"); err != nil {
 			return err
 		}
-//line :32:1
+//line :37:1
 	}
 }
 
