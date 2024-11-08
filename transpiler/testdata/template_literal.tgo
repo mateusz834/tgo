@@ -13,7 +13,7 @@ package templates
 
 import "github.com/mateusz834/tgo"
 
-func test(tgo.Ctx) error {
+func test(__tgo_ctx /*line :5:11*/ tgo.Ctx) error {
 	if err := __tgo_ctx.WriteString(""); err != nil {
 		return err
 	}

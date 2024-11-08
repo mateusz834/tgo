@@ -18,7 +18,7 @@ import __tgo "github.com/mateusz834/tgo"
 
 //line :4:1
 
-func test(Ctx) error {
+func test(__tgo_ctx /*line :5:11*/ Ctx) error {
 	DynamicWrite := "test"
 	if err := __tgo_ctx.WriteString(""); err != nil {
 		return err

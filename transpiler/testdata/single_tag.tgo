@@ -19,14 +19,14 @@ package templates
 
 import "github.com/mateusz834/tgo"
 
-func template(tgo.Ctx) error {
+func template(__tgo_ctx /*line :5:15*/ tgo.Ctx) error {
 	if err := __tgo_ctx.WriteString("<div></div>"); err != nil {
 		return err
 	}
 //line :7:1
 }
 
-func template2(tgo.Ctx) error {
+func template2(__tgo_ctx /*line :9:16*/ tgo.Ctx) error {
 	if err := __tgo_ctx.WriteString("<div>"); err != nil {
 		return err
 	}
