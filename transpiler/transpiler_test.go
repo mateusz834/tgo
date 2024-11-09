@@ -40,12 +40,27 @@ import (
 //type tgo A
 //"\{""}"  }}`
 
-const testSrc = "package A//\nimport(\"github.com/mateusz834/tgo\") \nfunc A(tgo.Ctx)error{\"\\{\"\"}\"//\n}\nfunc A(tgo.Ctx)error{\"\\{\"\"}\"\nfunc(tgo.Ctx)error{//\ntype tgo A\n\"\\{\"\"}\"  }}"
+//const testSrc = "package A//\nimport(\"github.com/mateusz834/tgo\") \nfunc A(tgo.Ctx)error{\"\\{\"\"}\"//\n}\nfunc A(tgo.Ctx)error{\"\\{\"\"}\"\nfunc(tgo.Ctx)error{//\ntype tgo A\n\"\\{\"\"}\"  }}"
+
+//const testSrc = "package A\nimport()\nfunc()A()(...A)"
+
+const testSrc = `package A
+import"github.com/mateusz834/tgo"
+func A(tgo.Ctx)error{
+	<div>
+	A:
+	</div>
+}
+`
 
 func TestTest(t *testing.T) {
 	fset := token.NewFileSet()
 	f, err := parser.ParseFile(fset, "0", testSrc, parser.SkipObjectResolution|parser.ParseComments)
 	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := analyzer.Analyze(fset, f); err != nil {
 		t.Fatal(err)
 	}
 
@@ -64,6 +79,11 @@ func TestTest(t *testing.T) {
 		}
 		t.Fatalf("goparser.ParseFile(Transpile(src)) = %v; want = <nil>", err)
 	}
+
+	var s strings.Builder
+	goPrinterConfig.Fprint(&s, fsetgo, fgo)
+	t.Logf("formatted:\n%v", s.String())
+	t.Logf("quoted formatted:\n%s", s.String())
 }
 
 var (
@@ -458,6 +478,27 @@ package main
 						if strings.ContainsRune(v.Path.Value, '\f') {
 							return
 						}
+					}
+
+					// See https://go.dev/cl/626758
+					hasEllipsis := false
+					ast.Inspect(f, func(n ast.Node) bool {
+						switch n := n.(type) {
+						case *ast.FuncType:
+							if n.Results != nil {
+								ast.Inspect(n.Results, func(n ast.Node) bool {
+									switch n.(type) {
+									case *ast.Ellipsis:
+										hasEllipsis = true
+									}
+									return true
+								})
+							}
+						}
+						return true
+					})
+					if hasEllipsis {
+						return
 					}
 				}
 				t.Fatalf("format.Node() = %v; want <nil>", err)

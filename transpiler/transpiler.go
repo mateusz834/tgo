@@ -128,27 +128,30 @@ func (t *transpiler) transpile() {
 			panic("unreachable")
 		}
 
-		cur := t.f.Decls[i].(*ast.GenDecl)
-		t.appendFromSource(cur.End())
+		cur, next := t.f.Decls[i].(*ast.GenDecl), t.f.Decls[i+1]
+
+		//TODO: cur.End() == next.Pos()
+
+		var last iterWhiteResult
+	outer:
+		for last = range t.iterWhite(cur.End(), next.Pos()) {
+			switch last.whiteType {
+			case whiteWhite:
+			case whiteComment:
+			case whiteSemi:
+			case whiteIndent:
+				break outer
+			}
+		}
+
+		t.appendFromSource(last.pos)
 		t.appendSource("\n\nimport ")
 		t.appendSource(t.tgoAddtionalImportIdent)
 		t.appendSource(" \"github.com/mateusz834/tgo\"\n")
-		t.writeLineDirective(false, false, cur.End())
+		t.writeLineDirective(false, false, last.pos)
 
 		// TODO: this logic beloow is bad bad bad
 		// we need to do this differenlty and better
-
-	loop:
-		for v := range t.iterWhite(t.lastPosWritten, t.f.Decls[i+1].Pos()) {
-			switch v.whiteType {
-			case whiteWhite:
-				t.lastPosWritten = v.pos + token.Pos(len(v.text))
-			case whiteComment:
-				t.lastPosWritten = v.pos + token.Pos(len(v.text))
-			case whiteIndent:
-				break loop
-			}
-		}
 	}
 
 	ast.Inspect(t.f, t.inspect)
@@ -393,17 +396,70 @@ func (t *transpiler) scopeEnd(s scopeState, additionalIndent int) {
 	t.implicitBlockStmtCount--
 }
 
-func unlabel(n ast.Stmt) (ast.Stmt, bool) {
-	labeled := false
+func unlabel(n ast.Stmt) (ast.Stmt, token.Pos) {
+	lastLabelPos := token.NoPos
 	for {
 		if l, ok := n.(*ast.LabeledStmt); ok {
 			n = l.Stmt
-			labeled = true
+			lastLabelPos = l.Colon + 1
 			continue
 		}
 		break
 	}
-	return n, labeled
+	return n, lastLabelPos
+}
+
+type whiteAlgResult struct {
+	onelineDirective     bool
+	firstWhite           bool
+	lastNewlineOrNodePos token.Pos
+}
+
+func (t *transpiler) whiteAlg(start, end token.Pos) whiteAlgResult {
+	var (
+		onelineDirective = t.fs.Position(start).Line == t.fs.Position(end).Line
+
+		// Note that the current implementation is wrong in case of a multiline
+		// comment, it is not a problem for what we are using it now.
+		beforeNewline = true
+
+		firstWhite           = false
+		afterFirst           = false
+		lastNewlineOrNodePos = start
+	)
+
+	for v := range t.iterWhite(start, end) {
+		switch v.whiteType {
+		case whiteWhite:
+			if beforeNewline {
+				onelineDirective = true
+			}
+			if !afterFirst {
+				firstWhite = true
+			}
+		case whiteIndent:
+			t.lastIndentation = v.text
+			beforeNewline = false
+			lastNewlineOrNodePos = v.pos
+		case whiteComment:
+			if beforeNewline {
+				onelineDirective = true
+			}
+		case whiteSemi:
+			if beforeNewline {
+				onelineDirective = true
+			}
+		default:
+			panic("unreachable")
+		}
+		afterFirst = true
+	}
+
+	return whiteAlgResult{
+		onelineDirective:     onelineDirective,
+		firstWhite:           firstWhite,
+		lastNewlineOrNodePos: lastNewlineOrNodePos,
+	}
 }
 
 func (t *transpiler) transpileList(additionalIndent int, lastIndentLine int, list []ast.Stmt) {
@@ -412,55 +468,26 @@ func (t *transpiler) transpileList(additionalIndent int, lastIndentLine int, lis
 		bodyScope = make([]scopeState, 0, 16)
 	)
 	for _, n := range list {
-		if unlabeled, labeled := unlabel(n); labeled && isTgo(unlabeled) {
-			// TODO: line directive?
-			t.appendFromSource(unlabeled.Pos())
+		orig := n
+		p := t.lastPosWritten
+		wasLabeled := false
+		if unlabeled, lastLabelEndPos := unlabel(n); lastLabelEndPos.IsValid() && isTgo(unlabeled) {
+			p = lastLabelEndPos
 			n = unlabeled
+			wasLabeled = true
+			t.inStaticWrite = false
+			t.lineDirectiveMangled = true
 		}
-		var (
-			onelineDirective = t.fs.Position(t.lastPosWritten).Line == t.fs.Position(n.Pos()).Line
 
-			// Note that the current implementation is wrong in case of a multiline
-			// comment, it is not a problem for what we are using it now.
-			beforeNewline = true
-
-			firstWhite           = false
-			afterFirst           = false
-			lastNewlineOrNodePos = n.Pos()
-		)
-		for v := range t.iterWhite(t.lastPosWritten, n.Pos()) {
-			switch v.whiteType {
-			case whiteWhite:
-				if beforeNewline {
-					onelineDirective = true
-				}
-				if !afterFirst {
-					firstWhite = true
-				}
-			case whiteIndent:
-				t.lastIndentation = v.text
-				beforeNewline = false
-				lastNewlineOrNodePos = v.pos
-			case whiteComment:
-				if beforeNewline {
-					onelineDirective = true
-				}
-			case whiteSemi:
-				if beforeNewline {
-					onelineDirective = true
-				}
-			default:
-				panic("unreachable")
-			}
-			afterFirst = true
-		}
+		r := t.whiteAlg(p, n.Pos())
 
 		if isTgo(n) {
 			// When previous node was non-tgo and now we have a tgo node,
 			// preserve whitespace, comments and semicolons up to last newline
 			// (or up to n.Pos() if no newline found between prev and n).
-			if prev != nil && !isTgo(prev) {
-				t.appendFromSource(lastNewlineOrNodePos)
+			_, isEndTag := n.(*ast.EndTagStmt)
+			if prev != nil && !isTgo(prev) && !(isEndTag && wasLabeled) {
+				t.appendFromSource(r.lastNewlineOrNodePos)
 			}
 
 			// TODO: we are ingnoring comments between tgo tags.
@@ -473,7 +500,7 @@ func (t *transpiler) transpileList(additionalIndent int, lastIndentLine int, lis
 			if t.lineDirectiveMangled {
 				t.inStaticWrite = false
 				t.lineDirectiveMangled = false
-				t.writeLineDirective(onelineDirective, !firstWhite, t.lastPosWritten)
+				t.writeLineDirective(r.onelineDirective, !r.firstWhite, t.lastPosWritten)
 			}
 		}
 
@@ -512,6 +539,17 @@ func (t *transpiler) transpileList(additionalIndent int, lastIndentLine int, lis
 
 			t.scopeEnd(bodyScope[len(bodyScope)-1], additionalIndent)
 			bodyScope = bodyScope[:len(bodyScope)-1]
+
+			if wasLabeled {
+				if t.lineDirectiveMangled {
+					before := t.lastIndentation
+					r := t.whiteAlg(t.lastPosWritten, orig.Pos())
+					t.lastIndentation = before
+					t.writeLineDirective(r.onelineDirective, !r.firstWhite, t.lastPosWritten)
+					t.lineDirectiveMangled = false
+				}
+				t.appendFromSource(r.lastNewlineOrNodePos)
+			}
 
 			t.staticWriteIndent(additionalIndent, "</")
 			t.staticWriteIndent(additionalIndent, n.Name.Name)

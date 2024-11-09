@@ -290,6 +290,14 @@ type branchAnalyzer struct {
 }
 
 func (f *branchAnalyzer) Visit(node ast.Node) ast.Visitor {
+	switch unlabeled := unlabel(node); unlabeled.(type) {
+	case *ast.OpenTagStmt, *ast.EndTagStmt:
+		if unlabeled != node {
+			ast.Walk(f, unlabeled)
+			return nil
+		}
+	}
+
 	switch n := node.(type) {
 	case *ast.FuncDecl, *ast.FuncLit:
 		return &branchAnalyzer{ctx: f.ctx, f: n} // reset depths

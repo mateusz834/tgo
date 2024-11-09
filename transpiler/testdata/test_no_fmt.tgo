@@ -40,7 +40,7 @@ func test(tgo tgo.Ctx) error {__tgo_ctx := tgo;
 	} /*line :10:44*/ }
 
 func test() {
-	_ = func(tgo tgo.Ctx) error {__tgo_ctx := tgo; /*line :13:32*/ a := 3; 
+	_ = func(tgo tgo.Ctx) error {__tgo_ctx := tgo; /*line :13:32*/ a := 3
 	if err := __tgo_ctx.WriteString("<div>"); err != nil {
 		return err
 	}
@@ -54,7 +54,7 @@ func test() {
 	} /*line :13:58*/ }
 }
 
-func test(tgo tgo.Ctx) error {__tgo_ctx := tgo; /*line :16:32*/ a := 3; 
+func test(tgo tgo.Ctx) error {__tgo_ctx := tgo; /*line :16:32*/ a := 3
 	if err := __tgo_ctx.WriteString("<div>"); err != nil {
 		return err
 	}

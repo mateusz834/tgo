@@ -210,3 +210,10 @@ func test(tgo.Ctx) error {
 		}
 	</div>
 }
+
+func test(tgo.Ctx) error {
+a:
+	<div>
+	</div>
+	goto a
+}
