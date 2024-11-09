@@ -579,6 +579,7 @@ func (t *transpiler) transpileList(additionalIndent int, lastIndentLine int, lis
 			}
 			t.lastPosWritten = n.End()
 		case *ast.ExprStmt:
+			// TODO: we might transpile in non-tgo func.
 			if t.fs.Position(n.Pos()).Line != lastIndentLine {
 				additionalIndent = 0
 			}

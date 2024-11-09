@@ -2,10 +2,13 @@ package transpiler
 
 import (
 	"flag"
+	"maps"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"runtime"
+	"strconv"
 	"strings"
 	"testing"
 	"unicode/utf8"
@@ -383,6 +386,122 @@ package main
 			)
 		}
 
+		type node struct {
+			typeName string
+			positons string
+		}
+		want := make(map[node]struct{})
+		ast.Inspect(f, func(n ast.Node) bool {
+			switch n := n.(type) {
+			case *ast.AttributeStmt, *ast.OpenTagStmt,
+				*ast.EndTagStmt, *ast.TemplateLiteralExpr,
+				*ast.TemplateLiteralPart, *ast.File:
+				return true
+			case *ast.BasicLit:
+				// TODO: bad
+				if n.Kind == token.STRING {
+					return true
+				}
+			case nil:
+				return true
+			}
+
+			var positons strings.Builder
+			v := reflect.ValueOf(n).Elem()
+			for i := range v.NumField() {
+				fv := v.Field(i)
+				if fv.Type() == reflect.TypeFor[token.Pos]() {
+					if positons.String() != "" {
+						positons.WriteString(";")
+					}
+					if !fv.Interface().(token.Pos).IsValid() {
+						return true
+					}
+					pos := fset.Position(fv.Interface().(token.Pos))
+					positons.WriteString(v.Type().Field(i).Name)
+					positons.WriteString(": ")
+					positons.WriteString(strconv.FormatInt(int64(pos.Line), 10))
+					positons.WriteString(":")
+					positons.WriteString(strconv.FormatInt(int64(pos.Column), 10))
+				}
+			}
+
+			if positons.String() == "" {
+				return true
+			}
+
+			key := node{
+				typeName: v.Type().Name(),
+				positons: positons.String(),
+			}
+
+			if _, ok := want[key]; ok {
+				for k := range want {
+					t.Log(k)
+				}
+				panic("unreachable")
+			}
+
+			if testing.Verbose() {
+				t.Logf("tgo key: %v", key)
+			}
+
+			want[key] = struct{}{}
+
+			return true
+		})
+
+		missing := maps.Clone(want)
+		hasCount := 0
+		goast.Inspect(fgo, func(n goast.Node) bool {
+			if n == nil {
+				return true
+			}
+
+			var positons strings.Builder
+			v := reflect.ValueOf(n).Elem()
+			for i := range v.NumField() {
+				fv := v.Field(i)
+				if fv.Type() == reflect.TypeFor[gotoken.Pos]() {
+					if positons.String() != "" {
+						positons.WriteString(";")
+					}
+					pos := fsetgo.Position(fv.Interface().(gotoken.Pos))
+					positons.WriteString(v.Type().Field(i).Name)
+					positons.WriteString(": ")
+					positons.WriteString(strconv.FormatInt(int64(pos.Line), 10))
+					positons.WriteString(":")
+					positons.WriteString(strconv.FormatInt(int64(pos.Column), 10))
+				}
+			}
+
+			if positons.String() == "" {
+				return true
+			}
+
+			key := node{
+				typeName: v.Type().Name(),
+				positons: positons.String(),
+			}
+			if testing.Verbose() {
+				t.Logf("go key: %v", key)
+			}
+
+			if _, ok := want[key]; ok {
+				hasCount++
+				delete(missing, key)
+			}
+
+			return true
+		})
+
+		if hasCount != len(want) {
+			for v := range missing {
+				t.Logf("missing key: %v", v)
+			}
+			t.Fatal("invalid line directives")
+		}
+
 		// The Go formatter moves comments around, bacause it treats every comment
 		// at Column == 1 as doc comment, and it moves directives to the end of a comment.
 		// Line directive should not be moved in any way (https://go.dev/cl/609077).
@@ -530,6 +649,7 @@ package main
 			)
 		}
 	})
+
 }
 
 func gitDiff(tmpDir string, got, expect string) (string, error) {
