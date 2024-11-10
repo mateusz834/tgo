@@ -2,6 +2,7 @@ package transpiler
 
 import (
 	"flag"
+	"fmt"
 	"maps"
 	"os"
 	"os/exec"
@@ -386,16 +387,14 @@ package main
 			)
 		}
 
-		type node struct {
-			typeName string
-			positons string
-		}
-		want := make(map[node]struct{})
+		want := make(map[string]struct{})
 		ast.Inspect(f, func(n ast.Node) bool {
 			switch n := n.(type) {
 			case *ast.AttributeStmt, *ast.OpenTagStmt,
 				*ast.EndTagStmt, *ast.TemplateLiteralExpr,
 				*ast.TemplateLiteralPart, *ast.File:
+				return true
+			case *ast.CommentGroup, *ast.Comment:
 				return true
 			case *ast.BasicLit:
 				// TODO: bad
@@ -406,36 +405,12 @@ package main
 				return true
 			}
 
-			var positons strings.Builder
-			v := reflect.ValueOf(n).Elem()
-			for i := range v.NumField() {
-				fv := v.Field(i)
-				if fv.Type() == reflect.TypeFor[token.Pos]() {
-					if positons.String() != "" {
-						positons.WriteString(";")
-					}
-					if !fv.Interface().(token.Pos).IsValid() {
-						return true
-					}
-					pos := fset.Position(fv.Interface().(token.Pos))
-					positons.WriteString(v.Type().Field(i).Name)
-					positons.WriteString(": ")
-					positons.WriteString(strconv.FormatInt(int64(pos.Line), 10))
-					positons.WriteString(":")
-					positons.WriteString(strconv.FormatInt(int64(pos.Column), 10))
-				}
-			}
+			info := genNodeInfo[token.Token](n, func(p token.Pos) (line int, column int) {
+				pos := fset.Position(p)
+				return pos.Line, pos.Column
+			})
 
-			if positons.String() == "" {
-				return true
-			}
-
-			key := node{
-				typeName: v.Type().Name(),
-				positons: positons.String(),
-			}
-
-			if _, ok := want[key]; ok {
+			if _, ok := want[info]; ok {
 				for k := range want {
 					t.Log(k)
 				}
@@ -443,10 +418,9 @@ package main
 			}
 
 			if testing.Verbose() {
-				t.Logf("tgo key: %v", key)
+				t.Logf("tgo key: %v", info)
 			}
-
-			want[key] = struct{}{}
+			want[info] = struct{}{}
 
 			return true
 		})
@@ -458,44 +432,29 @@ package main
 				return true
 			}
 
-			var positons strings.Builder
-			v := reflect.ValueOf(n).Elem()
-			for i := range v.NumField() {
-				fv := v.Field(i)
-				if fv.Type() == reflect.TypeFor[gotoken.Pos]() {
-					if positons.String() != "" {
-						positons.WriteString(";")
-					}
-					pos := fsetgo.Position(fv.Interface().(gotoken.Pos))
-					positons.WriteString(v.Type().Field(i).Name)
-					positons.WriteString(": ")
-					positons.WriteString(strconv.FormatInt(int64(pos.Line), 10))
-					positons.WriteString(":")
-					positons.WriteString(strconv.FormatInt(int64(pos.Column), 10))
-				}
-			}
+			info := genNodeInfo[gotoken.Token](n, func(p gotoken.Pos) (line int, column int) {
+				pos := fsetgo.Position(p)
+				return pos.Line, pos.Column
+			})
 
-			if positons.String() == "" {
-				return true
-			}
-
-			key := node{
-				typeName: v.Type().Name(),
-				positons: positons.String(),
-			}
 			if testing.Verbose() {
-				t.Logf("go key: %v", key)
+				t.Logf("go key: %v", info)
 			}
 
-			if _, ok := want[key]; ok {
+			if _, ok := want[info]; ok {
 				hasCount++
-				delete(missing, key)
+				delete(missing, info)
 			}
 
 			return true
 		})
 
 		if hasCount != len(want) {
+			var transpiled, input strings.Builder
+			ast.Fprint(&input, fset, f, ast.NotNilFilter)
+			goast.Fprint(&transpiled, fsetgo, fgo, goast.NotNilFilter)
+			t.Logf("input AST:\n%v", input.String())
+			t.Logf("transpiled AST:\n%v", transpiled.String())
 			for v := range missing {
 				t.Logf("missing key: %v", v)
 			}
@@ -650,6 +609,53 @@ package main
 		}
 	})
 
+}
+
+func genNodeInfo[TOK fmt.Stringer, T interface{ IsValid() bool }](
+	n interface {
+		Pos() T
+		End() T
+	},
+	posToLineCol func(pos T) (line int, column int),
+) string {
+	v := reflect.ValueOf(n).Elem()
+
+	var info strings.Builder
+	info.Grow(32)
+	info.WriteString(v.Type().Name())
+
+	appendPos := func(name string, pos T) {
+		info.WriteString(";")
+		line, column := posToLineCol(pos)
+		info.WriteString(name)
+		info.WriteString(":")
+		info.WriteString(strconv.FormatInt(int64(line), 10))
+		info.WriteString(":")
+		info.WriteString(strconv.FormatInt(int64(column), 10))
+	}
+
+	appendPos("Pos()", n.Pos())
+	appendPos("End()", n.End())
+
+	for i := range v.NumField() {
+		fv := v.Field(i)
+		fieldName := v.Type().Field(i).Name
+		if fv.Type() == reflect.TypeFor[T]() {
+			appendPos(fieldName, fv.Interface().(T))
+		} else if fv.Type() == reflect.TypeFor[string]() {
+			info.WriteString(";")
+			info.WriteString(fieldName)
+			info.WriteString(":")
+			info.WriteString(strconv.Quote(fv.String()))
+		} else if fv.Type() == reflect.TypeFor[TOK]() {
+			info.WriteString(";")
+			info.WriteString(fieldName)
+			info.WriteString(":")
+			info.WriteString(fv.Interface().(TOK).String())
+		}
+	}
+
+	return info.String()
 }
 
 func gitDiff(tmpDir string, got, expect string) (string, error) {
