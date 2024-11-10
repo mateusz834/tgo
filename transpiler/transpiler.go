@@ -309,6 +309,7 @@ func (t *transpiler) writeLineDirective(oneline, addSpace bool, pos token.Pos) {
 	} else if oneline {
 		pos -= 1
 	}
+
 	p := t.fs.Position(pos + 1)
 	if oneline {
 		t.appendSource(" /*line ")
