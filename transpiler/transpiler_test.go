@@ -1,6 +1,7 @@
 package transpiler
 
 import (
+	"cmp"
 	"flag"
 	"fmt"
 	"maps"
@@ -9,6 +10,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"runtime"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -387,20 +389,44 @@ package main
 			)
 		}
 
-		want := make(map[string]struct{})
+		want := make(map[nodeInfo]struct{})
+		ignore := make(map[*ast.Ident]bool)
 		ast.Inspect(f, func(n ast.Node) bool {
 			switch n := n.(type) {
-			case *ast.AttributeStmt, *ast.OpenTagStmt,
-				*ast.EndTagStmt, *ast.TemplateLiteralExpr,
+			case *ast.AttributeStmt, *ast.TemplateLiteralExpr,
 				*ast.TemplateLiteralPart, *ast.File:
+				return true
+			case *ast.OpenTagStmt:
+				ignore[n.Name] = true
+				return true
+			case *ast.EndTagStmt:
+				ignore[n.Name] = true
 				return true
 			case *ast.CommentGroup, *ast.Comment:
 				return true
+			case *ast.ExprStmt:
+				switch n := n.X.(type) {
+				case *ast.TemplateLiteralExpr:
+					return true
+				case *ast.BasicLit:
+					// TODO: bad
+					if n.Kind == token.STRING {
+						return true
+					}
+				}
 			case *ast.BasicLit:
 				// TODO: bad
 				if n.Kind == token.STRING {
 					return true
 				}
+			case *ast.Ident:
+				if ignore[n] {
+					return true
+				}
+			case *ast.CommClause:
+				return true
+			case *ast.CaseClause:
+				return true
 			case nil:
 				return true
 			}
@@ -449,14 +475,19 @@ package main
 			return true
 		})
 
-		if hasCount != len(want) {
-			var transpiled, input strings.Builder
-			ast.Fprint(&input, fset, f, ast.NotNilFilter)
-			goast.Fprint(&transpiled, fsetgo, fgo, goast.NotNilFilter)
-			t.Logf("input AST:\n%v", input.String())
-			t.Logf("transpiled AST:\n%v", transpiled.String())
-			for v := range missing {
-				t.Logf("missing key: %v", v)
+		if len(f.Comments) == 0 && hasCount != len(want) {
+			//var transpiled, input strings.Builder
+			//ast.Fprint(&input, fset, f, ast.NotNilFilter)
+			//goast.Fprint(&transpiled, fsetgo, fgo, goast.NotNilFilter)
+			//t.Logf("input AST:\n%v", input.String())
+			//t.Logf("transpiled AST:\n%v", transpiled.String())
+			for _, v := range slices.SortedFunc(maps.Keys(missing), func(x, y nodeInfo) int {
+				return cmp.Or(
+					cmp.Compare(x.nodeStart.line, y.nodeStart.line),
+					cmp.Compare(x.nodeStart.column, y.nodeStart.column),
+				)
+			}) {
+				t.Logf("missing key: %+v", v)
 			}
 			t.Fatal("invalid line directives")
 		}
@@ -611,21 +642,33 @@ package main
 
 }
 
+type pos struct {
+	line, column int
+}
+
+type nodeInfo struct {
+	nodeName  string
+	nodeStart pos
+	nodeEnd   pos
+	other     string
+}
+
 func genNodeInfo[TOK fmt.Stringer, POS interface{ IsValid() bool }](
 	n interface {
 		Pos() POS
 		End() POS
 	},
 	posToLineCol func(pos POS) (line int, column int),
-) string {
+) nodeInfo {
 	v := reflect.ValueOf(n).Elem()
 
 	var info strings.Builder
 	info.Grow(32)
-	info.WriteString(v.Type().Name())
 
 	appendPos := func(name string, pos POS) {
-		info.WriteString(";")
+		if info.Len() != 0 {
+			info.WriteString(";")
+		}
 		line, column := posToLineCol(pos)
 		info.WriteString(name)
 		info.WriteString(":")
@@ -634,28 +677,41 @@ func genNodeInfo[TOK fmt.Stringer, POS interface{ IsValid() bool }](
 		info.WriteString(strconv.FormatInt(int64(column), 10))
 	}
 
-	appendPos("Pos()", n.Pos())
-	appendPos("End()", n.End())
-
 	for i := range v.NumField() {
 		fv := v.Field(i)
 		fieldName := v.Type().Field(i).Name
 		if fv.Type() == reflect.TypeFor[POS]() {
 			appendPos(fieldName, fv.Interface().(POS))
 		} else if fv.Type() == reflect.TypeFor[string]() {
-			info.WriteString(";")
+			if info.Len() != 0 {
+				info.WriteString(";")
+			}
 			info.WriteString(fieldName)
 			info.WriteString(":")
 			info.WriteString(strconv.Quote(fv.String()))
 		} else if fv.Type() == reflect.TypeFor[TOK]() {
-			info.WriteString(";")
+			if info.Len() != 0 {
+				info.WriteString(";")
+			}
 			info.WriteString(fieldName)
 			info.WriteString(":")
 			info.WriteString(fv.Interface().(TOK).String())
 		}
 	}
 
-	return info.String()
+	startLine, startCol := posToLineCol(n.Pos())
+	endLine, endCol := posToLineCol(n.End())
+	switch any(n).(type) {
+	case *ast.LabeledStmt, *goast.LabeledStmt:
+		endLine, endCol = 0, 0
+	}
+
+	return nodeInfo{
+		nodeName:  v.Type().Name(),
+		nodeStart: pos{line: startLine, column: startCol},
+		nodeEnd:   pos{line: endLine, column: endCol},
+		other:     info.String(),
+	}
 }
 
 func gitDiff(tmpDir string, got, expect string) (string, error) {

@@ -18,12 +18,12 @@ import __tgo "github.com/mateusz834/tgo"
 
 //line :4:1
 
-func test(__tgo_ctx /*line :5:11*/ Ctx) error {
+func test(__tgo_ctx /*line :5:10*/ Ctx) error {
 	DynamicWrite := "test"
 	if err := __tgo_ctx.WriteString(""); err != nil {
 		return err
 	}
-	if err := __tgo.DynamicWrite(__tgo_ctx, ( /*line :7:5*/ "test")); err != nil {
+	if err := __tgo.DynamicWrite(__tgo_ctx, ( /*line :7:4*/ "test")); err != nil {
 		return err
 	}
 	if err := __tgo_ctx.WriteString(""); err != nil {

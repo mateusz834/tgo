@@ -305,7 +305,7 @@ func (t *transpiler) inspect(n ast.Node) bool {
 
 func (t *transpiler) writeLineDirective(oneline, addSpace bool, pos token.Pos) {
 	if oneline && addSpace {
-		pos--
+		pos -= 2
 	}
 	p := t.fs.Position(pos + 1)
 	if oneline {
@@ -486,7 +486,7 @@ func (t *transpiler) transpileList(additionalIndent int, lastIndentLine int, lis
 			// preserve whitespace, comments and semicolons up to last newline
 			// (or up to n.Pos() if no newline found between prev and n).
 			_, isEndTag := n.(*ast.EndTagStmt)
-			if prev != nil && !isTgo(prev) && !(isEndTag && wasLabeled) {
+			if !isTgo(prev) && !(isEndTag && wasLabeled) {
 				t.appendFromSource(r.lastNewlineOrNodePos)
 			}
 
@@ -546,7 +546,6 @@ func (t *transpiler) transpileList(additionalIndent int, lastIndentLine int, lis
 					r := t.whiteAlg(t.lastPosWritten, orig.Pos())
 					t.lastIndentation = before
 					t.writeLineDirective(r.onelineDirective, !r.firstWhite, t.lastPosWritten)
-					t.lineDirectiveMangled = false
 				}
 				t.appendFromSource(r.lastNewlineOrNodePos)
 			}

@@ -64,7 +64,7 @@ func template(tgo tgo.Ctx) error {
 //line :7:1
 }
 
-func template(__tgo_ctx /*line :9:15*/ tgo.Ctx) error {
+func template(__tgo_ctx /*line :9:14*/ tgo.Ctx) error {
 	if err := __tgo_ctx.WriteString("<div></div>"); err != nil {
 		return err
 	}

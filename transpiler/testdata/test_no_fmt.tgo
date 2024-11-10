@@ -45,7 +45,7 @@ func test() {
 		return err
 	}
 	{
-		if err := __tgo.DynamicWrite(__tgo_ctx, ( /*line :13:48*/ a)); err != nil {
+		if err := __tgo.DynamicWrite(__tgo_ctx, ( /*line :13:47*/ a)); err != nil {
 			return err
 		}
 		if err := __tgo_ctx.WriteString("</div>"); err != nil {
@@ -59,7 +59,7 @@ func test(tgo tgo.Ctx) error {__tgo_ctx := tgo; /*line :16:32*/ a := 3
 		return err
 	}
 	{
-		if err := __tgo.DynamicWrite(__tgo_ctx, ( /*line :16:48*/ a)); err != nil {
+		if err := __tgo.DynamicWrite(__tgo_ctx, ( /*line :16:47*/ a)); err != nil {
 			return err
 		}
 		if err := __tgo_ctx.WriteString("</div>"); err != nil {
