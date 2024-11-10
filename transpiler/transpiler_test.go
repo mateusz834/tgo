@@ -611,12 +611,12 @@ package main
 
 }
 
-func genNodeInfo[TOK fmt.Stringer, T interface{ IsValid() bool }](
+func genNodeInfo[TOK fmt.Stringer, POS interface{ IsValid() bool }](
 	n interface {
-		Pos() T
-		End() T
+		Pos() POS
+		End() POS
 	},
-	posToLineCol func(pos T) (line int, column int),
+	posToLineCol func(pos POS) (line int, column int),
 ) string {
 	v := reflect.ValueOf(n).Elem()
 
@@ -624,7 +624,7 @@ func genNodeInfo[TOK fmt.Stringer, T interface{ IsValid() bool }](
 	info.Grow(32)
 	info.WriteString(v.Type().Name())
 
-	appendPos := func(name string, pos T) {
+	appendPos := func(name string, pos POS) {
 		info.WriteString(";")
 		line, column := posToLineCol(pos)
 		info.WriteString(name)
@@ -640,8 +640,8 @@ func genNodeInfo[TOK fmt.Stringer, T interface{ IsValid() bool }](
 	for i := range v.NumField() {
 		fv := v.Field(i)
 		fieldName := v.Type().Field(i).Name
-		if fv.Type() == reflect.TypeFor[T]() {
-			appendPos(fieldName, fv.Interface().(T))
+		if fv.Type() == reflect.TypeFor[POS]() {
+			appendPos(fieldName, fv.Interface().(POS))
 		} else if fv.Type() == reflect.TypeFor[string]() {
 			info.WriteString(";")
 			info.WriteString(fieldName)
