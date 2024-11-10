@@ -31,16 +31,16 @@ func test() {
 	_ = func(tgo tgo.Ctx) error {__tgo_ctx := tgo;
 	if err := __tgo_ctx.WriteString("<div></div>"); err != nil {
 		return err
-	} /*line :7:44*/ }
+	} /*line :7:43*/ }
 }
 
 func test(tgo tgo.Ctx) error {__tgo_ctx := tgo;
 	if err := __tgo_ctx.WriteString("<div></div>"); err != nil {
 		return err
-	} /*line :10:44*/ }
+	} /*line :10:43*/ }
 
 func test() {
-	_ = func(tgo tgo.Ctx) error {__tgo_ctx := tgo; /*line :13:32*/ a := 3
+	_ = func(tgo tgo.Ctx) error {__tgo_ctx := tgo; /*line :13:31*/ a := 3
 	if err := __tgo_ctx.WriteString("<div>"); err != nil {
 		return err
 	}
@@ -51,10 +51,10 @@ func test() {
 		if err := __tgo_ctx.WriteString("</div>"); err != nil {
 			return err
 		}
-	} /*line :13:58*/ }
+	} /*line :13:57*/ }
 }
 
-func test(tgo tgo.Ctx) error {__tgo_ctx := tgo; /*line :16:32*/ a := 3
+func test(tgo tgo.Ctx) error {__tgo_ctx := tgo; /*line :16:31*/ a := 3
 	if err := __tgo_ctx.WriteString("<div>"); err != nil {
 		return err
 	}
@@ -65,7 +65,7 @@ func test(tgo tgo.Ctx) error {__tgo_ctx := tgo; /*line :16:32*/ a := 3
 		if err := __tgo_ctx.WriteString("</div>"); err != nil {
 			return err
 		}
-	} /*line :16:58*/ }
+	} /*line :16:57*/ }
 
 // Assert that no other file in this package overrides the error builtin interface.
 var _ = (*tgo.Error)((*error)(nil))

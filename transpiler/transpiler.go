@@ -306,6 +306,8 @@ func (t *transpiler) inspect(n ast.Node) bool {
 func (t *transpiler) writeLineDirective(oneline, addSpace bool, pos token.Pos) {
 	if oneline && addSpace {
 		pos -= 2
+	} else if oneline {
+		pos -= 1
 	}
 	p := t.fs.Position(pos + 1)
 	if oneline {
