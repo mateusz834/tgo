@@ -452,7 +452,6 @@ package main
 		})
 
 		missing := maps.Clone(want)
-		hasCount := 0
 		goast.Inspect(fgo, func(n goast.Node) bool {
 			if n == nil {
 				return true
@@ -468,14 +467,13 @@ package main
 			}
 
 			if _, ok := want[info]; ok {
-				hasCount++
 				delete(missing, info)
 			}
 
 			return true
 		})
 
-		if len(f.Comments) == 0 && hasCount != len(want) {
+		if len(f.Comments) == 0 && len(missing) != 0 {
 			//var transpiled, input strings.Builder
 			//ast.Fprint(&input, fset, f, ast.NotNilFilter)
 			//goast.Fprint(&transpiled, fsetgo, fgo, goast.NotNilFilter)
