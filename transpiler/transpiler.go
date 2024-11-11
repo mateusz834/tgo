@@ -305,10 +305,21 @@ func (t *transpiler) inspect(n ast.Node) bool {
 	return true
 }
 
+type lineDirective uint8
+
+const (
+	_ lineDirective = iota
+
+	lineDirectiveFullLine       // "//line file:line:col\n"
+	lineDirectiveOneLineLSpace  // " /*line file:line:col*/"
+	lineDirectiveOneLineLRSpace // " /*line file:line:col*/ "
+)
+
 func (t *transpiler) writeLineDirective(oneline, addSpace bool, pos token.Pos) {
 	if oneline && addSpace {
 		pos -= 2
 	} else if oneline {
+		// TODO: why -1? Seems to work but why? :)
 		pos -= 1
 	}
 
