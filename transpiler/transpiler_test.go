@@ -50,13 +50,11 @@ import (
 
 //const testSrc = "package A\nimport()\nfunc()A()(...A)"
 
+// TODO no semi before ""?
 const testSrc = `package A
 import"github.com/mateusz834/tgo"
-func A(tgo.Ctx)error{
-	<div>
-	A:
-	</div>
-}
+func A(tgo.Ctx)error{<div>
+A:""</div>}
 `
 
 func TestTest(t *testing.T) {
@@ -473,7 +471,7 @@ package main
 			return true
 		})
 
-		if len(f.Comments) == 0 && len(missing) != 0 {
+		if len(missing) != 0 {
 			//var transpiled, input strings.Builder
 			//ast.Fprint(&input, fset, f, ast.NotNilFilter)
 			//goast.Fprint(&transpiled, fsetgo, fgo, goast.NotNilFilter)

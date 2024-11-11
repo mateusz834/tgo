@@ -484,12 +484,17 @@ func (t *transpiler) transpileList(additionalIndent int, lastIndentLine int, lis
 
 		r := t.whiteAlg(p, n.Pos())
 
+		// TODO: chyba najlepiej bd wyniesć ten endtag gdzies wysoko?
+
 		if isTgo(n) {
 			// When previous node was non-tgo and now we have a tgo node,
 			// preserve whitespace, comments and semicolons up to last newline
 			// (or up to n.Pos() if no newline found between prev and n).
 			_, isEndTag := n.(*ast.EndTagStmt)
-			if !isTgo(prev) && !(isEndTag && wasLabeled) {
+			if !isTgo(prev) && !(isEndTag && wasLabeled) || (wasLabeled && !isEndTag && isTgo(prev)) {
+				if isTgo(prev) {
+					t.writeLineDirective(r.onelineDirective, !r.firstWhite, t.lastPosWritten)
+				}
 				t.appendFromSource(r.lastNewlineOrNodePos)
 			}
 
