@@ -91,7 +91,7 @@ func (t *transpiler) yieldIndent(src string, start, end token.Pos, yield func(it
 		case ' ', '\t', '\r':
 			continue
 		default:
-			panic(fmt.Sprintf("unreachable %q", src[i]))
+			panic(fmt.Sprintf("%v unreachable: %q", t.fs.PositionFor(t.offsetToPos(i), false), src[i]))
 		}
 	}
 	if len(src[lastSrcPos:endSrcPos]) > 0 {

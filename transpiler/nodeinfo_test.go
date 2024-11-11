@@ -48,7 +48,7 @@ func (a *nodeInfoAnalyzer) Visit(n ast.Node) ast.Visitor {
 
 		params := ft.Params.List
 		if isTgo && len(params) != 0 {
-			if params[0].Names[0].Name == "_" {
+			if params[0].Names != nil && params[0].Names[0].Name == "_" {
 				ignore = params[0].Names[0]
 			}
 		}

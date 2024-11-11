@@ -27,9 +27,10 @@ func Transpile(f *ast.File, fs *token.FileSet, src string) string {
 		fs:  fs,
 		src: src,
 
-		tgofuncs: tgofuncs,
-		tgoIdent: fileUniqueIdent(f, "__tgo_ctx"),
-		info:     info,
+		tgofuncs:               tgofuncs,
+		tgoIdent:               fileUniqueIdent(f, "__tgo_ctx"),
+		info:                   info,
+		transpileableBasicLits: transpilableBasicLits(tgofuncs, f),
 
 		out: slices.Grow([]byte{}, len(src)*2),
 
@@ -54,6 +55,7 @@ type transpiler struct {
 	info                    tgofuncs.Info
 	tgoIdent                string
 	tgoAddtionalImportIdent string
+	transpileableBasicLits  map[*ast.BasicLit]struct{}
 
 	lastPosWritten token.Pos // last position processed by the transpiler of the src.
 
@@ -229,7 +231,7 @@ func (t *transpiler) tgoFunc(n ast.Node, funcType *ast.FuncType, body *ast.Block
 	if _, ok := t.tgofuncs[n]; ok {
 		needsCtx := false
 		ast.Inspect(n, func(x ast.Node) bool {
-			if isTgo(x) {
+			if t.isTgo(x) {
 				needsCtx = true
 				return false
 			}
@@ -353,14 +355,15 @@ func (t *transpiler) wantIndent(additionalIndent int) {
 	t.out = t.appendIndent(t.out, additionalIndent)
 }
 
-func isTgo(n ast.Node) bool {
+func (t *transpiler) isTgo(n ast.Node) bool {
 	switch n := n.(type) {
 	case *ast.OpenTagStmt, *ast.EndTagStmt, *ast.AttributeStmt:
 		return true
 	case *ast.ExprStmt:
 		x, isBasicLit := n.X.(*ast.BasicLit)
+		_, isTranspilable := t.transpileableBasicLits[x]
 		_, isTemplate := n.X.(*ast.TemplateLiteralExpr)
-		return (isBasicLit && x.Kind == token.STRING) || isTemplate
+		return (isBasicLit && x.Kind == token.STRING && isTranspilable) || isTemplate
 	}
 	return false
 }
@@ -474,7 +477,7 @@ func (t *transpiler) transpileList(additionalIndent int, lastIndentLine int, lis
 		orig := n
 		p := t.lastPosWritten
 		wasLabeled := false
-		if unlabeled, lastLabelEndPos := unlabel(n); lastLabelEndPos.IsValid() && isTgo(unlabeled) {
+		if unlabeled, lastLabelEndPos := unlabel(n); lastLabelEndPos.IsValid() && t.isTgo(unlabeled) {
 			p = lastLabelEndPos
 			n = unlabeled
 			wasLabeled = true
@@ -486,13 +489,13 @@ func (t *transpiler) transpileList(additionalIndent int, lastIndentLine int, lis
 
 		// TODO: chyba najlepiej bd wyniesć ten endtag gdzies wysoko?
 
-		if isTgo(n) {
+		if t.isTgo(n) {
 			// When previous node was non-tgo and now we have a tgo node,
 			// preserve whitespace, comments and semicolons up to last newline
 			// (or up to n.Pos() if no newline found between prev and n).
 			_, isEndTag := n.(*ast.EndTagStmt)
-			if !isTgo(prev) && !(isEndTag && wasLabeled) || (wasLabeled && !isEndTag && isTgo(prev)) {
-				if isTgo(prev) {
+			if !t.isTgo(prev) && !(isEndTag && wasLabeled) || (wasLabeled && !isEndTag && t.isTgo(prev)) {
+				if t.isTgo(prev) {
 					t.writeLineDirective(r.onelineDirective, !r.firstWhite, t.lastPosWritten)
 				}
 				t.appendFromSource(r.lastNewlineOrNodePos)
@@ -592,8 +595,12 @@ func (t *transpiler) transpileList(additionalIndent int, lastIndentLine int, lis
 			}
 			lastIndentLine = t.fs.Position(n.Pos()).Line
 			if x, ok := n.X.(*ast.BasicLit); ok && x.Kind == token.STRING {
-				t.staticWriteIndentGoString(additionalIndent, x.Value)
-				t.lastPosWritten = n.End()
+				if _, ok := t.transpileableBasicLits[x]; ok {
+					t.staticWriteIndentGoString(additionalIndent, x.Value)
+					t.lastPosWritten = n.End()
+				} else {
+					t.appendFromSource(n.End())
+				}
 			} else if x, ok := n.X.(*ast.TemplateLiteralExpr); ok {
 				t.transpileTemplateLiteral(additionalIndent, x)
 			} else {
@@ -757,4 +764,38 @@ func fileUniqueIdent(f *ast.File, defaultIdent string) string {
 	}
 
 	panic("unreachable")
+}
+
+func transpilableBasicLits(tgofuncs map[ast.Node]struct{}, f *ast.File) map[*ast.BasicLit]struct{} {
+	a := &basicLitAnalyzer{
+		tgofuncs: tgofuncs,
+		out:      make(map[*ast.BasicLit]struct{}),
+	}
+	ast.Walk(a, f)
+	return a.out
+}
+
+type basicLitAnalyzer struct {
+	tgofuncs map[ast.Node]struct{}
+	out      map[*ast.BasicLit]struct{}
+	inTgo    bool
+}
+
+func (a *basicLitAnalyzer) Visit(n ast.Node) ast.Visitor {
+	switch n := n.(type) {
+	case *ast.FuncDecl, *ast.FuncLit:
+		_, isTgo := a.tgofuncs[n]
+		return &basicLitAnalyzer{
+			tgofuncs: a.tgofuncs,
+			out:      a.out,
+			inTgo:    isTgo,
+		}
+	case *ast.ExprStmt:
+		if a.inTgo {
+			if v, ok := n.X.(*ast.BasicLit); ok && v.Kind == token.STRING {
+				a.out[v] = struct{}{}
+			}
+		}
+	}
+	return a
 }

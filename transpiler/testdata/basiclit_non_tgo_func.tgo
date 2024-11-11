@@ -16,8 +16,5 @@ import "github.com/mateusz834/tgo"
 
 // TODO: fix this, should not transpile.
 func test() {
-	if err := __tgo_ctx.WriteString("test"); err != nil {
-		return err
-	}
-//line :8:1
+	"test"
 }
