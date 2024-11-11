@@ -246,7 +246,7 @@ func (t *transpiler) tgoFunc(n ast.Node, funcType *ast.FuncType, body *ast.Block
 		param := params.List[0]
 		if param.Names == nil {
 			t.appendFromSource(param.Type.Pos())
-			t.appendSource("__tgo_ctx")
+			t.appendSource(t.tgoIdent)
 			t.writeLineDirective(true, true, param.Type.Pos())
 			t.appendFromSource(params.Closing)
 		} else if param.Names[0].Name == "_" {
