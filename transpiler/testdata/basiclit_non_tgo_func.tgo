@@ -2,7 +2,6 @@ package templates
 
 import "github.com/mateusz834/tgo"
 
-// TODO: fix this, should not transpile.
 func test() {
 	"test"
 }
@@ -14,7 +13,6 @@ package templates
 
 import "github.com/mateusz834/tgo"
 
-// TODO: fix this, should not transpile.
 func test() {
 	"test"
 }
