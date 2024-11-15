@@ -258,20 +258,26 @@ func (t *transpiler) tgoFunc(n ast.Node, funcType *ast.FuncType, body *ast.Block
 			t.writeLineDirective(true, len(params.List) == 0, params.List[0].Names[0].End())
 			t.appendFromSource(params.Closing)
 		} else {
-			ident := ""
+			var (
+				firstNewlinePos = body.Lbrace + 1
+				indent          = ""
+			)
 			for v := range t.iterWhite(body.Lbrace+1, body.List[0].Pos()) {
-				switch v.whiteType {
-				case whiteIndent:
-					ident = v.text
+				if v.whiteType == whiteIndent {
+					firstNewlinePos = v.pos
+					indent = v.text
+					break
+				} else if v.whiteType == whiteComment {
+					firstNewlinePos = v.end()
 				}
 			}
 
-			t.appendFromSource(body.Lbrace + 1)
-			t.appendSource(ident)
+			t.appendFromSource(firstNewlinePos)
+			t.appendSource(indent)
 			t.appendSource(t.tgoIdent)
 			t.appendSource(" := ")
 			t.appendSource(params.List[0].Names[0].Name)
-			if ident == "" {
+			if indent == "" {
 				t.appendSource(";")
 			}
 			t.lineDirectiveMangled = true
