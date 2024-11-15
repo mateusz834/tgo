@@ -113,7 +113,8 @@ func (f *tagPairsAnalyzer) checkTagPairs(stmt []ast.Stmt) {
 			}
 			last := deep[len(deep)-1]
 			deep = deep[:len(deep)-1]
-			if !strings.EqualFold(last.name, n.Name.Name) {
+			//if !strings.EqualFold(last.name, n.Name.Name) {
+			if last.name != n.Name.Name {
 				f.ctx.errors = append(f.ctx.errors, AnalyzeError{
 					Message:  fmt.Sprintf("unexpected close tag: %q, want: %q", n.Name.Name, last.name),
 					StartPos: f.ctx.fset.Position(n.OpenPos),
