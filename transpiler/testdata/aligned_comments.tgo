@@ -79,7 +79,8 @@ func test() {
 func test() {
 	a := 3                      // test comment1
 	_ = func(t tgo.Ctx) error { /* test
-		test */__tgo_ctx := t; /*line :30:9*/ a := 3
+		test */
+		__tgo_ctx := t /*line :30:10*/a := 3
 		if err := __tgo_ctx.WriteString("<div></div>"); err != nil {
 			return err
 		}

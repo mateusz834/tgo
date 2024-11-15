@@ -244,6 +244,8 @@ func (t *transpiler) tgoFunc(n ast.Node, funcType *ast.FuncType, body *ast.Block
 			return true
 		}
 
+		t.lastIndentation += "\t"
+
 		params := funcType.Params
 		param := params.List[0]
 		if param.Names == nil {
@@ -258,30 +260,8 @@ func (t *transpiler) tgoFunc(n ast.Node, funcType *ast.FuncType, body *ast.Block
 			t.writeLineDirective(true, len(params.List) == 0, params.List[0].Names[0].End())
 			t.appendFromSource(params.Closing)
 		} else {
-			var (
-				firstNewlinePos = body.Lbrace + 1
-				indent          = ""
-			)
-			for v := range t.iterWhite(body.Lbrace+1, body.List[0].Pos()) {
-				if v.whiteType == whiteIndent {
-					firstNewlinePos = v.pos
-					indent = v.text
-					break
-				} else if v.whiteType == whiteComment {
-					firstNewlinePos = v.end()
-				}
-			}
-
-			t.appendFromSource(firstNewlinePos)
-			t.appendSource(indent)
-			t.appendSource(t.tgoIdent)
-			t.appendSource(" := ")
-			t.appendSource(params.List[0].Names[0].Name)
-			if indent == "" {
-				t.appendSource(";")
-			}
-			t.lineDirectiveMangled = true
-			t.transpileList(0, -1, body.List)
+			t.appendFromSource(body.Lbrace + 1)
+			t.transpileList(0, -1, body.List, params.List[0].Names[0].Name)
 			t.addLineDirectiveBeforeRbrace(body.Rbrace)
 			t.appendFromSource(body.Rbrace + 1)
 			return false
@@ -303,7 +283,7 @@ func (t *transpiler) inspect(n ast.Node) bool {
 	case *ast.BlockStmt:
 		// TODO: line directive before this and what about *ast.SwitchStmt and TypeSwitchStmt.
 		t.appendFromSource(n.Lbrace + 1)
-		t.transpileList(0, -1, n.List)
+		t.transpileList(0, -1, n.List, "")
 		t.addLineDirectiveBeforeRbrace(n.Rbrace)
 		t.appendFromSource(n.Rbrace + 1)
 		return false
@@ -469,6 +449,7 @@ func (t *transpiler) whiteAlg(start, end token.Pos) whiteAlgResult {
 			if beforeNewline {
 				onelineDirective = true
 			}
+			lastNewlineOrNodePos = v.end()
 		case whiteSemi:
 			if beforeNewline {
 				onelineDirective = true
@@ -486,12 +467,12 @@ func (t *transpiler) whiteAlg(start, end token.Pos) whiteAlgResult {
 	}
 }
 
-func (t *transpiler) transpileList(additionalIndent int, lastIndentLine int, list []ast.Stmt) {
+func (t *transpiler) transpileList(additionalIndent int, lastIndentLine int, list []ast.Stmt, name string) {
 	var (
 		prev      ast.Node
 		bodyScope = make([]scopeState, 0, 16)
 	)
-	for _, n := range list {
+	for i, n := range list {
 		orig := n
 		p := t.lastPosWritten
 		wasLabeled := false
@@ -504,6 +485,15 @@ func (t *transpiler) transpileList(additionalIndent int, lastIndentLine int, lis
 		}
 
 		r := t.whiteAlg(p, n.Pos())
+
+		if i == 0 && name != "" {
+			t.appendFromSource(r.lastNewlineOrNodePos)
+			t.wantIndent(0)
+			t.appendSource(t.tgoIdent)
+			t.appendSource(" := ")
+			t.appendSource(name)
+			t.lineDirectiveMangled = true
+		}
 
 		// TODO: chyba najlepiej bd wyniesć ten endtag gdzies wysoko?
 
@@ -545,7 +535,7 @@ func (t *transpiler) transpileList(additionalIndent int, lastIndentLine int, lis
 
 			tagScope := t.scopeStart(additionalIndent)
 			t.lastPosWritten = n.Name.End()
-			t.transpileList(additionalIndent+1, lastIndentLine, n.Body)
+			t.transpileList(additionalIndent+1, lastIndentLine, n.Body, "")
 
 			for v := range t.iterWhite(t.lastPosWritten, n.ClosePos) {
 				if v.whiteType == whiteIndent {
@@ -633,11 +623,11 @@ func (t *transpiler) transpileList(additionalIndent int, lastIndentLine int, lis
 			//}
 			// TODO: n.List
 			t.appendFromSource(n.Colon + 1)
-			t.transpileList(additionalIndent+1, lastIndentLine, n.Body)
+			t.transpileList(additionalIndent+1, lastIndentLine, n.Body, "")
 		case *ast.CommClause:
 			// TODO: n.Comm
 			t.appendFromSource(n.Colon + 1)
-			t.transpileList(additionalIndent+1, lastIndentLine, n.Body)
+			t.transpileList(additionalIndent+1, lastIndentLine, n.Body, "")
 		default:
 			ast.Inspect(n, t.inspect)
 			t.appendFromSource(n.End())
