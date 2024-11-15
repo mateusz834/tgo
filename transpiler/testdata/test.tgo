@@ -93,7 +93,8 @@ func template(__tgo_ctx /*line :21:16*/, test tgo.Ctx) error {
 }
 
 func template(test tgo.Ctx) error { // test
-	__tgo_ctx := test /*line :25:44*/
+	__tgo_ctx := test
+	 /*line :25:44*/
 	a := 3
 	if err := __tgo_ctx.WriteString("<div></div>"); err != nil {
 		return err

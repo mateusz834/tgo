@@ -492,7 +492,11 @@ func (t *transpiler) transpileList(additionalIndent int, lastIndentLine int, lis
 			t.appendSource(t.tgoIdent)
 			t.appendSource(" := ")
 			t.appendSource(name)
+			if !t.isTgo(n) {
+				t.wantIndent(0)
+			}
 			t.lineDirectiveMangled = true
+			// TODO: line comment bez spacji na początku
 		}
 
 		// TODO: chyba najlepiej bd wyniesć ten endtag gdzies wysoko?
