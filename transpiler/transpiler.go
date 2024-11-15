@@ -150,7 +150,7 @@ func (t *transpiler) transpile() {
 		t.appendSource("\n\nimport ")
 		t.appendSource(t.tgoAddtionalImportIdent)
 		t.appendSource(" \"github.com/mateusz834/tgo\"\n")
-		t.writeLineDirective(false, false, last.pos)
+		t.writeLineDirective(lineDirectiveFullLine, last.pos)
 
 		// TODO: this logic beloow is bad bad bad
 		// we need to do this differenlty and better
@@ -223,7 +223,15 @@ func (t *transpiler) addLineDirectiveBeforeRbrace(rbracePos token.Pos) {
 		}
 		t.inStaticWrite = false
 		t.lineDirectiveMangled = false
-		t.writeLineDirective(onelineDirective, !firstWhite, t.lastPosWritten)
+
+		ld := lineDirectiveFullLine
+		if onelineDirective {
+			ld = lineDirectiveOneLineLSpace
+			if firstWhite {
+				ld = lineDirectiveOneLineLRSpace
+			}
+		}
+		t.writeLineDirective(ld, t.lastPosWritten)
 	}
 }
 
@@ -251,13 +259,17 @@ func (t *transpiler) tgoFunc(n ast.Node, funcType *ast.FuncType, body *ast.Block
 		if param.Names == nil {
 			t.appendFromSource(param.Type.Pos())
 			t.appendSource(t.tgoIdent)
-			t.writeLineDirective(true, true, param.Type.Pos())
+			t.writeLineDirective(lineDirectiveOneLineLRSpace, param.Type.Pos())
 			t.appendFromSource(params.Closing)
 		} else if param.Names[0].Name == "_" {
 			t.appendFromSource(params.List[0].Names[0].Pos())
 			t.appendSource(t.tgoIdent)
 			t.lastPosWritten = params.List[0].Names[0].End()
-			t.writeLineDirective(true, len(params.List) == 0, params.List[0].Names[0].End())
+			ld := lineDirectiveOneLineLSpace
+			if len(params.List) == 0 {
+				ld = lineDirectiveOneLineLRSpace
+			}
+			t.writeLineDirective(ld, params.List[0].Names[0].End())
 			t.appendFromSource(params.Closing)
 		} else {
 			t.appendFromSource(body.Lbrace + 1)
@@ -297,22 +309,32 @@ const (
 	_ lineDirective = iota
 
 	lineDirectiveFullLine       // "//line file:line:col\n"
+	lineDirectiveOneLine        // "/*line file:line:col*/"
 	lineDirectiveOneLineLSpace  // " /*line file:line:col*/"
+	lineDirectiveOneLineRSpace  // "/*line file:line:col*/ "
 	lineDirectiveOneLineLRSpace // " /*line file:line:col*/ "
 )
 
-func (t *transpiler) writeLineDirective(oneline, addSpace bool, pos token.Pos) {
-	if oneline && addSpace {
-		pos -= 2
-	} else if oneline {
-		// TODO: why -1? Seems to work but why? :)
+func (t *transpiler) writeLineDirective(ld lineDirective, pos token.Pos) {
+	switch ld {
+	case lineDirectiveOneLineLSpace, lineDirectiveOneLine:
 		pos -= 1
+	case lineDirectiveOneLineRSpace, lineDirectiveOneLineLRSpace:
+		if t.fs.Position(pos+1).Column-2 <= 0 {
+			pos++
+			ld = lineDirectiveOneLine
+		}
+		pos -= 2
+	case lineDirectiveFullLine:
+	default:
+		panic("unreachable")
 	}
 
-	// TODO: why +1
 	p := t.fs.Position(pos + 1)
-	if oneline {
+	if ld == lineDirectiveOneLineLSpace || ld == lineDirectiveOneLineLRSpace {
 		t.appendSource(" /*line ")
+	} else if ld == lineDirectiveOneLineRSpace || ld == lineDirectiveOneLine {
+		t.appendSource("/*line ")
 	} else {
 		t.appendSource("\n//line ")
 	}
@@ -321,9 +343,10 @@ func (t *transpiler) writeLineDirective(oneline, addSpace bool, pos token.Pos) {
 	t.appendSource(strconv.FormatInt(int64(p.Line), 10))
 	t.appendSource(":")
 	t.appendSource(strconv.FormatInt(int64(p.Column), 10))
-	if oneline && addSpace {
+
+	if ld == lineDirectiveOneLineRSpace || ld == lineDirectiveOneLineLRSpace {
 		t.appendSource("*/ ")
-	} else if oneline {
+	} else if ld == lineDirectiveOneLineLSpace || ld == lineDirectiveOneLine {
 		t.appendSource("*/")
 	}
 }
@@ -449,7 +472,6 @@ func (t *transpiler) whiteAlg(start, end token.Pos) whiteAlgResult {
 			if beforeNewline {
 				onelineDirective = true
 			}
-			lastNewlineOrNodePos = v.end()
 		case whiteSemi:
 			if beforeNewline {
 				onelineDirective = true
@@ -486,17 +508,49 @@ func (t *transpiler) transpileList(additionalIndent int, lastIndentLine int, lis
 
 		r := t.whiteAlg(p, n.Pos())
 
+		ld := lineDirectiveFullLine
+		if r.onelineDirective {
+			ld = lineDirectiveOneLineLSpace
+			if r.firstWhite {
+				ld = lineDirectiveOneLineLRSpace
+			}
+		}
+
 		if i == 0 && name != "" {
-			t.appendFromSource(r.lastNewlineOrNodePos)
+			var (
+				lastCommentEndPos = p
+				lastIndent        bool
+			)
+			for v := range t.iterWhite(p, n.Pos()) {
+				lastIndent = false
+				switch v.whiteType {
+				case whiteWhite:
+				case whiteIndent:
+					lastIndent = true
+					lastCommentEndPos = v.pos
+				case whiteComment:
+					lastCommentEndPos = v.end()
+				case whiteSemi:
+				default:
+					panic("unreachable")
+				}
+			}
+
+			t.appendFromSource(lastCommentEndPos)
 			t.wantIndent(0)
 			t.appendSource(t.tgoIdent)
 			t.appendSource(" := ")
 			t.appendSource(name)
 			if !t.isTgo(n) {
-				t.wantIndent(0)
+				ld = lineDirectiveOneLineRSpace
+				if lastIndent {
+					ld = lineDirectiveFullLine
+				} else {
+					t.wantIndent(0)
+				}
 			}
 			t.lineDirectiveMangled = true
-			// TODO: line comment bez spacji na początku
+			r.lastNewlineOrNodePos = lastCommentEndPos
 		}
 
 		// TODO: chyba najlepiej bd wyniesć ten endtag gdzies wysoko?
@@ -508,7 +562,7 @@ func (t *transpiler) transpileList(additionalIndent int, lastIndentLine int, lis
 			_, isEndTag := n.(*ast.EndTagStmt)
 			if !t.isTgo(prev) && !(isEndTag && wasLabeled) || (wasLabeled && !isEndTag && t.isTgo(prev)) {
 				if t.isTgo(prev) {
-					t.writeLineDirective(r.onelineDirective, !r.firstWhite, t.lastPosWritten)
+					t.writeLineDirective(ld, t.lastPosWritten)
 				}
 				t.appendFromSource(r.lastNewlineOrNodePos)
 			}
@@ -523,7 +577,7 @@ func (t *transpiler) transpileList(additionalIndent int, lastIndentLine int, lis
 			if t.lineDirectiveMangled {
 				t.inStaticWrite = false
 				t.lineDirectiveMangled = false
-				t.writeLineDirective(r.onelineDirective, !r.firstWhite, t.lastPosWritten)
+				t.writeLineDirective(ld, t.lastPosWritten)
 			}
 		}
 
@@ -567,8 +621,15 @@ func (t *transpiler) transpileList(additionalIndent int, lastIndentLine int, lis
 				if t.lineDirectiveMangled {
 					before := t.lastIndentation
 					r := t.whiteAlg(t.lastPosWritten, orig.Pos())
+					ld := lineDirectiveFullLine
+					if r.onelineDirective {
+						ld = lineDirectiveOneLineLSpace
+						if r.firstWhite {
+							ld = lineDirectiveOneLineLRSpace
+						}
+					}
 					t.lastIndentation = before
-					t.writeLineDirective(r.onelineDirective, !r.firstWhite, t.lastPosWritten)
+					t.writeLineDirective(ld, t.lastPosWritten)
 				}
 				t.appendFromSource(r.lastNewlineOrNodePos)
 			}
@@ -699,7 +760,7 @@ func (t *transpiler) dynamicWriteIndent(additionalIndent int, x *ast.TemplateLit
 		prev = v
 	}
 
-	t.writeLineDirective(true, true, lineDirectivePos)
+	t.writeLineDirective(lineDirectiveOneLineLRSpace, lineDirectivePos)
 
 	// TODO: figure out whether t.lineDirectiveMangled behaves right with this.
 

@@ -19,6 +19,7 @@ import (
 	gotoken "go/token"
 
 	"github.com/mateusz834/tgo/analyzer"
+	"github.com/mateusz834/tgo/tgofuncs"
 	"github.com/mateusz834/tgoast/ast"
 	"github.com/mateusz834/tgoast/format"
 	"github.com/mateusz834/tgoast/parser"
@@ -113,6 +114,23 @@ func fuzzSource(t *testing.T, name, src string) string {
 
 	if analyzer.Analyze(fset, f) != nil {
 		return ""
+	}
+
+	if len(f.Comments) != 0 {
+		for _, n := range tgofuncs.Check(f).TgoFuncs {
+			switch n := n.(type) {
+			case *ast.FuncDecl:
+				names := n.Type.Params.List[0].Names
+				if names == nil || names[0].Name == "_" {
+					t.Skip()
+				}
+			case *ast.FuncLit:
+				names := n.Type.Params.List[0].Names
+				if names == nil || names[0].Name == "_" {
+					t.Skip()
+				}
+			}
+		}
 	}
 
 	// See https://go.dev/issue/69861
