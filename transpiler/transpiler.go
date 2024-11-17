@@ -544,11 +544,14 @@ func (t *transpiler) transpileList(additionalIndent int, lastIndentLine int, lis
 			var (
 				lastCommentEndPos = p
 				lastIndent        bool
+				lastWhite         bool
 			)
 			for v := range t.iterWhite(p, n.Pos()) {
 				lastIndent = false
+				lastWhite = false
 				switch v.whiteType {
 				case whiteWhite:
+					lastWhite = true
 				case whiteIndent:
 					lastIndent = true
 					lastCommentEndPos = v.pos
@@ -571,6 +574,9 @@ func (t *transpiler) transpileList(additionalIndent int, lastIndentLine int, lis
 				ld = lineDirectiveOneLineRSpace
 				if lastIndent {
 					ld = lineDirectiveFullLine
+				} else if lastWhite {
+					ld = lineDirectiveOneLine
+					t.wantIndent(0)
 				} else {
 					t.wantIndent(0)
 				}
