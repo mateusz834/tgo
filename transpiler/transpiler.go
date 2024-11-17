@@ -240,9 +240,9 @@ func (t *transpiler) addLineDirectiveBeforeRbrace(rbracePos token.Pos) {
 	}
 }
 
-func (t *transpiler) tgoFunc(n ast.Node, funcType *ast.FuncType, body *ast.BlockStmt) bool {
+func (t *transpiler) tgoFunc(n ast.Node, funcType *ast.FuncType, body *ast.BlockStmt) {
 	if body == nil {
-		return false
+		return
 	}
 	if _, ok := t.ctx.tgofuncs[n]; ok {
 		needsCtx := false
@@ -257,11 +257,13 @@ func (t *transpiler) tgoFunc(n ast.Node, funcType *ast.FuncType, body *ast.Block
 			return true
 		})
 		if !needsCtx {
-			ast.Walk(t, body)
-			return true
+			ast.Walk(&transpiler{
+				ctx:             t.ctx,
+				lastIndentation: t.lastIndentation + "\t",
+				inTgoFunc:       true,
+			}, body)
+			return
 		}
-
-		t.lastIndentation += "\t"
 
 		params := funcType.Params
 		param := params.List[0]
@@ -281,15 +283,29 @@ func (t *transpiler) tgoFunc(n ast.Node, funcType *ast.FuncType, body *ast.Block
 			t.writeLineDirective(ld, params.List[0].Names[0].End())
 			t.appendFromSource(params.Closing)
 		} else {
+			t := &transpiler{
+				ctx:             t.ctx,
+				lastIndentation: t.lastIndentation + "\t",
+				inTgoFunc:       true,
+			}
 			t.appendFromSource(body.Lbrace + 1)
 			t.transpileList(0, -1, body.List, params.List[0].Names[0].Name)
 			t.addLineDirectiveBeforeRbrace(body.Rbrace)
 			t.appendFromSource(body.Rbrace + 1)
-			return false
+			return
 		}
+		ast.Walk(&transpiler{
+			ctx:             t.ctx,
+			lastIndentation: t.lastIndentation + "\t",
+			inTgoFunc:       true,
+		}, body)
+		return
 	}
-	ast.Walk(t, body)
-	return true
+	ast.Walk(&transpiler{
+		ctx:             t.ctx,
+		lastIndentation: t.lastIndentation + "\t",
+		inTgoFunc:       false,
+	}, body)
 }
 
 func (t *transpiler) Visit(n ast.Node) ast.Visitor {
@@ -501,6 +517,7 @@ func (t *transpiler) transpileList(additionalIndent int, lastIndentLine int, lis
 		prev      ast.Node
 		bodyScope = make([]scopeState, 0, 16)
 	)
+	before := t.lastIndentation
 	for i, n := range list {
 		orig := n
 		p := t.ctx.lastPosWritten
@@ -544,6 +561,8 @@ func (t *transpiler) transpileList(additionalIndent int, lastIndentLine int, lis
 			}
 
 			t.appendFromSource(lastCommentEndPos)
+			tmp := t.lastIndentation
+			t.lastIndentation = before
 			t.wantIndent(0)
 			t.appendSource(t.ctx.tgoIdent)
 			t.appendSource(" := ")
@@ -556,6 +575,7 @@ func (t *transpiler) transpileList(additionalIndent int, lastIndentLine int, lis
 					t.wantIndent(0)
 				}
 			}
+			t.lastIndentation = tmp
 			t.ctx.lineDirectiveMangled = true
 			r.lastNewlineOrNodePos = lastCommentEndPos
 		}
