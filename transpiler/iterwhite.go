@@ -39,7 +39,7 @@ func (i *iterWhiteResult) end() token.Pos {
 func (t *transpiler) iterWhite(start, end token.Pos) iter.Seq[iterWhiteResult] {
 	return func(yield func(iterWhiteResult) bool) {
 		last := start
-		for _, v := range t.f.Comments {
+		for _, v := range t.ctx.f.Comments {
 			if v.Pos() < start {
 				continue
 			}
@@ -47,7 +47,7 @@ func (t *transpiler) iterWhite(start, end token.Pos) iter.Seq[iterWhiteResult] {
 				break
 			}
 			for _, v := range v.List {
-				if !t.yieldIndent(t.src, last, v.Pos(), yield) {
+				if !t.yieldIndent(t.ctx.src, last, v.Pos(), yield) {
 					return
 				}
 				if !yield(iterWhiteResult{whiteComment, v.Pos(), v.Text}) {
@@ -56,7 +56,7 @@ func (t *transpiler) iterWhite(start, end token.Pos) iter.Seq[iterWhiteResult] {
 				last = v.End()
 			}
 		}
-		t.yieldIndent(t.src, last, end, yield)
+		t.yieldIndent(t.ctx.src, last, end, yield)
 	}
 }
 
@@ -91,7 +91,7 @@ func (t *transpiler) yieldIndent(src string, start, end token.Pos, yield func(it
 		case ' ', '\t', '\r':
 			continue
 		default:
-			panic(fmt.Sprintf("%v unreachable: %q", t.fs.PositionFor(t.offsetToPos(i), false), src[i]))
+			panic(fmt.Sprintf("%v unreachable: %q", t.ctx.fs.PositionFor(t.offsetToPos(i), false), src[i]))
 		}
 	}
 	if len(src[lastSrcPos:endSrcPos]) > 0 {

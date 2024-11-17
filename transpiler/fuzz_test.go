@@ -26,7 +26,11 @@ import (
 	"github.com/mateusz834/tgoast/token"
 )
 
-func fuzzAddDir(f *testing.F, testdata string) {
+func fuzzAddDir(f *testing.F, testdata string, transform func(string) string) {
+	if transform == nil {
+		transform = func(s string) string { return s }
+	}
+
 	files, err := os.ReadDir(testdata)
 	if err != nil {
 		f.Fatal(err)
@@ -41,34 +45,23 @@ func fuzzAddDir(f *testing.F, testdata string) {
 		if err != nil {
 			f.Fatal(err)
 		}
-		f.Add(testFile, string(content))
+		f.Add(testFile, transform(string(content)))
 	}
 }
 
 func FuzzFormattedTgoProducesFormattedGoSource(f *testing.F) {
-	fuzzAddDir(f, "../../tgoast/printer/testdata/tgo")
-	fuzzAddDir(f, "../../tgoast/parser/testdata/tgo")
-	fuzzAddDir(f, "../../tgoast/printer")
-	fuzzAddDir(f, "../../tgoast/printer/testdata")
-	fuzzAddDir(f, "../../tgoast/parser")
-	fuzzAddDir(f, "../../tgoast/parser/testdata")
-	fuzzAddDir(f, "../../tgoast/ast")
-	fuzzAddDir(f, "../analyzer/testdata")
-	fuzzAddDir(f, "../tgofuncs/testdata")
-
-	f.Add("a", `package main
-
-func a() {
-	"000"
-	//
-}
-`)
-
-	f.Add("a", `
-
-// test
-package main
-`)
+	fuzzAddDir(f, "../../tgoast/printer/testdata/tgo", nil)
+	fuzzAddDir(f, "../../tgoast/parser/testdata/tgo", nil)
+	fuzzAddDir(f, "../../tgoast/printer", nil)
+	fuzzAddDir(f, "../../tgoast/printer/testdata", nil)
+	fuzzAddDir(f, "../../tgoast/parser", nil)
+	fuzzAddDir(f, "../../tgoast/parser/testdata", nil)
+	fuzzAddDir(f, "../../tgoast/ast", nil)
+	fuzzAddDir(f, "../analyzer/testdata", nil)
+	fuzzAddDir(f, "../tgofuncs/testdata", nil)
+	fuzzAddDir(f, "./testdata", func(s string) string {
+		return strings.Split(s, "======\n")[0]
+	})
 
 	f.Fuzz(func(t *testing.T, name string, src string) {
 		fmted := fuzzSource(t, name, src)
