@@ -34,9 +34,8 @@ func Transpile(f *ast.File, fs *token.FileSet, src string) string {
 			transpileableBasicLits: transpilableBasicLits(tgofuncs, f),
 
 			out: slices.Grow([]byte{}, len(src)*2),
-
-			lastIndentation: "\n",
 		},
+		lastIndentation: "\n",
 	}
 	t.transpile()
 	if len(t.ctx.tmp) != 0 {
@@ -69,15 +68,13 @@ type transpilerCtx struct {
 
 	inStaticWrite bool // if true, then inside of a static string write call.
 
-	lastIndentation string // last indentation found in the source, prefixed with a newline.
-
 	implicitBlockStmtCount            int
 	implicitBlockStmtForceCloseBefore int
 }
 
 type transpiler struct {
 	ctx             *transpilerCtx
-	lastIndentation string
+	lastIndentation string // last indentation found in the source, prefixed with a newline.
 	inTgoFunc       bool
 }
 
@@ -164,7 +161,7 @@ func (t *transpiler) transpile() {
 		// we need to do this differenlty and better
 	}
 
-	ast.Inspect(t.ctx.f, t.inspect)
+	ast.Walk(t, t.ctx.f)
 	t.appendFromSource(t.ctx.f.FileEnd)
 
 	needsErrorAssert := false
@@ -214,7 +211,7 @@ func (t *transpiler) addLineDirectiveBeforeRbrace(rbracePos token.Pos) {
 					firstWhite = true
 				}
 			case whiteIndent:
-				t.ctx.lastIndentation = v.text
+				t.lastIndentation = v.text
 				beforeNewline = false
 			case whiteComment:
 				if beforeNewline {
@@ -244,6 +241,9 @@ func (t *transpiler) addLineDirectiveBeforeRbrace(rbracePos token.Pos) {
 }
 
 func (t *transpiler) tgoFunc(n ast.Node, funcType *ast.FuncType, body *ast.BlockStmt) bool {
+	if body == nil {
+		return false
+	}
 	if _, ok := t.ctx.tgofuncs[n]; ok {
 		needsCtx := false
 		ast.Inspect(n, func(x ast.Node) bool {
@@ -257,10 +257,11 @@ func (t *transpiler) tgoFunc(n ast.Node, funcType *ast.FuncType, body *ast.Block
 			return true
 		})
 		if !needsCtx {
+			ast.Walk(t, body)
 			return true
 		}
 
-		t.ctx.lastIndentation += "\t"
+		t.lastIndentation += "\t"
 
 		params := funcType.Params
 		param := params.List[0]
@@ -287,28 +288,31 @@ func (t *transpiler) tgoFunc(n ast.Node, funcType *ast.FuncType, body *ast.Block
 			return false
 		}
 	}
+	ast.Walk(t, body)
 	return true
 }
 
-func (t *transpiler) inspect(n ast.Node) bool {
+func (t *transpiler) Visit(n ast.Node) ast.Visitor {
 	t.ctx.inStaticWrite = false
 	defer func() {
 		t.ctx.inStaticWrite = false
 	}()
 	switch n := n.(type) {
 	case *ast.FuncDecl:
-		return t.tgoFunc(n, n.Type, n.Body)
+		t.tgoFunc(n, n.Type, n.Body)
+		return nil
 	case *ast.FuncLit:
-		return t.tgoFunc(n, n.Type, n.Body)
+		t.tgoFunc(n, n.Type, n.Body)
+		return nil
 	case *ast.BlockStmt:
 		// TODO: line directive before this and what about *ast.SwitchStmt and TypeSwitchStmt.ctx.
 		t.appendFromSource(n.Lbrace + 1)
 		t.transpileList(0, -1, n.List, "")
 		t.addLineDirectiveBeforeRbrace(n.Rbrace)
 		t.appendFromSource(n.Rbrace + 1)
-		return false
+		return nil
 	}
-	return true
+	return t
 }
 
 type lineDirective uint8
@@ -360,7 +364,7 @@ func (t *transpiler) writeLineDirective(ld lineDirective, pos token.Pos) {
 }
 
 func (t *transpiler) appendIndent(b []byte, additionalIndent int) []byte {
-	b = append(b, t.ctx.lastIndentation...)
+	b = append(b, t.lastIndentation...)
 	for range additionalIndent {
 		b = append(b, '\t')
 	}
@@ -372,7 +376,7 @@ func (t *transpiler) wantIndent(additionalIndent int) {
 		fmt.Printf(
 			"t.ctx.wantIndent(%v): appending %q\n",
 			additionalIndent,
-			t.ctx.lastIndentation+strings.Repeat("\t", additionalIndent),
+			t.lastIndentation+strings.Repeat("\t", additionalIndent),
 		)
 	}
 	t.flushTmp()
@@ -468,7 +472,7 @@ func (t *transpiler) whiteAlg(start, end token.Pos) whiteAlgResult {
 				firstWhite = true
 			}
 		case whiteIndent:
-			t.ctx.lastIndentation = v.text
+			t.lastIndentation = v.text
 			beforeNewline = false
 			lastNewlineOrNodePos = v.pos
 		case whiteComment:
@@ -600,7 +604,7 @@ func (t *transpiler) transpileList(additionalIndent int, lastIndentLine int, lis
 
 			for v := range t.iterWhite(t.ctx.lastPosWritten, n.ClosePos) {
 				if v.whiteType == whiteIndent {
-					t.ctx.lastIndentation = v.text
+					t.lastIndentation = v.text
 				} else {
 					continue
 					// TODO: figure case this out.ctx.
@@ -622,7 +626,7 @@ func (t *transpiler) transpileList(additionalIndent int, lastIndentLine int, lis
 
 			if wasLabeled {
 				if t.ctx.lineDirectiveMangled {
-					before := t.ctx.lastIndentation
+					before := t.lastIndentation
 					r := t.whiteAlg(t.ctx.lastPosWritten, orig.Pos())
 					ld := lineDirectiveFullLine
 					if r.onelineDirective {
@@ -631,7 +635,7 @@ func (t *transpiler) transpileList(additionalIndent int, lastIndentLine int, lis
 							ld = lineDirectiveOneLineLRSpace
 						}
 					}
-					t.ctx.lastIndentation = before
+					t.lastIndentation = before
 					t.writeLineDirective(ld, t.ctx.lastPosWritten)
 				}
 				t.appendFromSource(r.lastNewlineOrNodePos)
@@ -680,24 +684,24 @@ func (t *transpiler) transpileList(additionalIndent int, lastIndentLine int, lis
 			} else if x, ok := n.X.(*ast.TemplateLiteralExpr); ok {
 				t.transpileTemplateLiteral(additionalIndent, x)
 			} else {
-				ast.Inspect(n, t.inspect)
+				ast.Walk(t, n)
 				t.appendFromSource(n.End())
 				t.ctx.lastPosWritten = n.End()
 			}
 		case *ast.CaseClause:
 			for _, v := range n.List {
-				ast.Inspect(v, t.inspect)
+				ast.Walk(t, v)
 			}
 			t.appendFromSource(n.Colon + 1)
 			t.transpileList(additionalIndent+1, lastIndentLine, n.Body, "")
 		case *ast.CommClause:
 			if n.Comm != nil {
-				ast.Inspect(n.Comm, t.inspect)
+				ast.Walk(t, n.Comm)
 			}
 			t.appendFromSource(n.Colon + 1)
 			t.transpileList(additionalIndent+1, lastIndentLine, n.Body, "")
 		default:
-			ast.Inspect(n, t.inspect)
+			ast.Walk(t, n)
 			t.appendFromSource(n.End())
 			t.ctx.lastPosWritten = n.End()
 		}
@@ -768,9 +772,9 @@ func (t *transpiler) dynamicWriteIndent(additionalIndent int, x *ast.TemplateLit
 	// TODO: figure out whether t.ctx.lineDirectiveMangled behaves right with this.
 
 	t.appendFromSource(n.X.Pos())
-	indent := t.ctx.lastIndentation
-	ast.Inspect(n.X, t.inspect)
-	t.ctx.lastIndentation = indent
+	indent := t.lastIndentation
+	ast.Walk(t, n)
+	t.lastIndentation = indent
 	t.appendFromSource(n.End() - 1)
 
 	t.appendSource(")); err != nil {")
