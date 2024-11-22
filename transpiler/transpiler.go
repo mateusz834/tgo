@@ -28,10 +28,9 @@ func Transpile(f *ast.File, fs *token.FileSet, src string) string {
 			fs:  fs,
 			src: src,
 
-			tgofuncs:               tgofuncs,
-			tgoIdent:               fileUniqueIdent(f, "__tgo_ctx"),
-			info:                   info,
-			transpileableBasicLits: transpilableBasicLits(tgofuncs, f),
+			tgofuncs: tgofuncs,
+			tgoIdent: fileUniqueIdent(f, "__tgo_ctx"),
+			info:     info,
 
 			out: slices.Grow([]byte{}, len(src)*2),
 		},
@@ -56,7 +55,6 @@ type transpilerCtx struct {
 	info                    tgofuncs.Info
 	tgoIdent                string
 	tgoAddtionalImportIdent string
-	transpileableBasicLits  map[*ast.BasicLit]struct{}
 
 	lastPosWritten token.Pos // last position processed by the transpiler of the src.
 
@@ -211,7 +209,7 @@ func (t *transpiler) addLineDirectiveBeforeRbrace(rbracePos token.Pos) {
 					firstWhite = true
 				}
 			case whiteIndent:
-				t.lastIndentation = v.text
+				//t.lastIndentation = v.text
 				beforeNewline = false
 			case whiteComment:
 				if beforeNewline {
@@ -244,10 +242,13 @@ func (t *transpiler) tgoFunc(n ast.Node, funcType *ast.FuncType, body *ast.Block
 	if body == nil {
 		return
 	}
+
+	indentation := t.blockIndent(body)
+
 	if _, ok := t.ctx.tgofuncs[n]; ok {
 		needsCtx := false
 		ast.Inspect(n, func(x ast.Node) bool {
-			if t.isTgo(x) {
+			if isTgo(x, true) {
 				needsCtx = true
 				return false
 			}
@@ -259,7 +260,7 @@ func (t *transpiler) tgoFunc(n ast.Node, funcType *ast.FuncType, body *ast.Block
 		if !needsCtx {
 			ast.Walk(&transpiler{
 				ctx:             t.ctx,
-				lastIndentation: t.lastIndentation + "\t",
+				lastIndentation: indentation,
 				inTgoFunc:       true,
 			}, body)
 			return
@@ -285,25 +286,25 @@ func (t *transpiler) tgoFunc(n ast.Node, funcType *ast.FuncType, body *ast.Block
 		} else {
 			t := &transpiler{
 				ctx:             t.ctx,
-				lastIndentation: t.lastIndentation + "\t",
+				lastIndentation: indentation,
 				inTgoFunc:       true,
 			}
 			t.appendFromSource(body.Lbrace + 1)
-			t.transpileList(0, -1, body.List, params.List[0].Names[0].Name)
+			t.transpileList(0, body.List, params.List[0].Names[0].Name)
 			t.addLineDirectiveBeforeRbrace(body.Rbrace)
 			t.appendFromSource(body.Rbrace + 1)
 			return
 		}
 		ast.Walk(&transpiler{
 			ctx:             t.ctx,
-			lastIndentation: t.lastIndentation + "\t",
+			lastIndentation: indentation,
 			inTgoFunc:       true,
 		}, body)
 		return
 	}
 	ast.Walk(&transpiler{
 		ctx:             t.ctx,
-		lastIndentation: t.lastIndentation + "\t",
+		lastIndentation: indentation,
 		inTgoFunc:       false,
 	}, body)
 }
@@ -322,8 +323,13 @@ func (t *transpiler) Visit(n ast.Node) ast.Visitor {
 		return nil
 	case *ast.BlockStmt:
 		// TODO: line directive before this and what about *ast.SwitchStmt and TypeSwitchStmt.ctx.
+		t := &transpiler{
+			ctx:             t.ctx,
+			lastIndentation: t.blockIndent(n),
+			inTgoFunc:       t.inTgoFunc,
+		}
 		t.appendFromSource(n.Lbrace + 1)
-		t.transpileList(0, -1, n.List, "")
+		t.transpileList(0, n.List, "")
 		t.addLineDirectiveBeforeRbrace(n.Rbrace)
 		t.appendFromSource(n.Rbrace + 1)
 		return nil
@@ -399,15 +405,14 @@ func (t *transpiler) wantIndent(additionalIndent int) {
 	t.ctx.out = t.appendIndent(t.ctx.out, additionalIndent)
 }
 
-func (t *transpiler) isTgo(n ast.Node) bool {
+func isTgo(n ast.Node, inTgoFunc bool) bool {
 	switch n := n.(type) {
 	case *ast.OpenTagStmt, *ast.EndTagStmt, *ast.AttributeStmt:
 		return true
 	case *ast.ExprStmt:
 		x, isBasicLit := n.X.(*ast.BasicLit)
-		_, isTranspilable := t.ctx.transpileableBasicLits[x]
 		_, isTemplate := n.X.(*ast.TemplateLiteralExpr)
-		return (isBasicLit && x.Kind == token.STRING && isTranspilable) || isTemplate
+		return (isBasicLit && x.Kind == token.STRING && inTgoFunc) || isTemplate
 	}
 	return false
 }
@@ -488,7 +493,7 @@ func (t *transpiler) whiteAlg(start, end token.Pos) whiteAlgResult {
 				firstWhite = true
 			}
 		case whiteIndent:
-			t.lastIndentation = v.text
+			//t.lastIndentation = v.text
 			beforeNewline = false
 			lastNewlineOrNodePos = v.pos
 		case whiteComment:
@@ -512,7 +517,7 @@ func (t *transpiler) whiteAlg(start, end token.Pos) whiteAlgResult {
 	}
 }
 
-func (t *transpiler) transpileList(additionalIndent int, lastIndentLine int, list []ast.Stmt, name string) {
+func (t *transpiler) transpileList(additionalIndent int, list []ast.Stmt, name string) {
 	var (
 		prev      ast.Node
 		bodyScope = make([]scopeState, 0, 16)
@@ -522,7 +527,7 @@ func (t *transpiler) transpileList(additionalIndent int, lastIndentLine int, lis
 		orig := n
 		p := t.ctx.lastPosWritten
 		wasLabeled := false
-		if unlabeled, lastLabelEndPos := unlabel(n); lastLabelEndPos.IsValid() && t.isTgo(unlabeled) {
+		if unlabeled, lastLabelEndPos := unlabel(n); lastLabelEndPos.IsValid() && isTgo(unlabeled, t.inTgoFunc) {
 			p = lastLabelEndPos
 			n = unlabeled
 			wasLabeled = true
@@ -531,6 +536,9 @@ func (t *transpiler) transpileList(additionalIndent int, lastIndentLine int, lis
 		}
 
 		r := t.whiteAlg(p, n.Pos())
+		if len(t.lastIndentation) > len(before) {
+			before = t.lastIndentation
+		}
 
 		ld := lineDirectiveFullLine
 		if r.onelineDirective {
@@ -570,7 +578,7 @@ func (t *transpiler) transpileList(additionalIndent int, lastIndentLine int, lis
 			t.appendSource(t.ctx.tgoIdent)
 			t.appendSource(" := ")
 			t.appendSource(name)
-			if !t.isTgo(n) {
+			if !isTgo(n, t.inTgoFunc) {
 				ld = lineDirectiveOneLineRSpace
 				if lastIndent {
 					ld = lineDirectiveFullLine
@@ -588,13 +596,13 @@ func (t *transpiler) transpileList(additionalIndent int, lastIndentLine int, lis
 
 		// TODO: chyba najlepiej bd wyniesć ten endtag gdzies wysoko?
 
-		if t.isTgo(n) {
+		if isTgo(n, t.inTgoFunc) {
 			// When previous node was non-tgo and now we have a tgo node,
 			// preserve whitespace, comments and semicolons up to last newline
 			// (or up to n.Pos() if no newline found between prev and n).
 			_, isEndTag := n.(*ast.EndTagStmt)
-			if !t.isTgo(prev) && !(isEndTag && wasLabeled) || (wasLabeled && !isEndTag && t.isTgo(prev)) {
-				if t.isTgo(prev) {
+			if !isTgo(prev, t.inTgoFunc) && !(isEndTag && wasLabeled) || (wasLabeled && !isEndTag && isTgo(prev, t.inTgoFunc)) {
+				if isTgo(prev, t.inTgoFunc) {
 					t.writeLineDirective(ld, t.ctx.lastPosWritten)
 				}
 				t.appendFromSource(r.lastNewlineOrNodePos)
@@ -616,17 +624,12 @@ func (t *transpiler) transpileList(additionalIndent int, lastIndentLine int, lis
 
 		switch n := n.(type) {
 		case *ast.OpenTagStmt:
-			if t.ctx.fs.Position(n.Pos()).Line != lastIndentLine {
-				additionalIndent = 0
-			}
-			lastIndentLine = t.ctx.fs.Position(n.Pos()).Line
-
 			t.staticWriteIndent(additionalIndent, "<")
 			t.staticWriteIndent(additionalIndent, n.Name.Name)
 
 			tagScope := t.scopeStart(additionalIndent)
 			t.ctx.lastPosWritten = n.Name.End()
-			t.transpileList(additionalIndent+1, lastIndentLine, n.Body, "")
+			t.transpileList(additionalIndent+1, n.Body, "")
 
 			for v := range t.iterWhite(t.ctx.lastPosWritten, n.ClosePos) {
 				if v.whiteType == whiteIndent {
@@ -672,10 +675,6 @@ func (t *transpiler) transpileList(additionalIndent int, lastIndentLine int, lis
 			t.staticWriteIndent(additionalIndent, ">")
 			t.ctx.lastPosWritten = n.End()
 		case *ast.AttributeStmt:
-			if t.ctx.fs.Position(n.Pos()).Line != lastIndentLine {
-				additionalIndent = 0
-			}
-			lastIndentLine = t.ctx.fs.Position(n.Pos()).Line
 			if n.Value != nil {
 				switch x := n.Value.(type) {
 				case *ast.BasicLit:
@@ -695,13 +694,8 @@ func (t *transpiler) transpileList(additionalIndent int, lastIndentLine int, lis
 			}
 			t.ctx.lastPosWritten = n.End()
 		case *ast.ExprStmt:
-			// TODO: we might transpile in non-tgo func.
-			if t.ctx.fs.Position(n.Pos()).Line != lastIndentLine {
-				additionalIndent = 0
-			}
-			lastIndentLine = t.ctx.fs.Position(n.Pos()).Line
 			if x, ok := n.X.(*ast.BasicLit); ok && x.Kind == token.STRING {
-				if _, ok := t.ctx.transpileableBasicLits[x]; ok {
+				if t.inTgoFunc {
 					t.staticWriteIndentGoString(additionalIndent, x.Value)
 					t.ctx.lastPosWritten = n.End()
 				} else {
@@ -719,13 +713,13 @@ func (t *transpiler) transpileList(additionalIndent int, lastIndentLine int, lis
 				ast.Walk(t, v)
 			}
 			t.appendFromSource(n.Colon + 1)
-			t.transpileList(additionalIndent+1, lastIndentLine, n.Body, "")
+			t.transpileList(additionalIndent, n.Body, "")
 		case *ast.CommClause:
 			if n.Comm != nil {
 				ast.Walk(t, n.Comm)
 			}
 			t.appendFromSource(n.Colon + 1)
-			t.transpileList(additionalIndent+1, lastIndentLine, n.Body, "")
+			t.transpileList(additionalIndent, n.Body, "")
 		default:
 			ast.Walk(t, n)
 			t.appendFromSource(n.End())
@@ -872,36 +866,24 @@ func fileUniqueIdent(f *ast.File, defaultIdent string) string {
 	panic("unreachable")
 }
 
-func transpilableBasicLits(tgofuncs map[ast.Node]struct{}, f *ast.File) map[*ast.BasicLit]struct{} {
-	a := &basicLitAnalyzer{
-		tgofuncs: tgofuncs,
-		out:      make(map[*ast.BasicLit]struct{}),
+func (t *transpiler) blockIndent(b *ast.BlockStmt) string {
+	start := b.Lbrace + 1
+	if len(b.List) != 0 {
+		start = b.List[len(b.List)-1].End()
 	}
-	ast.Walk(a, f)
-	return a.out
-}
 
-type basicLitAnalyzer struct {
-	tgofuncs map[ast.Node]struct{}
-	out      map[*ast.BasicLit]struct{}
-	inTgo    bool
-}
-
-func (a *basicLitAnalyzer) Visit(n ast.Node) ast.Visitor {
-	switch n := n.(type) {
-	case *ast.FuncDecl, *ast.FuncLit:
-		_, isTgo := a.tgofuncs[n]
-		return &basicLitAnalyzer{
-			tgofuncs: a.tgofuncs,
-			out:      a.out,
-			inTgo:    isTgo,
-		}
-	case *ast.ExprStmt:
-		if a.inTgo {
-			if v, ok := n.X.(*ast.BasicLit); ok && v.Kind == token.STRING {
-				a.out[v] = struct{}{}
-			}
+	lastIndent := ""
+	for v := range t.iterWhite(start, b.Rbrace) {
+		lastIndent = ""
+		switch v.whiteType {
+		case whiteIndent:
+			lastIndent = v.text
 		}
 	}
-	return a
+
+	if lastIndent != "" {
+		return lastIndent + "\t"
+	}
+
+	return t.lastIndentation + "\t"
 }

@@ -37,10 +37,23 @@ import (
 //const testSrc = "package A\nimport()\nfunc()A()(...A)"
 
 // TODO no semi before ""?
-//const testSrc = `package A
-//import"github.com/mateusz834/tgo"
-//func A(tgo.Ctx)error{<div>
-//A:""</div>}
+// const testSrc = `package A
+// import"github.com/mateusz834/tgo"
+// func A(tgo.Ctx)error{<div>
+// A:""</div>}
+// `
+
+//const testSrc = `package test
+//import "github.com/mateusz834/tgo"
+//func a(tgo.Ctx) error {
+//	switch a {
+//	case "lol":
+//		<div>"\{a}"</div>
+//	}
+//	if true {
+//		<div>"\{a}"</div>
+//	}
+//}
 //`
 //
 //func TestTest(t *testing.T) {
@@ -154,6 +167,7 @@ func TestTranspile(t *testing.T) {
 			gofset := gotoken.NewFileSet()
 			gof, err := goparser.ParseFile(gofset, "test.go", out, goparser.ParseComments|goparser.SkipObjectResolution)
 			if err != nil {
+				t.Logf("source:\n%s", tgo)
 				t.Logf("transpiled:\n%s", out)
 				t.Fatalf("failed to parse transpiled source: %v", err)
 			}
@@ -161,6 +175,8 @@ func TestTranspile(t *testing.T) {
 			var goFmted strings.Builder
 			goPrinterConfig.Fprint(&goFmted, gofset, gof)
 			if fmt && goFmted.String() != out {
+				t.Logf("source:\n%s", tgo)
+				t.Log(gitDiff(t.TempDir(), out, goFmted.String()))
 				t.Fatalf("transpiled output not formatted:\n%s\nwant:\n%s", out, goFmted.String())
 			}
 
