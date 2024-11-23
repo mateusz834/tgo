@@ -190,52 +190,8 @@ var _ = (*tgo.Error)((*error)(nil))
 
 func (t *transpiler) addLineDirectiveBeforeRbrace(rbracePos token.Pos) {
 	if t.ctx.lineDirectiveMangled {
-		var (
-			onelineDirective = t.ctx.fs.Position(t.ctx.lastPosWritten).Line == t.ctx.fs.Position(rbracePos).Line
-
-			// Note that the current implementation is wrong in case of a multiline
-			// comment, it is not a problem for what we are using it now.
-			beforeNewline = true
-
-			firstWhite = false
-			afterFirst = false
-		)
-		for v := range t.iterWhite(t.ctx.lastPosWritten, rbracePos) {
-			switch v.whiteType {
-			case whiteWhite:
-				if beforeNewline {
-					onelineDirective = true
-				}
-				if !afterFirst {
-					firstWhite = true
-				}
-			case whiteIndent:
-				//t.lastIndentation = v.text
-				beforeNewline = false
-			case whiteComment:
-				if beforeNewline {
-					onelineDirective = true
-				}
-			case whiteSemi:
-				if beforeNewline {
-					onelineDirective = true
-				}
-			default:
-				panic("unreachable")
-			}
-			afterFirst = true
-		}
-		t.ctx.inStaticWrite = false
-		t.ctx.lineDirectiveMangled = false
-
-		ld := lineDirectiveFullLine
-		if onelineDirective {
-			ld = lineDirectiveOneLineLSpace
-			if firstWhite {
-				ld = lineDirectiveOneLineLRSpace
-			}
-		}
-		t.writeLineDirective(ld, t.ctx.lastPosWritten)
+		r := t.whiteAlg(t.ctx.lastPosWritten, rbracePos)
+		t.writeLineDirective(r.ld, t.ctx.lastPosWritten)
 	}
 }
 
@@ -466,8 +422,7 @@ func unlabel(n ast.Stmt) (ast.Stmt, token.Pos) {
 }
 
 type whiteAlgResult struct {
-	onelineDirective     bool
-	firstWhite           bool
+	ld                   lineDirective
 	lastNewlineOrNodePos token.Pos
 }
 
@@ -511,9 +466,16 @@ func (t *transpiler) whiteAlg(start, end token.Pos) whiteAlgResult {
 		afterFirst = true
 	}
 
+	ld := lineDirectiveFullLine
+	if onelineDirective {
+		ld = lineDirectiveOneLineLRSpace
+		if firstWhite {
+			ld = lineDirectiveOneLineLSpace
+		}
+	}
+
 	return whiteAlgResult{
-		onelineDirective:     onelineDirective,
-		firstWhite:           firstWhite,
+		ld:                   ld,
 		lastNewlineOrNodePos: lastNewlineOrNodePos,
 	}
 }
@@ -539,14 +501,6 @@ func (t *transpiler) transpileList(list []ast.Stmt, name string) {
 		r := t.whiteAlg(p, n.Pos())
 		if len(t.lastIndentation) > len(before) {
 			before = t.lastIndentation
-		}
-
-		ld := lineDirectiveFullLine
-		if r.onelineDirective {
-			ld = lineDirectiveOneLineLSpace
-			if r.firstWhite {
-				ld = lineDirectiveOneLineLRSpace
-			}
 		}
 
 		if i == 0 && name != "" {
@@ -580,11 +534,11 @@ func (t *transpiler) transpileList(list []ast.Stmt, name string) {
 			t.appendSource(" := ")
 			t.appendSource(name)
 			if !isTgo(n, t.inTgoFunc) {
-				ld = lineDirectiveOneLineRSpace
+				r.ld = lineDirectiveOneLineRSpace
 				if lastIndent {
-					ld = lineDirectiveFullLine
+					r.ld = lineDirectiveFullLine
 				} else if lastWhite {
-					ld = lineDirectiveOneLine
+					r.ld = lineDirectiveOneLine
 					t.wantIndent()
 				} else {
 					t.wantIndent()
@@ -604,7 +558,7 @@ func (t *transpiler) transpileList(list []ast.Stmt, name string) {
 			_, isEndTag := n.(*ast.EndTagStmt)
 			if !isTgo(prev, t.inTgoFunc) && !(isEndTag && wasLabeled) || (wasLabeled && !isEndTag && isTgo(prev, t.inTgoFunc)) {
 				if isTgo(prev, t.inTgoFunc) {
-					t.writeLineDirective(ld, t.ctx.lastPosWritten)
+					t.writeLineDirective(r.ld, t.ctx.lastPosWritten)
 				}
 				t.appendFromSource(r.lastNewlineOrNodePos)
 			}
@@ -619,7 +573,7 @@ func (t *transpiler) transpileList(list []ast.Stmt, name string) {
 			if t.ctx.lineDirectiveMangled {
 				t.ctx.inStaticWrite = false
 				t.ctx.lineDirectiveMangled = false
-				t.writeLineDirective(ld, t.ctx.lastPosWritten)
+				t.writeLineDirective(r.ld, t.ctx.lastPosWritten)
 			}
 		}
 
@@ -661,15 +615,8 @@ func (t *transpiler) transpileList(list []ast.Stmt, name string) {
 				if t.ctx.lineDirectiveMangled {
 					before := t.lastIndentation
 					r := t.whiteAlg(t.ctx.lastPosWritten, orig.Pos())
-					ld := lineDirectiveFullLine
-					if r.onelineDirective {
-						ld = lineDirectiveOneLineLSpace
-						if r.firstWhite {
-							ld = lineDirectiveOneLineLRSpace
-						}
-					}
 					t.lastIndentation = before
-					t.writeLineDirective(ld, t.ctx.lastPosWritten)
+					t.writeLineDirective(r.ld, t.ctx.lastPosWritten)
 				}
 				t.appendFromSource(r.lastNewlineOrNodePos)
 			}
