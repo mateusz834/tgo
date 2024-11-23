@@ -48,14 +48,14 @@ func test() {
 		__tgo_ctx := tgo
 		if err := __tgo_ctx.WriteString("<div></div>"); err != nil {
 			return err
-		} /*line :7:42*/  }
+		} /*line :7:43*/ }
 }
 
 func test(tgo tgo.Ctx) error {
 	__tgo_ctx := tgo
 	if err := __tgo_ctx.WriteString("<div></div>"); err != nil {
 		return err
-	} /*line :10:42*/  }
+	} /*line :10:43*/ }
 
 func test() {
 	_ = func(tgo tgo.Ctx) error {
@@ -71,7 +71,7 @@ func test() {
 			if err := __tgo_ctx.WriteString("</div>"); err != nil {
 				return err
 			}
-		} /*line :13:56*/  }
+		} /*line :13:57*/ }
 }
 
 func test(tgo tgo.Ctx) error {
@@ -87,7 +87,7 @@ func test(tgo tgo.Ctx) error {
 		if err := __tgo_ctx.WriteString("</div>"); err != nil {
 			return err
 		}
-	} /*line :16:56*/  }
+	} /*line :16:57*/ }
 
 func test( __tgo_ctx /*line :18:11*/ tgo.Ctx) error {
 	if err := __tgo_ctx.WriteString("<div></div>"); err != nil {

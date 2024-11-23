@@ -192,6 +192,8 @@ func (t *transpiler) addLineDirectiveBeforeRbrace(rbracePos token.Pos) {
 	if t.ctx.lineDirectiveMangled {
 		r := t.whiteAlg(t.ctx.lastPosWritten, rbracePos)
 		t.writeLineDirective(r.ld, t.ctx.lastPosWritten)
+		t.ctx.inStaticWrite = false
+		t.ctx.lineDirectiveMangled = false
 	}
 }
 
@@ -342,9 +344,9 @@ func (t *transpiler) writeLineDirective(ld lineDirective, pos token.Pos) {
 	}
 }
 
-func (t *transpiler) appendIndent(b []byte, additionalIndent int) []byte {
+func (t *transpiler) appendIndent(b []byte) []byte {
 	b = append(b, t.lastIndentation...)
-	for range additionalIndent {
+	for range t.additionalIndent {
 		b = append(b, '\t')
 	}
 	return b
@@ -359,7 +361,7 @@ func (t *transpiler) wantIndent() {
 		)
 	}
 	t.flushTmp()
-	t.ctx.out = t.appendIndent(t.ctx.out, t.additionalIndent)
+	t.ctx.out = t.appendIndent(t.ctx.out)
 }
 
 func isTgo(n ast.Node, inTgoFunc bool) bool {
@@ -380,7 +382,7 @@ type scopeState struct {
 
 func (t *transpiler) scopeStart() scopeState {
 	beforeLen := len(t.ctx.tmp)
-	t.ctx.tmp = t.appendIndent(t.ctx.tmp, t.additionalIndent)
+	t.ctx.tmp = t.appendIndent(t.ctx.tmp)
 	t.ctx.tmp = append(t.ctx.tmp, '{')
 	t.ctx.implicitBlockStmtCount++
 	return scopeState{
@@ -390,7 +392,7 @@ func (t *transpiler) scopeStart() scopeState {
 
 func (t *transpiler) scopeEnd(s scopeState) {
 	if t.ctx.implicitBlockStmtCount <= t.ctx.implicitBlockStmtForceCloseBefore {
-		t.ctx.tmp = t.appendIndent(t.ctx.tmp, t.additionalIndent)
+		t.ctx.tmp = t.appendIndent(t.ctx.tmp)
 		t.ctx.tmp = append(t.ctx.tmp, '}')
 		t.ctx.implicitBlockStmtForceCloseBefore--
 	} else {
@@ -485,7 +487,6 @@ func (t *transpiler) transpileList(list []ast.Stmt, name string) {
 		prev      ast.Node
 		bodyScope = make([]scopeState, 0, 16)
 	)
-	before := t.lastIndentation
 	for i, n := range list {
 		orig := n
 		p := t.ctx.lastPosWritten
@@ -499,9 +500,6 @@ func (t *transpiler) transpileList(list []ast.Stmt, name string) {
 		}
 
 		r := t.whiteAlg(p, n.Pos())
-		if len(t.lastIndentation) > len(before) {
-			before = t.lastIndentation
-		}
 
 		if i == 0 && name != "" {
 			var (
@@ -527,8 +525,6 @@ func (t *transpiler) transpileList(list []ast.Stmt, name string) {
 			}
 
 			t.appendFromSource(lastCommentEndPos)
-			tmp := t.lastIndentation
-			t.lastIndentation = before
 			t.wantIndent()
 			t.appendSource(t.ctx.tgoIdent)
 			t.appendSource(" := ")
@@ -544,7 +540,6 @@ func (t *transpiler) transpileList(list []ast.Stmt, name string) {
 					t.wantIndent()
 				}
 			}
-			t.lastIndentation = tmp
 			t.ctx.lineDirectiveMangled = true
 			r.lastNewlineOrNodePos = lastCommentEndPos
 		}
@@ -776,9 +771,9 @@ func (t *transpiler) staticWriteIndent(s string) {
 	t.appendSource(".WriteString(\"")
 	t.appendSource(s)
 	t.ctx.tmp = append(t.ctx.tmp, "\"); err != nil {"...)
-	t.ctx.tmp = t.appendIndent(t.ctx.tmp, t.additionalIndent)
+	t.ctx.tmp = t.appendIndent(t.ctx.tmp)
 	t.ctx.tmp = append(t.ctx.tmp, "\treturn err"...)
-	t.ctx.tmp = t.appendIndent(t.ctx.tmp, t.additionalIndent)
+	t.ctx.tmp = t.appendIndent(t.ctx.tmp)
 	t.ctx.tmp = append(t.ctx.tmp, '}')
 }
 

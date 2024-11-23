@@ -101,12 +101,5 @@ func test() {
 	}
 }
 
-func test(t tgo.Ctx) error {
-	__tgo_ctx := t
-	if err := __tgo_ctx.WriteString("<div></div><span></span>"); err != nil {
-		return err
-	} /*line :44:14*/  // test
-}
-
 // Assert that no other file in this package overrides the error builtin interface.
 var _ = (*tgo.Error)((*error)(nil))
