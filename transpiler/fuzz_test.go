@@ -3,6 +3,7 @@ package transpiler
 import (
 	"cmp"
 	"maps"
+	"math"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -125,16 +126,16 @@ func fuzzSource(t *testing.T, name, src string) string {
 	//	}
 	//}
 
-	//prevLine := math.MinInt
-	//for _, v := range f.Comments {
-	//	for _, v := range v.List {
-	//		pos := fset.Position(v.Pos())
-	//		if prevLine+1 == pos.Line {
-	//			t.Skip()
-	//		}
-	//		prevLine = pos.Line
-	//	}
-	//}
+	prevLine := math.MinInt
+	for _, v := range f.Comments {
+		for _, v := range v.List {
+			pos := fset.Position(v.Pos())
+			if prevLine+1 == pos.Line {
+				t.Skip()
+			}
+			prevLine = pos.Line
+		}
+	}
 
 	// See https://go.dev/issue/69861
 	ast.Inspect(f, func(n ast.Node) bool {
