@@ -10,9 +10,11 @@ import (
 
 	goparser "go/parser"
 	goprinter "go/printer"
+	goscanner "go/scanner"
 	gotoken "go/token"
 
 	"github.com/mateusz834/tgo/analyzer"
+	"github.com/mateusz834/tgoast/ast"
 	"github.com/mateusz834/tgoast/parser"
 	"github.com/mateusz834/tgoast/printer"
 	"github.com/mateusz834/tgoast/token"
@@ -43,51 +45,48 @@ import (
 // A:""</div>}
 // `
 
-//const testSrc = `package test
-//import "github.com/mateusz834/tgo"
-//func a(tgo.Ctx) error {
-//	switch a {
-//	case "lol":
-//		<div>"\{a}"</div>
-//	}
-//	if true {
-//		<div>"\{a}"</div>
-//	}
-//}
-//`
-//
-//func TestTest(t *testing.T) {
-//	fset := token.NewFileSet()
-//	f, err := parser.ParseFile(fset, "0", testSrc, parser.SkipObjectResolution|parser.ParseComments)
-//	if err != nil {
-//		t.Fatal(err)
-//	}
-//
-//	if err := analyzer.Analyze(fset, f); err != nil {
-//		t.Fatal(err)
-//	}
-//
-//	out := Transpile(f, fset, testSrc)
-//	t.Logf("transpiled:\n%s", out)
-//	t.Logf("transpiled:\n%q", out)
-//
-//	fsetgo := gotoken.NewFileSet()
-//	fgo, err := goparser.ParseFile(fsetgo, "transpiled.go", out, goparser.ParseComments|goparser.SkipObjectResolution)
-//	if err != nil {
-//		if v, ok := err.(goscanner.ErrorList); ok {
-//			for _, v := range v {
-//				file := fsetgo.File(fgo.FileStart)
-//				t.Logf("%v: %v", file.PositionFor(file.Pos(v.Pos.Offset), false), v)
-//			}
-//		}
-//		t.Fatalf("goparser.ParseFile(Transpile(src)) = %v; want = <nil>", err)
-//	}
-//
-//	var s strings.Builder
-//	goPrinterConfig.Fprint(&s, fsetgo, fgo)
-//	t.Logf("formatted:\n%v", s.String())
-//	t.Logf("quoted formatted:\n%s", s.String())
-//}
+const testSrc = `package test
+import "github.com/mateusz834/tgo"
+func a(tgo.Ctx) error {
+	<a>
+	</div>
+}
+`
+
+func TestTest(t *testing.T) {
+	fset := token.NewFileSet()
+	f, err := parser.ParseFile(fset, "0", testSrc, parser.SkipObjectResolution|parser.ParseComments)
+	if err != nil {
+		ast.Print(fset, f)
+		t.Fatal(err)
+	}
+
+	ast.Print(fset, f)
+	if err := analyzer.Analyze(fset, f); err != nil {
+		t.Fatal(err)
+	}
+
+	out := Transpile(f, fset, testSrc)
+	t.Logf("transpiled:\n%s", out)
+	t.Logf("transpiled:\n%q", out)
+
+	fsetgo := gotoken.NewFileSet()
+	fgo, err := goparser.ParseFile(fsetgo, "transpiled.go", out, goparser.ParseComments|goparser.SkipObjectResolution)
+	if err != nil {
+		if v, ok := err.(goscanner.ErrorList); ok {
+			for _, v := range v {
+				file := fsetgo.File(fgo.FileStart)
+				t.Logf("%v: %v", file.PositionFor(file.Pos(v.Pos.Offset), false), v)
+			}
+		}
+		t.Fatalf("goparser.ParseFile(Transpile(src)) = %v; want = <nil>", err)
+	}
+
+	var s strings.Builder
+	goPrinterConfig.Fprint(&s, fsetgo, fgo)
+	t.Logf("formatted:\n%v", s.String())
+	t.Logf("quoted formatted:\n%s", s.String())
+}
 
 var (
 	update          = flag.Bool("update", false, "")

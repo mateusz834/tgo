@@ -191,6 +191,15 @@ var _ = (*tgo.Error)((*error)(nil))
 func (t *transpiler) addLineDirectiveBeforeRbrace(rbracePos token.Pos) {
 	if t.ctx.lineDirectiveMangled {
 		r := t.whiteAlg(t.ctx.lastPosWritten, rbracePos)
+		if r.ld == lineDirectiveOneLineLSpace {
+			for v := range t.iterWhite(t.ctx.lastPosWritten, rbracePos) {
+				if v.whiteType == whiteWhite {
+					t.ctx.lastPosWritten = v.end()
+					r.ld = lineDirectiveOneLineLRSpace
+				}
+				break
+			}
+		}
 		t.writeLineDirective(r.ld, t.ctx.lastPosWritten)
 		t.ctx.inStaticWrite = false
 		t.ctx.lineDirectiveMangled = false
@@ -544,17 +553,34 @@ func (t *transpiler) transpileList(list []ast.Stmt, name string) {
 			r.lastNewlineOrNodePos = lastCommentEndPos
 		}
 
-		// TODO: chyba najlepiej bd wyniesć ten endtag gdzies wysoko?
+		if _, ok := n.(*ast.EndTagStmt); ok {
+			t.additionalIndent--
 
-		if isTgo(n, t.inTgoFunc) {
+			t.scopeEnd(bodyScope[len(bodyScope)-1])
+			bodyScope = bodyScope[:len(bodyScope)-1]
+
+			if wasLabeled {
+				if t.ctx.lineDirectiveMangled {
+					before := t.lastIndentation
+					r := t.whiteAlg(t.ctx.lastPosWritten, orig.Pos())
+					t.lastIndentation = before
+					t.writeLineDirective(r.ld, t.ctx.lastPosWritten)
+				}
+				t.appendFromSource(r.lastNewlineOrNodePos)
+			}
+
+			t.ctx.lineDirectiveMangled = true
+		} else if isTgo(n, t.inTgoFunc) {
 			// When previous node was non-tgo and now we have a tgo node,
 			// preserve whitespace, comments and semicolons up to last newline
 			// (or up to n.Pos() if no newline found between prev and n).
-			_, isEndTag := n.(*ast.EndTagStmt)
-			if !isTgo(prev, t.inTgoFunc) && !(isEndTag && wasLabeled) || (wasLabeled && !isEndTag && isTgo(prev, t.inTgoFunc)) {
-				if isTgo(prev, t.inTgoFunc) {
-					t.writeLineDirective(r.ld, t.ctx.lastPosWritten)
+			if !isTgo(prev, t.inTgoFunc) {
+				t.appendFromSource(r.lastNewlineOrNodePos)
+			} else if wasLabeled && isTgo(prev, t.inTgoFunc) {
+				if !t.ctx.lineDirectiveMangled {
+					panic("unreachable")
 				}
+				t.writeLineDirective(r.ld, t.ctx.lastPosWritten)
 				t.appendFromSource(r.lastNewlineOrNodePos)
 			}
 
@@ -568,6 +594,15 @@ func (t *transpiler) transpileList(list []ast.Stmt, name string) {
 			if t.ctx.lineDirectiveMangled {
 				t.ctx.inStaticWrite = false
 				t.ctx.lineDirectiveMangled = false
+				if r.ld == lineDirectiveOneLineLSpace {
+					for v := range t.iterWhite(t.ctx.lastPosWritten, n.Pos()) {
+						if v.whiteType == whiteWhite {
+							t.ctx.lastPosWritten = v.end()
+							r.ld = lineDirectiveOneLineLRSpace
+						}
+						break
+					}
+				}
 				t.writeLineDirective(r.ld, t.ctx.lastPosWritten)
 			}
 		}
@@ -601,21 +636,6 @@ func (t *transpiler) transpileList(list []ast.Stmt, name string) {
 			t.additionalIndent++
 			t.ctx.lastPosWritten = n.End()
 		case *ast.EndTagStmt:
-			t.additionalIndent--
-
-			t.scopeEnd(bodyScope[len(bodyScope)-1])
-			bodyScope = bodyScope[:len(bodyScope)-1]
-
-			if wasLabeled {
-				if t.ctx.lineDirectiveMangled {
-					before := t.lastIndentation
-					r := t.whiteAlg(t.ctx.lastPosWritten, orig.Pos())
-					t.lastIndentation = before
-					t.writeLineDirective(r.ld, t.ctx.lastPosWritten)
-				}
-				t.appendFromSource(r.lastNewlineOrNodePos)
-			}
-
 			t.staticWriteIndent("</")
 			t.staticWriteIndent(n.Name.Name)
 			t.staticWriteIndent(">")
