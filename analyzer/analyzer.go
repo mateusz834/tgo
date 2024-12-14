@@ -15,7 +15,6 @@ func Analyze(fset *token.FileSet, f *ast.File) error {
 	ctx := &analyzerContext{
 		fset: fset,
 	}
-	ast.Walk(&tagPairsAnalyzer{ctx: ctx}, f)
 	checkContext(ctx, f)
 	if len(ctx.errors) == 0 {
 		ast.Walk(&branchAnalyzer{
@@ -58,24 +57,6 @@ type analyzerContext struct {
 	fset   *token.FileSet
 }
 
-type tagPairsAnalyzer struct {
-	ctx *analyzerContext
-}
-
-func (f *tagPairsAnalyzer) Visit(node ast.Node) ast.Visitor {
-	switch n := node.(type) {
-	case *ast.BlockStmt:
-		f.checkTagPairs(n.List)
-	case *ast.OpenTagStmt:
-		f.checkTagPairs(n.Body)
-	case *ast.CaseClause:
-		f.checkTagPairs(n.Body)
-	case *ast.CommClause:
-		f.checkTagPairs(n.Body)
-	}
-	return f
-}
-
 func unlabel(v ast.Node) ast.Node {
 	for {
 		if n, ok := v.(*ast.LabeledStmt); ok {
@@ -83,53 +64,6 @@ func unlabel(v ast.Node) ast.Node {
 			continue
 		}
 		return v
-	}
-}
-
-func (f *tagPairsAnalyzer) checkTagPairs(stmt []ast.Stmt) {
-	type namePos struct {
-		name       string
-		start, end token.Pos
-	}
-	deep := make([]namePos, 0, 16)
-
-	for _, n := range stmt {
-		switch n := unlabel(n).(type) {
-		case *ast.OpenTagStmt:
-			// TODO(mateusz834): void elements
-			deep = append(deep, namePos{
-				name:  n.Name.Name,
-				start: n.Pos(),
-				end:   n.End() - 1,
-			})
-		case *ast.EndTagStmt:
-			if len(deep) == 0 {
-				f.ctx.errors = append(f.ctx.errors, AnalyzeError{
-					Message:  "missing open tag",
-					StartPos: f.ctx.fset.Position(n.OpenPos),
-					EndPos:   f.ctx.fset.Position(n.ClosePos),
-				})
-				continue
-			}
-			last := deep[len(deep)-1]
-			deep = deep[:len(deep)-1]
-			//if !strings.EqualFold(last.name, n.Name.Name) {
-			if last.name != n.Name.Name {
-				f.ctx.errors = append(f.ctx.errors, AnalyzeError{
-					Message:  fmt.Sprintf("unexpected close tag: %q, want: %q", n.Name.Name, last.name),
-					StartPos: f.ctx.fset.Position(n.OpenPos),
-					EndPos:   f.ctx.fset.Position(n.ClosePos),
-				})
-			}
-		}
-	}
-
-	for _, v := range deep {
-		f.ctx.errors = append(f.ctx.errors, AnalyzeError{
-			Message:  "unclosed tag",
-			StartPos: f.ctx.fset.Position(v.start),
-			EndPos:   f.ctx.fset.Position(v.end),
-		})
 	}
 }
 
@@ -199,7 +133,9 @@ func (f *contextAnalyzer) Visit(list ast.Node) ast.Visitor {
 			})
 		}
 		return &contextAnalyzer{context: contextNotTgo, ctx: f.ctx}
-	case *ast.OpenTagStmt:
+	case *ast.ElementBlockStmt:
+		return f
+	case *ast.OpenTag:
 		if f.context != contextTgoBody {
 			f.ctx.ctx.errors = append(f.ctx.ctx.errors, AnalyzeError{
 				Message:  "open tag is not allowed in this context",
@@ -208,7 +144,7 @@ func (f *contextAnalyzer) Visit(list ast.Node) ast.Visitor {
 			})
 		}
 		return &contextAnalyzer{context: contextTgoTag, ctx: f.ctx}
-	case *ast.EndTagStmt:
+	case *ast.EndTag:
 		if f.context != contextTgoBody {
 			f.ctx.ctx.errors = append(f.ctx.ctx.errors, AnalyzeError{
 				Message:  "end tag is not allowed in this context",
@@ -242,30 +178,22 @@ func (f *contextAnalyzer) Visit(list ast.Node) ast.Visitor {
 
 type scope struct {
 	f   ast.Node // *ast.FuncDecl or *ast.FuncLit
-	tag *ast.OpenTagStmt
+	tag *ast.ElementBlockStmt
 }
 
 type labelScopeAnalyzer struct {
 	out map[scope][]string
-	f   ast.Node // *ast.FuncDecl or *ast.FuncLit
-	s   []*ast.OpenTagStmt
+	cur scope
 }
 
 func (f *labelScopeAnalyzer) Visit(n ast.Node) ast.Visitor {
 	switch n := n.(type) {
 	case *ast.FuncDecl, *ast.FuncLit:
-		return &labelScopeAnalyzer{out: f.out, f: n}
-	case *ast.OpenTagStmt:
-		// TODO: void elements
-		f.s = append(f.s, n)
-	case *ast.EndTagStmt:
-		f.s = f.s[:len(f.s)-1]
+		return &labelScopeAnalyzer{out: f.out, cur: scope{f: n}}
+	case *ast.ElementBlockStmt:
+		return &labelScopeAnalyzer{out: f.out, cur: scope{f: f.cur.f, tag: n}}
 	case *ast.LabeledStmt:
-		s := scope{f: f.f}
-		if len(f.s) != 0 {
-			s.tag = f.s[len(f.s)-1]
-		}
-		f.out[s] = append(f.out[s], n.Label.Name)
+		f.out[f.cur] = append(f.out[f.cur], n.Label.Name)
 	}
 	return f
 }
@@ -282,71 +210,79 @@ type branchAnalyzerContext struct {
 }
 
 type branchAnalyzer struct {
-	ctx           *branchAnalyzerContext
-	breakDepth    int
-	continueDepth int
-	labeledDepth  map[string]int
-	tagDepth      []*ast.OpenTagStmt
-	f             ast.Node // *ast.FuncDecl or *ast.FuncLit
+	ctx             *branchAnalyzerContext
+	breakDepth      int
+	continueDepth   int
+	labeledDepth    map[string]int
+	curElementBlock *ast.ElementBlockStmt
+	f               ast.Node // *ast.FuncDecl or *ast.FuncLit
 }
 
+// TODO: labels inside of open tag.
+
 func (f *branchAnalyzer) Visit(node ast.Node) ast.Visitor {
-	switch unlabeled := unlabel(node); unlabeled.(type) {
-	case *ast.OpenTagStmt, *ast.EndTagStmt:
-		if unlabeled != node {
-			ast.Walk(f, unlabeled)
-			return nil
-		}
-	}
+	//switch unlabeled := unlabel(node); unlabeled.(type) {
+	//case *ast.OpenTagStmt, *ast.EndTagStmt:
+	//	if unlabeled != node {
+	//		ast.Walk(f, unlabeled)
+	//		return nil
+	//	}
+	//}
 
 	switch n := node.(type) {
 	case *ast.FuncDecl, *ast.FuncLit:
 		return &branchAnalyzer{ctx: f.ctx, f: n} // reset depths
 	case *ast.ForStmt, *ast.RangeStmt:
 		return &branchAnalyzer{
-			ctx:           f.ctx,
-			breakDepth:    0,
-			continueDepth: 0,
-			labeledDepth:  maps.Clone(f.labeledDepth),
-			tagDepth:      f.tagDepth,
-			f:             f.f,
+			ctx:             f.ctx,
+			breakDepth:      0,
+			continueDepth:   0,
+			labeledDepth:    maps.Clone(f.labeledDepth),
+			curElementBlock: f.curElementBlock,
+			f:               f.f,
 		}
 	case *ast.SwitchStmt, *ast.SelectStmt, *ast.TypeSwitchStmt:
 		return &branchAnalyzer{
-			ctx:           f.ctx,
-			breakDepth:    0,
-			continueDepth: f.continueDepth,
-			labeledDepth:  maps.Clone(f.labeledDepth),
-			tagDepth:      f.tagDepth,
-			f:             f.f,
+			ctx:             f.ctx,
+			breakDepth:      0,
+			continueDepth:   f.continueDepth,
+			labeledDepth:    maps.Clone(f.labeledDepth),
+			curElementBlock: f.curElementBlock,
+			f:               f.f,
 		}
 	case *ast.LabeledStmt:
 		b := &branchAnalyzer{
-			ctx:           f.ctx,
-			breakDepth:    0,
-			continueDepth: f.continueDepth,
-			labeledDepth:  maps.Clone(f.labeledDepth),
-			tagDepth:      f.tagDepth,
-			f:             f.f,
+			ctx:             f.ctx,
+			breakDepth:      0,
+			continueDepth:   f.continueDepth,
+			labeledDepth:    maps.Clone(f.labeledDepth),
+			curElementBlock: f.curElementBlock,
+			f:               f.f,
 		}
 		if b.labeledDepth == nil {
 			b.labeledDepth = make(map[string]int)
 		}
 		b.labeledDepth[n.Label.Name] = 0
 		return b
-	case *ast.OpenTagStmt:
-		// TODO(mateusz834): void elements
-		f.tagDepth = append(f.tagDepth, n)
+	case *ast.ElementBlockStmt:
+		return &branchAnalyzer{
+			ctx:             f.ctx,
+			breakDepth:      0,
+			continueDepth:   f.continueDepth,
+			labeledDepth:    maps.Clone(f.labeledDepth),
+			curElementBlock: n,
+			f:               f.f,
+		}
+	case *ast.OpenTag:
 		f.continueDepth++
 		f.breakDepth++
 		for k := range f.labeledDepth {
 			f.labeledDepth[k]++
 		}
-	case *ast.EndTagStmt:
-		if len(f.tagDepth) == 0 || f.continueDepth == 0 || f.breakDepth == 0 {
+	case *ast.EndTag:
+		if f.continueDepth == 0 || f.breakDepth == 0 {
 			panic("unreachable")
 		}
-		f.tagDepth = f.tagDepth[:len(f.tagDepth)-1]
 		f.continueDepth--
 		f.breakDepth--
 		for k, v := range f.labeledDepth {
@@ -386,10 +322,7 @@ func (f *branchAnalyzer) Visit(node ast.Node) ast.Visitor {
 				})
 			}
 		case token.GOTO:
-			s := scope{f: f.f}
-			if len(f.tagDepth) != 0 {
-				s.tag = f.tagDepth[len(f.tagDepth)-1]
-			}
+			s := scope{f: f.f, tag: f.curElementBlock}
 			if n.Label != nil && !slices.Contains(f.ctx.labelScopes[s], n.Label.Name) {
 				f.ctx.ctx.errors = append(f.ctx.ctx.errors, AnalyzeError{
 					Message:  "unexpected goto statement, ensure that all tags are closed at the goto and the jump locaton",
@@ -403,7 +336,7 @@ func (f *branchAnalyzer) Visit(node ast.Node) ast.Visitor {
 			panic("unreachable")
 		}
 	case *ast.ReturnStmt:
-		if len(f.tagDepth) != 0 {
+		if f.curElementBlock != nil {
 			f.ctx.ctx.errors = append(f.ctx.ctx.errors, AnalyzeError{
 				Message:  "unexpected return statement in the middle of a tag body, ensure that all open tags are closed",
 				StartPos: f.ctx.ctx.fset.Position(n.Pos()),

@@ -2,12 +2,12 @@ package templates
 
 import "github.com/mateusz834/tgo"
 
-func test() {
-	a := 3                    // test comment1
-	_ = func(tgo.Ctx) error { // test comment2
-		<div></div>
-	}
-}
+//func test() {
+//	a := 3                    // test comment1
+//	_ = func(tgo.Ctx) error { // test comment2
+//		<div></div>
+//	}
+//}
 
 func test() {
 	a := 3                      // test comment1
@@ -46,15 +46,12 @@ package templates
 
 import "github.com/mateusz834/tgo"
 
-func test() {
-	a := 3                    // test comment1
-	_ = func(__tgo_ctx /*line :7:10*/ tgo.Ctx) error { // test comment2
-		if err := __tgo_ctx.WriteString("<div></div>"); err != nil {
-			return err
-		}
-//line :9:1
-	}
-}
+//func test() {
+//	a := 3                    // test comment1
+//	_ = func(tgo.Ctx) error { // test comment2
+//		<div></div>
+//	}
+//}
 
 func test() {
 	a := 3                      // test comment1

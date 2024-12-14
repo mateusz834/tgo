@@ -14,6 +14,11 @@ import (
 	"github.com/mateusz834/tgoast/token"
 )
 
+// TODO: what would happen?
+//<div
+//L:
+//>
+
 func Transpile(f *ast.File, fs *token.FileSet, src string) string {
 	info := tgofuncs.Check(f)
 
@@ -234,6 +239,10 @@ func (t *transpiler) tgoFunc(n ast.Node, funcType *ast.FuncType, body *ast.Block
 			return
 		}
 
+		// TODO: are we handling this case:?
+		// a := func(tgo.Ctx, error)
+		// a := func(__tgo_ctx tgo.Ctx, error)
+
 		params := funcType.Params
 		param := params.List[0]
 		if param.Names == nil {
@@ -375,8 +384,10 @@ func (t *transpiler) wantIndent() {
 
 func isTgo(n ast.Node, inTgoFunc bool) bool {
 	switch n := n.(type) {
-	case *ast.OpenTagStmt, *ast.EndTagStmt, *ast.AttributeStmt:
+	case *ast.OpenTag, *ast.AttributeStmt, *ast.ElementBlockStmt:
 		return true
+	case *ast.EndTag:
+		panic("unreachable")
 	case *ast.ExprStmt:
 		x, isBasicLit := n.X.(*ast.BasicLit)
 		_, isTemplate := n.X.(*ast.TemplateLiteralExpr)
@@ -417,19 +428,6 @@ func (t *transpiler) scopeEnd(s scopeState) {
 		t.ctx.tmp = t.ctx.tmp[:s.beforeLen]
 	}
 	t.ctx.implicitBlockStmtCount--
-}
-
-func unlabel(n ast.Stmt) (ast.Stmt, token.Pos) {
-	lastLabelPos := token.NoPos
-	for {
-		if l, ok := n.(*ast.LabeledStmt); ok {
-			n = l.Stmt
-			lastLabelPos = l.Colon + 1
-			continue
-		}
-		break
-	}
-	return n, lastLabelPos
 }
 
 type whiteAlgResult struct {
@@ -491,13 +489,21 @@ func (t *transpiler) whiteAlg(start, end token.Pos) whiteAlgResult {
 	}
 }
 
+func unlabel(n ast.Stmt) (ast.Stmt, token.Pos) {
+	lastLabelPos := token.NoPos
+	for {
+		if l, ok := n.(*ast.LabeledStmt); ok {
+			n = l.Stmt
+			lastLabelPos = l.Colon + 1
+			continue
+		}
+		break
+	}
+	return n, lastLabelPos
+}
+
 func (t *transpiler) transpileList(list []ast.Stmt, name string) {
-	var (
-		prev      ast.Node
-		bodyScope = make([]scopeState, 0, 16)
-	)
 	for i, n := range list {
-		orig := n
 		p := t.ctx.lastPosWritten
 		wasLabeled := false
 		if unlabeled, lastLabelEndPos := unlabel(n); lastLabelEndPos.IsValid() && isTgo(unlabeled, t.inTgoFunc) {
@@ -505,7 +511,7 @@ func (t *transpiler) transpileList(list []ast.Stmt, name string) {
 			n = unlabeled
 			wasLabeled = true
 			t.ctx.inStaticWrite = false
-			t.ctx.lineDirectiveMangled = true
+			//t.ctx.lineDirectiveMangled = true
 		}
 
 		r := t.whiteAlg(p, n.Pos())
@@ -553,33 +559,22 @@ func (t *transpiler) transpileList(list []ast.Stmt, name string) {
 			r.lastNewlineOrNodePos = lastCommentEndPos
 		}
 
-		if _, ok := n.(*ast.EndTagStmt); ok {
-			t.additionalIndent--
-
-			t.scopeEnd(bodyScope[len(bodyScope)-1])
-			bodyScope = bodyScope[:len(bodyScope)-1]
-
-			if wasLabeled {
-				if t.ctx.lineDirectiveMangled {
-					before := t.lastIndentation
-					r := t.whiteAlg(t.ctx.lastPosWritten, orig.Pos())
-					t.lastIndentation = before
-					t.writeLineDirective(r.ld, t.ctx.lastPosWritten)
-				}
-				t.appendFromSource(r.lastNewlineOrNodePos)
+		if unlabeled, lastLabelEndPos := unlabel(n); lastLabelEndPos.IsValid() {
+			if n, ok := unlabeled.(*ast.EmptyStmt); ok && i == len(list)-1 && n.Implicit {
+				t.ctx.inStaticWrite = false
+				t.writeLineDirective(r.ld, t.ctx.lastPosWritten)
+				t.appendFromSource(lastLabelEndPos)
+				continue
 			}
+		}
 
-			t.ctx.lineDirectiveMangled = true
-		} else if isTgo(n, t.inTgoFunc) {
+		if isTgo(n, t.inTgoFunc) {
 			// When previous node was non-tgo and now we have a tgo node,
 			// preserve whitespace, comments and semicolons up to last newline
 			// (or up to n.Pos() if no newline found between prev and n).
-			if !isTgo(prev, t.inTgoFunc) {
+			if !t.ctx.lineDirectiveMangled {
 				t.appendFromSource(r.lastNewlineOrNodePos)
-			} else if wasLabeled && isTgo(prev, t.inTgoFunc) {
-				if !t.ctx.lineDirectiveMangled {
-					panic("unreachable")
-				}
+			} else if wasLabeled && t.ctx.lineDirectiveMangled {
 				t.writeLineDirective(r.ld, t.ctx.lastPosWritten)
 				t.appendFromSource(r.lastNewlineOrNodePos)
 			}
@@ -608,7 +603,34 @@ func (t *transpiler) transpileList(list []ast.Stmt, name string) {
 		}
 
 		switch n := n.(type) {
-		case *ast.OpenTagStmt:
+		case *ast.ElementBlockStmt:
+			t.staticWriteIndent("<")
+			t.staticWriteIndent(n.OpenTag.Name.Name)
+
+			tagScope := t.scopeStart()
+			t.ctx.lastPosWritten = n.OpenTag.Name.End()
+
+			t.additionalIndent++
+			t.transpileList(n.OpenTag.Body, "")
+			t.additionalIndent--
+
+			t.scopeEnd(tagScope)
+
+			t.staticWriteIndent(">")
+			t.ctx.lastPosWritten = n.OpenTag.End()
+
+			bodyScope := t.scopeStart()
+			t.additionalIndent++
+			t.transpileList(n.Body, "")
+			t.additionalIndent--
+			t.scopeEnd(bodyScope)
+
+			t.staticWriteIndent("</")
+			t.staticWriteIndent(n.EndTag.Name.Name)
+			t.staticWriteIndent(">")
+			t.ctx.lastPosWritten = n.End()
+			t.ctx.lineDirectiveMangled = true
+		case *ast.OpenTag:
 			t.staticWriteIndent("<")
 			t.staticWriteIndent(n.Name.Name)
 
@@ -619,27 +641,12 @@ func (t *transpiler) transpileList(list []ast.Stmt, name string) {
 			t.transpileList(n.Body, "")
 			t.additionalIndent--
 
-			for v := range t.iterWhite(t.ctx.lastPosWritten, n.ClosePos) {
-				if v.whiteType == whiteIndent {
-					t.lastIndentation = v.text
-				} else {
-					continue
-					// TODO: figure case this out.ctx.
-					panic("unreachable")
-				}
-			}
-
 			t.scopeEnd(tagScope)
 
 			t.staticWriteIndent(">")
-			bodyScope = append(bodyScope, t.scopeStart())
-			t.additionalIndent++
 			t.ctx.lastPosWritten = n.End()
-		case *ast.EndTagStmt:
-			t.staticWriteIndent("</")
-			t.staticWriteIndent(n.Name.Name)
-			t.staticWriteIndent(">")
-			t.ctx.lastPosWritten = n.End()
+		case *ast.EndTag:
+			panic("unreachable")
 		case *ast.AttributeStmt:
 			if n.Value != nil {
 				switch x := n.Value.(type) {
@@ -691,8 +698,6 @@ func (t *transpiler) transpileList(list []ast.Stmt, name string) {
 			t.appendFromSource(n.End())
 			t.ctx.lastPosWritten = n.End()
 		}
-
-		prev = n
 	}
 }
 
@@ -805,6 +810,28 @@ func (t *transpiler) blockIndent(b *ast.BlockStmt) string {
 
 	lastIndent := ""
 	for v := range t.iterWhite(start, b.Rbrace) {
+		lastIndent = ""
+		switch v.whiteType {
+		case whiteIndent:
+			lastIndent = v.text
+		}
+	}
+
+	if lastIndent != "" {
+		return lastIndent + "\t"
+	}
+
+	return t.lastIndentation + "\t"
+}
+
+func (t *transpiler) elementBlockIndent(b *ast.ElementBlockStmt) string {
+	start := b.OpenTag.End() + 1
+	if len(b.Body) != 0 {
+		start = b.Body[len(b.Body)-1].End()
+	}
+
+	lastIndent := ""
+	for v := range t.iterWhite(start, b.OpenTag.Pos()) {
 		lastIndent = ""
 		switch v.whiteType {
 		case whiteIndent:

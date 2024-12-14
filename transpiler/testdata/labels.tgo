@@ -4,7 +4,7 @@ import "github.com/mateusz834/tgo"
 
 func test(tgo.Ctx) error {
 	<div>
-a:
+	a:
 	</div>
 }
 
@@ -26,7 +26,7 @@ func test(tgo.Ctx) error {
 		if true {
 			goto a
 		}
-a:
+	a:
 	</div>
 }
 
@@ -112,8 +112,10 @@ func test(__tgo_ctx /*line :5:10*/ tgo.Ctx) error {
 	if err := __tgo_ctx.WriteString("<div>"); err != nil {
 		return err
 	}
+	{
 //line :7:1
-a:
+	a:
+	}
 	if err := __tgo_ctx.WriteString("</div>"); err != nil {
 		return err
 	}
@@ -146,9 +148,9 @@ func test(__tgo_ctx /*line :24:10*/ tgo.Ctx) error {
 		if true {
 			goto a
 		}
-	}
 //line :29:1
-a:
+	a:
+	}
 	if err := __tgo_ctx.WriteString("</div>"); err != nil {
 		return err
 	}

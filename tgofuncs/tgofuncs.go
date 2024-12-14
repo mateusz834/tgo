@@ -298,6 +298,11 @@ func (f *contextAnalyzer) Visit(list ast.Node) ast.Visitor {
 	case *ast.BlockStmt:
 		f.analyzeStmts(n.List)
 		return nil
+	case *ast.ElementBlockStmt:
+		ast.Walk(f, n.OpenTag)
+		f.analyzeStmts(n.Body)
+		ast.Walk(f, n.EndTag)
+		return nil
 	case *ast.CaseClause:
 		for _, v := range n.List {
 			ast.Walk(&contextAnalyzer{
@@ -307,7 +312,7 @@ func (f *contextAnalyzer) Visit(list ast.Node) ast.Visitor {
 		}
 		f.analyzeStmts(n.Body)
 		return nil
-	case *ast.OpenTagStmt:
+	case *ast.OpenTag:
 		f.analyzeStmts(n.Body)
 		return nil
 	case *ast.CommClause:

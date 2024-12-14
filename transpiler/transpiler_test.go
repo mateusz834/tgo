@@ -45,10 +45,14 @@ import (
 // A:""</div>}
 // `
 
-const testSrc = `package test
+const testSrc = `package templates
+
 import "github.com/mateusz834/tgo"
-func a(tgo.Ctx) error {
-	<a>
+
+func test(tgo.Ctx) error {
+	<div>
+		if true {
+		}
 	</div>
 }
 `
@@ -62,6 +66,7 @@ func TestTest(t *testing.T) {
 	}
 
 	ast.Print(fset, f)
+
 	if err := analyzer.Analyze(fset, f); err != nil {
 		t.Fatal(err)
 	}
@@ -82,10 +87,10 @@ func TestTest(t *testing.T) {
 		t.Fatalf("goparser.ParseFile(Transpile(src)) = %v; want = <nil>", err)
 	}
 
-	var s strings.Builder
-	goPrinterConfig.Fprint(&s, fsetgo, fgo)
-	t.Logf("formatted:\n%v", s.String())
-	t.Logf("quoted formatted:\n%s", s.String())
+	//var s strings.Builder
+	//goPrinterConfig.Fprint(&s, fsetgo, fgo)
+	//t.Logf("formatted:\n%v", s.String())
+	//t.Logf("quoted formatted:\n%s", s.String())
 }
 
 var (

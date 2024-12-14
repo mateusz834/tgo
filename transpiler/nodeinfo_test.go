@@ -68,12 +68,23 @@ func (a *nodeInfoAnalyzer) Visit(n ast.Node) ast.Visitor {
 	case *ast.AttributeStmt, *ast.TemplateLiteralExpr,
 		*ast.TemplateLiteralPart, *ast.File:
 		return a
-	case *ast.OpenTagStmt:
+	case *ast.ElementBlockStmt:
+		ast.Walk(a, n.OpenTag)
+		for i, v := range n.Body {
+			unlabeled, _ := unlabel(v)
+			if v, ok := unlabeled.(*ast.EmptyStmt); i == len(n.Body)-1 && ok && v.Implicit {
+				continue
+			}
+			ast.Walk(a, v)
+		}
+		ast.Walk(a, n.EndTag)
+		return nil
+	case *ast.OpenTag:
 		for _, v := range n.Body {
 			ast.Walk(a, v)
 		}
 		return nil
-	case *ast.EndTagStmt:
+	case *ast.EndTag:
 		return nil
 	case *ast.CommentGroup, *ast.Comment:
 		return nil
@@ -165,6 +176,13 @@ func genNodeInfo[TOK fmt.Stringer, POS interface{ IsValid() bool }](
 			info.WriteString(fieldName)
 			info.WriteString(":")
 			info.WriteString(fv.Interface().(TOK).String())
+		} else if fv.Type() == reflect.TypeFor[bool]() {
+			if info.Len() != 0 {
+				info.WriteString(";")
+			}
+			info.WriteString(fieldName)
+			info.WriteString(":")
+			info.WriteString(strconv.FormatBool(fv.Interface().(bool)))
 		}
 	}
 
