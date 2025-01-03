@@ -805,7 +805,19 @@ func (t *transpiler) staticWriteIndent(s string) {
 func (t *transpiler) blockIndent(b *ast.BlockStmt) string {
 	start := b.Lbrace + 1
 	if len(b.List) != 0 {
-		start = b.List[len(b.List)-1].End()
+		last := b.List[len(b.List)-1]
+		for {
+			if l, ok := last.(*ast.LabeledStmt); ok {
+				if v, ok := l.Stmt.(*ast.EmptyStmt); ok && v.Implicit {
+					start = l.Colon + 1
+					break
+				}
+				last = l.Stmt
+				continue
+			}
+			start = last.End()
+			break
+		}
 	}
 
 	lastIndent := ""
