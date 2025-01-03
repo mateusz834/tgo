@@ -5,7 +5,7 @@ import (
 	"maps"
 	"strconv"
 
-	"github.com/mateusz834/tgoast/ast"
+	"github.com/tgo-lang/lang/ast"
 )
 
 const (

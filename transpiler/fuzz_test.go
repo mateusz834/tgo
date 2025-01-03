@@ -20,10 +20,10 @@ import (
 	gotoken "go/token"
 
 	"github.com/mateusz834/tgo/analyzer"
-	"github.com/mateusz834/tgoast/ast"
-	"github.com/mateusz834/tgoast/format"
-	"github.com/mateusz834/tgoast/parser"
-	"github.com/mateusz834/tgoast/token"
+	"github.com/tgo-lang/lang/ast"
+	"github.com/tgo-lang/lang/format"
+	"github.com/tgo-lang/lang/parser"
+	"github.com/tgo-lang/lang/token"
 )
 
 func fuzzAddDir(f *testing.F, testdata string, transform func(string) string) {
@@ -345,13 +345,13 @@ func fuzzSource(t *testing.T, name, src string) string {
 					// Upstream bugs:
 
 					// https://go.dev/cl/610035
-					if f.Func.Name() == "github.com/mateusz834/tgoast/ast.sortSpecs" &&
+					if f.Func.Name() == "github.com/tgo-lang/lang/ast.sortSpecs" &&
 						strings.Contains(v, "invalid line number") {
 						return
 					}
 
 					// https://go.dev/cl/610115 https://go.dev/issue/69206
-					if f.Func.Name() == "github.com/mateusz834/tgoast/printer.combinesWithName" &&
+					if f.Func.Name() == "github.com/tgo-lang/lang/printer.combinesWithName" &&
 						strings.Contains(v, "unexpected parenthesized expression") {
 						return
 					}

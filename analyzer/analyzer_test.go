@@ -6,8 +6,8 @@ import (
 	"testing"
 
 	"github.com/mateusz834/tgo/tgotest"
-	"github.com/mateusz834/tgoast/ast"
-	"github.com/mateusz834/tgoast/token"
+	"github.com/tgo-lang/lang/ast"
+	"github.com/tgo-lang/lang/token"
 )
 
 func TestAnalyze(t *testing.T) {

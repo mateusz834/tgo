@@ -10,8 +10,8 @@ import (
 
 	"github.com/mateusz834/tgo/debug"
 	"github.com/mateusz834/tgo/tgofuncs"
-	"github.com/mateusz834/tgoast/ast"
-	"github.com/mateusz834/tgoast/token"
+	"github.com/tgo-lang/lang/ast"
+	"github.com/tgo-lang/lang/token"
 )
 
 // TODO: what would happen?
