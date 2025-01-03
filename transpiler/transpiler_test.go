@@ -49,12 +49,20 @@ const testSrc = `package templates
 
 import "github.com/mateusz834/tgo"
 
-func A(tgo.Ctx) error {
-	<div>
-	A:
-	</div>
-A:
-A:
+func test(tgo.Ctx) error {
+		<div>
+			a := 3
+			"aa"
+		a:
+		</div>
+}
+
+func test(tgo.Ctx) error {
+		<div>
+			a := 3
+			"aa"
+		a:
+		</div>
 }
 `
 

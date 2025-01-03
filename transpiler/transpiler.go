@@ -836,28 +836,6 @@ func (t *transpiler) blockIndent(b *ast.BlockStmt) string {
 	return t.lastIndentation + "\t"
 }
 
-func (t *transpiler) elementBlockIndent(b *ast.ElementBlockStmt) string {
-	start := b.OpenTag.End() + 1
-	if len(b.Body) != 0 {
-		start = b.Body[len(b.Body)-1].End()
-	}
-
-	lastIndent := ""
-	for v := range t.iterWhite(start, b.OpenTag.Pos()) {
-		lastIndent = ""
-		switch v.whiteType {
-		case whiteIndent:
-			lastIndent = v.text
-		}
-	}
-
-	if lastIndent != "" {
-		return lastIndent + "\t"
-	}
-
-	return t.lastIndentation + "\t"
-}
-
 func fileUniqueIdent(f *ast.File, defaultIdent string) string {
 	used := false
 	ast.Inspect(f, func(n ast.Node) bool {

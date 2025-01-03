@@ -9,6 +9,29 @@ a: </div>
 }
 
 func test(tgo.Ctx) error {
+		<div>
+			a := 3
+		a:
+		</div>
+}
+
+func test(tgo.Ctx) error {
+		<div>
+			a := 3
+			"aa"
+		a:
+		</div>
+}
+
+func test(tgo.Ctx) error {
+			<div>
+				a := 3
+				"aa"
+			a:
+			</div>
+}
+
+func test(tgo.Ctx) error {
 	<div>
 		if true {
 			goto a
@@ -55,44 +78,98 @@ func test(__tgo_ctx /*line :11:10*/ tgo.Ctx) error {
 	}
 	{
 //line :13:1
+			a := 3
+//line :14:1
+		a:
+	}
+	if err := __tgo_ctx.WriteString("</div>"); err != nil {
+		return err
+	}
+//line :16:1
+}
+
+func test(__tgo_ctx /*line :18:10*/ tgo.Ctx) error {
+	if err := __tgo_ctx.WriteString("<div>"); err != nil {
+		return err
+	}
+	{
+//line :20:1
+			a := 3
+		if err := __tgo_ctx.WriteString("aa"); err != nil {
+			return err
+		}
+//line :22:1
+		a:
+	}
+	if err := __tgo_ctx.WriteString("</div>"); err != nil {
+		return err
+	}
+//line :24:1
+}
+
+func test(__tgo_ctx /*line :26:10*/ tgo.Ctx) error {
+	if err := __tgo_ctx.WriteString("<div>"); err != nil {
+		return err
+	}
+	{
+//line :28:1
+				a := 3
+		if err := __tgo_ctx.WriteString("aa"); err != nil {
+			return err
+		}
+//line :30:1
+			a:
+	}
+	if err := __tgo_ctx.WriteString("</div>"); err != nil {
+		return err
+	}
+//line :32:1
+}
+
+func test(__tgo_ctx /*line :34:10*/ tgo.Ctx) error {
+	if err := __tgo_ctx.WriteString("<div>"); err != nil {
+		return err
+	}
+	{
+//line :36:1
 		if true {
 			goto a
 		}
-//line :16:1
+//line :39:1
 a:
 	}
 	if err := __tgo_ctx.WriteString("</div>"); err != nil {
 		return err
 	}
-//line :17:1
+//line :40:1
 }
 
-func test(__tgo_ctx /*line :19:10*/ tgo.Ctx) error {
+func test(__tgo_ctx /*line :42:10*/ tgo.Ctx) error {
 	if err := __tgo_ctx.WriteString("<div>"); err != nil {
 		return err
 	}
-	{ /*line :20:6*/ ; a:
+	{ /*line :43:6*/ ; a:
 	}
 	if err := __tgo_ctx.WriteString("</div>"); err != nil {
 		return err
 	}
-//line :21:1
+//line :44:1
 }
 
-func test(__tgo_ctx /*line :23:10*/ tgo.Ctx) error {
+func test(__tgo_ctx /*line :46:10*/ tgo.Ctx) error {
 	if err := __tgo_ctx.WriteString("<div>"); err != nil {
 		return err
 	}
 	{
-//line :25:1
+//line :48:1
 		if true {
 			goto a
-		} /*line :27:3*/ ; a:
+		} /*line :50:3*/ ; a:
 	}
 	if err := __tgo_ctx.WriteString("</div>"); err != nil {
 		return err
 	}
-//line :28:1
+//line :51:1
 }
 
 // Assert that no other file in this package overrides the error builtin interface.
