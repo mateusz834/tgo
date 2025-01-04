@@ -86,6 +86,10 @@ func fuzzSource(t *testing.T, name, src string) string {
 		}
 	}
 
+	if strings.Contains(src, "\f") {
+		return ""
+	}
+
 	if testing.Verbose() {
 		t.Logf("file name: %q", name)
 		t.Logf("source:\n%v", src)

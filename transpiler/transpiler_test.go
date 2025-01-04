@@ -45,26 +45,15 @@ import (
 // A:""</div>}
 // `
 
-const testSrc = `package templates
+//const testSrc = `package templates
+//
+//import "github.com/mateusz834/tgo"
+//
+//func test(tgo.Ctx) error {
+//}
+//`
 
-import "github.com/mateusz834/tgo"
-
-func test(tgo.Ctx) error {
-		<div>
-			a := 3
-			"aa"
-		a:
-		</div>
-}
-
-func test(tgo.Ctx) error {
-		<div>
-			a := 3
-			"aa"
-		a:
-		</div>
-}
-`
+const testSrc = "package A\n\nimport \"github.com/mateusz834/tgo\"\n\nfunc A(A tgo.Ctx) error { /*\n\t 0\f*/<div></div>\n}\n"
 
 func TestTest(t *testing.T) {
 	fset := token.NewFileSet()
