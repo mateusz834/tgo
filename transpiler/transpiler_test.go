@@ -38,6 +38,8 @@ import (
 
 //const testSrc = "package A\nimport()\nfunc()A()(...A)"
 
+//const testSrc = "package A\n\nimport \"github.com/mateusz834/tgo\"\n\nfunc A(A tgo.Ctx) error { /*\n\t 0\f*/<div></div>\n}\n"
+
 // TODO no semi before ""?
 // const testSrc = `package A
 // import"github.com/mateusz834/tgo"
@@ -50,10 +52,23 @@ import (
 //import "github.com/mateusz834/tgo"
 //
 //func test(tgo.Ctx) error {
+//	<div
+//	L:
+//	>
+//	</div>
 //}
 //`
 
-const testSrc = "package A\n\nimport \"github.com/mateusz834/tgo\"\n\nfunc A(A tgo.Ctx) error { /*\n\t 0\f*/<div></div>\n}\n"
+const testSrc = `package A00000
+import "github.com/mateusz834/tgo"
+func _(tgo.Ctx) error {
+	<div>
+		"1" 
+	A:
+		"0"
+	</div>
+}
+`
 
 func TestTest(t *testing.T) {
 	fset := token.NewFileSet()

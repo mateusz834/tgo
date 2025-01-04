@@ -4,14 +4,20 @@ import (
 	"fmt"
 	"html"
 	"math"
+	"path/filepath"
+	"runtime"
 	"slices"
 	"strconv"
 	"strings"
 
-	"github.com/mateusz834/tgo/debug"
 	"github.com/mateusz834/tgo/tgofuncs"
 	"github.com/tgo-lang/lang/ast"
 	"github.com/tgo-lang/lang/token"
+)
+
+const (
+	debug   = false
+	verbose = false
 )
 
 // TODO: what would happen?
@@ -91,16 +97,22 @@ func (t *transpiler) offsetToPos(off int) token.Pos {
 }
 
 func (t *transpiler) appendSource(s string) {
-	if debug.Verbose {
-		fmt.Printf("t.ctx.appendString(%q)\n", s)
+	if verbose {
+		debugPrintf("t.ctx.appendString(%q)\n", s)
 	}
 	t.flushTmp()
 	t.ctx.out = append(t.ctx.out, s...)
 }
 
+func debugPrintf(format string, args ...any) {
+	_, file, line, _ := runtime.Caller(2)
+	fmt.Printf("%v:%v "+format, append([]any{filepath.Base(file), line}, args...)...)
+}
+
 func (t *transpiler) appendFromSource(end token.Pos) {
-	if debug.Verbose {
-		fmt.Printf("t.ctx.appendFromSource(%v (%v)) -> ", t.ctx.fs.Position(end), end)
+	if verbose {
+		pos := t.ctx.fs.Position(end)
+		debugPrintf("t.ctx.appendFromSource(%v:%v (offset: %v)) -> ", pos.Line, pos.Column, pos.Offset)
 	}
 	t.appendSource(t.ctx.src[t.posToOffset(t.ctx.lastPosWritten):t.posToOffset(end)])
 	t.ctx.lastPosWritten = end
@@ -371,8 +383,8 @@ func (t *transpiler) appendIndent(b []byte) []byte {
 }
 
 func (t *transpiler) wantIndent() {
-	if debug.Verbose {
-		fmt.Printf(
+	if verbose {
+		debugPrintf(
 			"t.ctx.wantIndent(%v): appending %q\n",
 			t.additionalIndent,
 			t.lastIndentation+strings.Repeat("\t", t.additionalIndent),
@@ -416,7 +428,7 @@ func (t *transpiler) scopeEnd(s scopeState) {
 		t.ctx.tmp = append(t.ctx.tmp, '}')
 		t.ctx.implicitBlockStmtForceCloseBefore--
 	} else {
-		if debug.Debug {
+		if debug {
 			for _, v := range t.ctx.tmp[s.beforeLen:] {
 				switch v {
 				case ' ', '\t', '\n', '{', '}':
@@ -504,200 +516,202 @@ func unlabel(n ast.Stmt) (ast.Stmt, token.Pos) {
 
 func (t *transpiler) transpileList(list []ast.Stmt, name string) {
 	for i, n := range list {
-		p := t.ctx.lastPosWritten
-		wasLabeled := false
-		if unlabeled, lastLabelEndPos := unlabel(n); lastLabelEndPos.IsValid() && isTgo(unlabeled, t.inTgoFunc) {
-			p = lastLabelEndPos
-			n = unlabeled
-			wasLabeled = true
+		early := false
+		unlabeled, lastLabelEndPos := unlabel(n)
+		if lastLabelEndPos.IsValid() {
 			t.ctx.inStaticWrite = false
-			//t.ctx.lineDirectiveMangled = true
-		}
-
-		r := t.whiteAlg(p, n.Pos())
-
-		if i == 0 && name != "" {
-			var (
-				lastCommentEndPos = p
-				lastIndent        bool
-				lastWhite         bool
-			)
-			for v := range t.iterWhite(p, n.Pos()) {
-				lastIndent = false
-				lastWhite = false
-				switch v.whiteType {
-				case whiteWhite:
-					lastWhite = true
-				case whiteIndent:
-					lastIndent = true
-					lastCommentEndPos = v.pos
-				case whiteComment:
-					lastCommentEndPos = v.end()
-				case whiteSemi:
-				default:
-					panic("unreachable")
-				}
-			}
-
-			t.appendFromSource(lastCommentEndPos)
-			t.wantIndent()
-			t.appendSource(t.ctx.tgoIdent)
-			t.appendSource(" := ")
-			t.appendSource(name)
-			if !isTgo(n, t.inTgoFunc) {
-				r.ld = lineDirectiveOneLineRSpace
-				if lastIndent {
-					r.ld = lineDirectiveFullLine
-				} else if lastWhite {
-					r.ld = lineDirectiveOneLine
-					t.wantIndent()
-				} else {
-					t.wantIndent()
-				}
-			}
-			t.ctx.lineDirectiveMangled = true
-			r.lastNewlineOrNodePos = lastCommentEndPos
-		}
-
-		if unlabeled, lastLabelEndPos := unlabel(n); lastLabelEndPos.IsValid() {
-			if n, ok := unlabeled.(*ast.EmptyStmt); ok && i == len(list)-1 && n.Implicit {
-				t.ctx.inStaticWrite = false
-				t.writeLineDirective(r.ld, t.ctx.lastPosWritten)
-				t.appendFromSource(lastLabelEndPos)
-				continue
-			}
-		}
-
-		if isTgo(n, t.inTgoFunc) {
-			// When previous node was non-tgo and now we have a tgo node,
-			// preserve whitespace, comments and semicolons up to last newline
-			// (or up to n.Pos() if no newline found between prev and n).
-			if !t.ctx.lineDirectiveMangled {
-				t.appendFromSource(r.lastNewlineOrNodePos)
-			} else if wasLabeled && t.ctx.lineDirectiveMangled {
-				t.writeLineDirective(r.ld, t.ctx.lastPosWritten)
-				t.appendFromSource(r.lastNewlineOrNodePos)
-			}
-
-			// TODO: we are ingnoring comments between tgo tags.
-
-			// When the current node is a tgo-node, ignore the whitespace
-			// the logic below will add the indentation (from t.ctx.lastIndentation),
-			// when necessary.
-			t.ctx.lineDirectiveMangled = true
-		} else {
+			r := t.whiteAlg(t.ctx.lastPosWritten, n.Pos())
 			if t.ctx.lineDirectiveMangled {
-				t.ctx.inStaticWrite = false
-				t.ctx.lineDirectiveMangled = false
-				if r.ld == lineDirectiveOneLineLSpace {
-					for v := range t.iterWhite(t.ctx.lastPosWritten, n.Pos()) {
-						if v.whiteType == whiteWhite {
-							t.ctx.lastPosWritten = v.end()
-							r.ld = lineDirectiveOneLineLRSpace
-						}
-						break
-					}
-				}
 				t.writeLineDirective(r.ld, t.ctx.lastPosWritten)
+				t.ctx.lineDirectiveMangled = false
+			}
+			t.appendFromSource(lastLabelEndPos)
+
+			if n, ok := unlabeled.(*ast.EmptyStmt); ok && i == len(list)-1 && n.Implicit {
+				early = true
 			}
 		}
 
-		switch n := n.(type) {
-		case *ast.ElementBlockStmt:
-			t.staticWriteIndent("<")
-			t.staticWriteIndent(n.OpenTag.Name.Name)
+		t.transpileStmt(i, early, unlabeled, name)
+	}
+}
 
-			tagScope := t.scopeStart()
-			t.ctx.lastPosWritten = n.OpenTag.Name.End()
+func (t *transpiler) transpileStmt(i int, early bool, n ast.Stmt, name string) {
+	r := t.whiteAlg(t.ctx.lastPosWritten, n.Pos())
 
-			t.additionalIndent++
-			t.transpileList(n.OpenTag.Body, "")
-			t.additionalIndent--
+	if i == 0 && name != "" {
+		var (
+			lastCommentEndPos = t.ctx.lastPosWritten
+			lastIndent        bool
+			lastWhite         bool
+		)
+		for v := range t.iterWhite(t.ctx.lastPosWritten, n.Pos()) {
+			lastIndent = false
+			lastWhite = false
+			switch v.whiteType {
+			case whiteWhite:
+				lastWhite = true
+			case whiteIndent:
+				lastIndent = true
+				lastCommentEndPos = v.pos
+			case whiteComment:
+				lastCommentEndPos = v.end()
+			case whiteSemi:
+			default:
+				panic("unreachable")
+			}
+		}
 
-			t.scopeEnd(tagScope)
-
-			t.staticWriteIndent(">")
-			t.ctx.lastPosWritten = n.OpenTag.End()
-
-			bodyScope := t.scopeStart()
-			t.additionalIndent++
-			t.transpileList(n.Body, "")
-			t.additionalIndent--
-			t.scopeEnd(bodyScope)
-
-			t.staticWriteIndent("</")
-			t.staticWriteIndent(n.EndTag.Name.Name)
-			t.staticWriteIndent(">")
-			t.ctx.lastPosWritten = n.End()
-			t.ctx.lineDirectiveMangled = true
-		case *ast.OpenTag:
-			t.staticWriteIndent("<")
-			t.staticWriteIndent(n.Name.Name)
-
-			tagScope := t.scopeStart()
-			t.ctx.lastPosWritten = n.Name.End()
-
-			t.additionalIndent++
-			t.transpileList(n.Body, "")
-			t.additionalIndent--
-
-			t.scopeEnd(tagScope)
-
-			t.staticWriteIndent(">")
-			t.ctx.lastPosWritten = n.End()
-		case *ast.EndTag:
-			panic("unreachable")
-		case *ast.AttributeStmt:
-			if n.Value != nil {
-				switch x := n.Value.(type) {
-				case *ast.BasicLit:
-					t.staticWriteIndent(" ")
-					t.staticWriteIndent(n.AttrName.(*ast.Ident).Name)
-					t.staticWriteIndent("=")
-					if x.Kind == token.STRING {
-						t.staticWriteIndentGoString(x.Value)
-					}
-				case *ast.TemplateLiteralExpr:
-					t.staticWriteIndent(" " + n.AttrName.(*ast.Ident).Name + "=")
-					t.transpileTemplateLiteral(x)
-				}
+		t.appendFromSource(lastCommentEndPos)
+		t.wantIndent()
+		t.appendSource(t.ctx.tgoIdent)
+		t.appendSource(" := ")
+		t.appendSource(name)
+		if !isTgo(n, t.inTgoFunc) {
+			r.ld = lineDirectiveOneLineRSpace
+			if lastIndent {
+				r.ld = lineDirectiveFullLine
+			} else if lastWhite {
+				r.ld = lineDirectiveOneLine
+				t.wantIndent()
 			} else {
+				t.wantIndent()
+			}
+		}
+		t.ctx.lineDirectiveMangled = true
+		r.lastNewlineOrNodePos = lastCommentEndPos
+	}
+
+	if early {
+		return
+	}
+
+	if isTgo(n, t.inTgoFunc) {
+		// When previous node was non-tgo and now we have a tgo node,
+		// preserve whitespace, comments and semicolons up to last newline
+		// (or up to n.Pos() if no newline found between prev and n).
+		if !t.ctx.lineDirectiveMangled {
+			t.appendFromSource(r.lastNewlineOrNodePos)
+		}
+
+		// TODO: we are ingnoring comments between tgo tags.
+
+		// When the current node is a tgo-node, ignore the whitespace
+		// the logic below will add the indentation (from t.ctx.lastIndentation),
+		// when necessary.
+		t.ctx.lineDirectiveMangled = true
+	} else {
+		if t.ctx.lineDirectiveMangled {
+			t.ctx.inStaticWrite = false
+			t.ctx.lineDirectiveMangled = false
+			if r.ld == lineDirectiveOneLineLSpace {
+				for v := range t.iterWhite(t.ctx.lastPosWritten, n.Pos()) {
+					if v.whiteType == whiteWhite {
+						t.ctx.lastPosWritten = v.end()
+						r.ld = lineDirectiveOneLineLRSpace
+					}
+					break
+				}
+			}
+			t.writeLineDirective(r.ld, t.ctx.lastPosWritten)
+		}
+	}
+
+	switch n := n.(type) {
+	case *ast.ElementBlockStmt:
+		t.staticWriteIndent("<")
+		t.staticWriteIndent(n.OpenTag.Name.Name)
+
+		tagScope := t.scopeStart()
+		t.ctx.lastPosWritten = n.OpenTag.Name.End()
+
+		t.additionalIndent++
+		t.transpileList(n.OpenTag.Body, "")
+		t.additionalIndent--
+
+		t.scopeEnd(tagScope)
+
+		t.staticWriteIndent(">")
+		t.ctx.lastPosWritten = n.OpenTag.End()
+
+		bodyScope := t.scopeStart()
+		t.additionalIndent++
+		t.transpileList(n.Body, "")
+		t.additionalIndent--
+		t.scopeEnd(bodyScope)
+
+		t.staticWriteIndent("</")
+		t.staticWriteIndent(n.EndTag.Name.Name)
+		t.staticWriteIndent(">")
+		t.ctx.lastPosWritten = n.End()
+		t.ctx.lineDirectiveMangled = true
+	case *ast.OpenTag:
+		t.staticWriteIndent("<")
+		t.staticWriteIndent(n.Name.Name)
+
+		tagScope := t.scopeStart()
+		t.ctx.lastPosWritten = n.Name.End()
+
+		t.additionalIndent++
+		t.transpileList(n.Body, "")
+		t.additionalIndent--
+
+		t.scopeEnd(tagScope)
+
+		t.staticWriteIndent(">")
+		t.ctx.lastPosWritten = n.End()
+	case *ast.EndTag:
+		panic("unreachable")
+	case *ast.AttributeStmt:
+		if n.Value != nil {
+			switch x := n.Value.(type) {
+			case *ast.BasicLit:
 				t.staticWriteIndent(" ")
 				t.staticWriteIndent(n.AttrName.(*ast.Ident).Name)
-			}
-			t.ctx.lastPosWritten = n.End()
-		case *ast.ExprStmt:
-			if x, ok := n.X.(*ast.BasicLit); ok && x.Kind == token.STRING {
-				if t.inTgoFunc {
+				t.staticWriteIndent("=")
+				if x.Kind == token.STRING {
 					t.staticWriteIndentGoString(x.Value)
-					t.ctx.lastPosWritten = n.End()
-				} else {
-					t.appendFromSource(n.End())
 				}
-			} else if x, ok := n.X.(*ast.TemplateLiteralExpr); ok {
+			case *ast.TemplateLiteralExpr:
+				t.staticWriteIndent(" " + n.AttrName.(*ast.Ident).Name + "=")
 				t.transpileTemplateLiteral(x)
-			} else {
-				ast.Walk(t, n)
-				t.appendFromSource(n.End())
+			}
+		} else {
+			t.staticWriteIndent(" ")
+			t.staticWriteIndent(n.AttrName.(*ast.Ident).Name)
+		}
+		t.ctx.lastPosWritten = n.End()
+	case *ast.ExprStmt:
+		if x, ok := n.X.(*ast.BasicLit); ok && x.Kind == token.STRING {
+			if t.inTgoFunc {
+				t.staticWriteIndentGoString(x.Value)
 				t.ctx.lastPosWritten = n.End()
+			} else {
+				t.appendFromSource(n.End())
 			}
-		case *ast.CaseClause:
-			for _, v := range n.List {
-				ast.Walk(t, v)
-			}
-			t.appendFromSource(n.Colon + 1)
-			t.transpileList(n.Body, "")
-		case *ast.CommClause:
-			if n.Comm != nil {
-				ast.Walk(t, n.Comm)
-			}
-			t.appendFromSource(n.Colon + 1)
-			t.transpileList(n.Body, "")
-		default:
+		} else if x, ok := n.X.(*ast.TemplateLiteralExpr); ok {
+			t.transpileTemplateLiteral(x)
+		} else {
 			ast.Walk(t, n)
 			t.appendFromSource(n.End())
 			t.ctx.lastPosWritten = n.End()
 		}
+	case *ast.CaseClause:
+		for _, v := range n.List {
+			ast.Walk(t, v)
+		}
+		t.appendFromSource(n.Colon + 1)
+		t.transpileList(n.Body, "")
+	case *ast.CommClause:
+		if n.Comm != nil {
+			ast.Walk(t, n.Comm)
+		}
+		t.appendFromSource(n.Colon + 1)
+		t.transpileList(n.Body, "")
+	default:
+		ast.Walk(t, n)
+		t.appendFromSource(n.End())
+		t.ctx.lastPosWritten = n.End()
 	}
 }
 

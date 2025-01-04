@@ -146,7 +146,6 @@ func test(__tgo_ctx /*line :11:10*/ tgo.Ctx) error {
 	{
 //line :13:1
 		a := 3
-//line :14:1
 	a:
 	}
 	if err := __tgo_ctx.WriteString("</div>"); err != nil {
@@ -181,7 +180,6 @@ func test(__tgo_ctx /*line :31:10*/ tgo.Ctx) error {
 		if true {
 			goto a
 		}
-//line :36:1
 	a:
 	}
 	if err := __tgo_ctx.WriteString("</div>"); err != nil {
@@ -330,7 +328,6 @@ func test(__tgo_ctx /*line :103:10*/ tgo.Ctx) error {
 }
 
 func test(tgo.Ctx) error {
-//line :112:1
 a:
 }
 
@@ -340,7 +337,6 @@ func test(__tgo_ctx /*line :115:10*/ tgo.Ctx) error {
 	}
 //line :118:1
 a:
-//line :119:1
 }
 
 // Assert that no other file in this package overrides the error builtin interface.

@@ -79,7 +79,6 @@ func test(__tgo_ctx /*line :11:10*/ tgo.Ctx) error {
 	{
 //line :13:1
 			a := 3
-//line :14:1
 		a:
 	}
 	if err := __tgo_ctx.WriteString("</div>"); err != nil {
@@ -135,7 +134,6 @@ func test(__tgo_ctx /*line :34:10*/ tgo.Ctx) error {
 		if true {
 			goto a
 		}
-//line :39:1
 a:
 	}
 	if err := __tgo_ctx.WriteString("</div>"); err != nil {
@@ -164,7 +162,7 @@ func test(__tgo_ctx /*line :46:10*/ tgo.Ctx) error {
 //line :48:1
 		if true {
 			goto a
-		} /*line :50:3*/ ; a:
+		}; a:
 	}
 	if err := __tgo_ctx.WriteString("</div>"); err != nil {
 		return err
