@@ -450,3 +450,5 @@ func fuzzSource(t *testing.T, name, src string) string {
 
 	return ""
 }
+
+// TODO: fuzz test (if tgo type checking succedes, the transpiled with go/types should also).

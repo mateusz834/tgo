@@ -526,12 +526,12 @@ func (t *transpiler) transpileList(list []ast.Stmt, name string) {
 				t.ctx.lineDirectiveMangled = false
 			}
 			t.appendFromSource(lastLabelEndPos)
-
 			if n, ok := unlabeled.(*ast.EmptyStmt); ok && i == len(list)-1 && n.Implicit {
 				early = true
 			}
 		}
 
+		// TODO: get rid of early and the index params.
 		t.transpileStmt(i, early, unlabeled, name)
 	}
 }
@@ -816,7 +816,46 @@ func (t *transpiler) staticWriteIndent(s string) {
 	t.ctx.tmp = append(t.ctx.tmp, '}')
 }
 
+// blockIndent returns an indentation to be used inside of the provided [*ast.BlockStmt].
 func (t *transpiler) blockIndent(b *ast.BlockStmt) string {
+	// The most realiable way of getting the indentation of an block statement
+	// is to look at the indentation between the last statement and the ending
+	// brace and append '\t' to it.
+	//
+	// We cannot just: return t.lastIndentation + "\t", because of cases like these:
+	//
+	//	_ = 0 |
+	//		func() int {
+	//			return 1
+	//		}()
+	//
+	// That is as printed by go/printer. Also printer always adds a newline before
+	// an end brace, so following code:
+	//
+	//	{
+	//		_ = 3 /* coomment
+	//	ends here */ }
+	//
+	// is printed as:
+	//
+	//	{
+	//		_ = 3 /* coomment
+	//		end here */
+	//	}
+	//
+	// We have to be careful with the way go/parser parses ending labels, in such code:
+	//
+	//	{
+	//	label:
+	//	}
+	//
+	// (*ast.LabeledStmt).End() == (*ast.BlockStmt).End(), the (*ast.LabeledStmt).Stmt is set to
+	// &ast.EmptyStmt{End: rbracePos, Implicit: true}, thus End() of the *ast.LabeledStmt, returns
+	// the same position as the *ast.BlockStmt.
+	// Quote from the Go spec: "a semicolon may be omitted before a closing ")" or "}"."
+	// In that case, we ignore the *ast.EmptyStmt, and use the Colon position of the
+	// label as the end position.
+
 	start := b.Lbrace + 1
 	if len(b.List) != 0 {
 		last := b.List[len(b.List)-1]
@@ -847,9 +886,47 @@ func (t *transpiler) blockIndent(b *ast.BlockStmt) string {
 		return lastIndent + "\t"
 	}
 
+	// We have not found an indentation in the BlockStmt this can happen when:
+	//
+	// - The file is not formatted, we produce a "formatted" output, only when
+	//   the input file was also formatted, so this fallback is fine.
+	//
+	// - The file is formatted, but it contains a oneline function, like
+	//
+	//		func() int { return 5 }
+	//
+	//   This would not cause any problem with functions, without any tgo-nodes.
+	//   In that cases we don't really care about the indentation, we will just
+	//   copy the function as-is to the transpiled output. However, if the oneline
+	//   function contained tgo-nodes, that that is problematic, consider a func:
+	//
+	//    func(tgo.Ctx) error { "test" }
+	//
+	//    This would've been an issue in this case: (see comment at the beginning
+	//    of this function for reference)
+	//
+	//       _ = 0 |
+	//       	func _(tgo.Ctx) error { "test" }
+	//
+	//    To produce a formatted file we need to add indentation, so the output should look like:
+	//
+	//       _ = 0 |
+	//       	func(__tgo_ctx tgo.Ctx) error {
+	//       		if err := __tgo_ctx.WriteString("test"); err != nil {
+	//       			return err
+	//       		}
+	//       	}
+	//
+	//    The fallback accounts only for one "\t", not two. To avoid this issue (and
+	//    possibly others) the tgo printer, does not produce oneline function bodies for
+	//    functions containing tgo-nodes, such functions will alvays be multiline.
+
 	return t.lastIndentation + "\t"
 }
 
+// fileUniqueIdent return an identifier that is not used thorough the entire
+// file. Returns defaultIdent, if it is not used in the file, otherwise an identifier
+// based on defaultIdent is generated.
 func fileUniqueIdent(f *ast.File, defaultIdent string) string {
 	used := false
 	ast.Inspect(f, func(n ast.Node) bool {
