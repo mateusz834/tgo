@@ -79,9 +79,10 @@ import (
 //`
 
 const testSrc = `package A
-import"github.com/mateusz834/tgo"
-func A(tgo.Ctx)error{<div
-A:></div>}
+import."github.com/mateusz834/tgo";func A(Ctx)error{
+	DynamicWrite=""
+	"\{""}"
+}
 `
 
 func TestTest(t *testing.T) {

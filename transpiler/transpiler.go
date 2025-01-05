@@ -373,8 +373,13 @@ func (t *transpiler) transpile() {
 		t.appendFromSource(last.pos)
 		t.appendSource("\n\nimport ")
 		t.appendSource(t.ctx.tgoAddtionalImportIdent)
-		t.appendSource(" \"github.com/mateusz834/tgo\"\n")
-		t.writeLineDirective(lineDirectiveFullLine, last.pos)
+		t.appendSource(" \"github.com/mateusz834/tgo\"")
+
+		rd := t.whiteAlg(cur.End(), next.Pos())
+		if rd.ld == lineDirectiveFullLine {
+			t.appendSource("\n")
+		}
+		t.writeLineDirective(rd.ld, t.ctx.lastPosWritten)
 
 		// TODO: this logic beloow is bad bad bad
 		// we need to do this differenlty and better
