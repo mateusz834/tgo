@@ -59,14 +59,24 @@ import (
 //}
 //`
 
+//// TODO: semi disappeares?
+//const testSrc = `package A
+//import"github.com/mateusz834/tgo"
+//func A(tgo.Ctx)error{
+//	<div;>"0"</div>
+//}
+//`
+
 const testSrc = `package A
 import"github.com/mateusz834/tgo"
 func A(tgo.Ctx)error{
-	<div;;>"0"</div>
+	<div@a></div>
 }
 `
 
 func TestTest(t *testing.T) {
+	fuzzSource(t, "a", testSrc)
+	return
 	fset := token.NewFileSet()
 	f, err := parser.ParseFile(fset, "0", testSrc, parser.SkipObjectResolution|parser.ParseComments)
 	if err != nil {

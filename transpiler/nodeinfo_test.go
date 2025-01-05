@@ -65,7 +65,12 @@ func (a *nodeInfoAnalyzer) Visit(n ast.Node) ast.Visitor {
 		return funcHandler(n, n.Type)
 	case *ast.FuncLit:
 		return funcHandler(n, n.Type)
-	case *ast.AttributeStmt, *ast.TemplateLiteralExpr,
+	case *ast.AttributeStmt:
+		if _, ok := n.Value.(*ast.TemplateLiteralExpr); ok {
+			ast.Walk(a, n.Value)
+		}
+		return nil
+	case *ast.TemplateLiteralExpr,
 		*ast.TemplateLiteralPart, *ast.File:
 		return a
 	case *ast.ElementBlockStmt:

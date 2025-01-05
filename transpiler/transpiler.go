@@ -899,11 +899,13 @@ func (t *transpiler) staticWriteIndent(s string) {
 	t.appendSource(t.ctx.tgoIdent)
 	t.appendSource(".WriteString(\"")
 	t.appendSource(s)
-	t.ctx.tmp = append(t.ctx.tmp, "\"); err != nil {"...)
-	t.ctx.tmp = t.appendIndent(t.ctx.tmp)
-	t.ctx.tmp = append(t.ctx.tmp, "\treturn err"...)
-	t.ctx.tmp = t.appendIndent(t.ctx.tmp)
-	t.ctx.tmp = append(t.ctx.tmp, '}')
+
+	// TODO: describe why to tmp.
+	t.tmpAppendSource("\"); err != nil {")
+	t.tmpIndent()
+	t.tmpAppendSource("\treturn err")
+	t.tmpIndent()
+	t.tmpAppendSource("}")
 }
 
 // blockIndent returns an indentation to be used inside of the provided [*ast.BlockStmt].
