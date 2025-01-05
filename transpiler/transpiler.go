@@ -438,26 +438,32 @@ func (t *transpiler) tgoFunc(n ast.Node, funcType *ast.FuncType, body *ast.Block
 			return
 		}
 
-		// TODO: are we handling this case:?
-		// a := func(tgo.Ctx, error)
-		// a := func(__tgo_ctx tgo.Ctx, error)
-
 		params := funcType.Params
 		param := params.List[0]
 		if param.Names == nil {
+			// TODO: are we handling this case:?
+			// a := func(tgo.Ctx, error)
+			// a := func(__tgo_ctx tgo.Ctx, error)
 			t.appendFromSource(param.Type.Pos())
 			t.appendSource(t.ctx.tgoIdent)
 			t.writeLineDirective(lineDirectiveOneLineLRSpace, param.Type.Pos())
 			t.appendFromSource(params.Closing)
 		} else if param.Names[0].Name == "_" {
-			t.appendFromSource(params.List[0].Names[0].Pos())
+			t.appendFromSource(param.Names[0].Pos())
 			t.appendSource(t.ctx.tgoIdent)
-			t.ctx.lastPosWritten = params.List[0].Names[0].End()
+			t.ctx.lastPosWritten = param.Names[0].End()
+
 			ld := lineDirectiveOneLineLSpace
-			if len(params.List) == 0 {
-				ld = lineDirectiveOneLineLRSpace
+			if len(param.Names) > 1 {
+				firstNameLine := t.ctx.fs.Position(param.Names[0].Pos()).Line
+				secondNameLine := t.ctx.fs.Position(param.Names[1].Pos()).Line
+				if firstNameLine != secondNameLine {
+					t.appendFromSource(t.ctx.fs.File(t.ctx.f.FileStart).LineStart(firstNameLine+1) - 1)
+					ld = lineDirectiveFullLine
+				}
 			}
-			t.writeLineDirective(ld, params.List[0].Names[0].End())
+
+			t.writeLineDirective(ld, t.ctx.lastPosWritten)
 			t.appendFromSource(params.Closing)
 		} else {
 			t := &transpiler{

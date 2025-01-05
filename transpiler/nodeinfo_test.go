@@ -12,6 +12,8 @@ import (
 	"github.com/tgo-lang/lang/token"
 )
 
+// TODO: add tests for this.
+
 func expectedNodes(f *ast.File, fset *token.FileSet) map[nodeInfo]struct{} {
 	info := tgofuncs.Check(f)
 	tgoFuncs := make(map[ast.Node]struct{})
