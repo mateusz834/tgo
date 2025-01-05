@@ -87,7 +87,11 @@ func (a *nodeInfoAnalyzer) Visit(n ast.Node) ast.Visitor {
 		ast.Walk(a, n.EndTag)
 		return nil
 	case *ast.OpenTag:
-		for _, v := range n.Body {
+		for i, v := range n.Body {
+			unlabeled, _ := unlabel(v)
+			if v, ok := unlabeled.(*ast.EmptyStmt); i == len(n.Body)-1 && ok && v.Implicit {
+				continue
+			}
 			ast.Walk(a, v)
 		}
 		return nil

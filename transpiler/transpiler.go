@@ -112,17 +112,6 @@ func debugPrintf(format string, args ...any) {
 	fmt.Printf("%v:%v (%v) "+format+"\n", append([]any{filepath.Base(file), line, funcName}, args...)...)
 }
 
-// appendSource appends a string into t.ctx.out, flushing t.ctx.tmp.
-func (t *transpiler) appendSource(s string) {
-	t.flushTmp()
-	if verbose {
-		debugPrintf("appendString(%q)", s)
-	}
-	t.ctx.out = append(t.ctx.out, s...)
-	t.ctx.inStaticWrite = false
-	t.ctx.lineDirectiveMangled = true
-}
-
 // appendFromSource appends t.ctx.src[t.ctx.lastPosWritten:end] into t.ctx.out,
 // flushing t.tmp and updating the t.ctx.lastPosWritten to end.
 func (t *transpiler) appendFromSource(end token.Pos) {
@@ -140,15 +129,20 @@ func (t *transpiler) appendFromSource(end token.Pos) {
 	t.ctx.lastPosWritten = end
 }
 
-func (t *transpiler) appendIndent(b []byte) []byte {
-	b = append(b, t.lastIndentation...)
-	for range t.additionalIndent {
-		b = append(b, '\t')
+// appendSource appends a string into t.ctx.out, flushing t.ctx.tmp.
+// Invalidates the current line directive.
+func (t *transpiler) appendSource(s string) {
+	t.flushTmp()
+	if verbose {
+		debugPrintf("appendString(%q)", s)
 	}
-	return b
+	t.ctx.out = append(t.ctx.out, s...)
+	t.ctx.inStaticWrite = false
+	t.ctx.lineDirectiveMangled = true
 }
 
 // indent append the current indentation to t.ctx.out, flushing t.tmp.
+// Invalidates the current line directive.
 func (t *transpiler) indent() {
 	t.flushTmp()
 	if verbose {
@@ -163,11 +157,20 @@ func (t *transpiler) indent() {
 	t.ctx.lineDirectiveMangled = true
 }
 
+func (t *transpiler) appendIndent(b []byte) []byte {
+	b = append(b, t.lastIndentation...)
+	for range t.additionalIndent {
+		b = append(b, '\t')
+	}
+	return b
+}
+
 // tmpAppendSource appends s into t.ctx.tmp.
 func (t *transpiler) tmpAppendSource(s string) {
 	if verbose {
 		debugPrintf("tmpAppendSource(%q)", s)
 	}
+	// TODO: t.ctx.lineDirectiveMangled = true?
 	t.ctx.tmp = append(t.ctx.tmp, s...)
 	if verbose {
 		debugPrintf("t.ctx.tmp = %q", t.ctx.tmp)
@@ -183,6 +186,7 @@ func (t *transpiler) tmpIndent() {
 			t.additionalIndent,
 		)
 	}
+	// TODO: t.ctx.lineDirectiveMangled = true?
 	t.ctx.tmp = t.appendIndent(t.ctx.tmp)
 	if verbose {
 		debugPrintf("t.ctx.tmp = %q", t.ctx.tmp)
@@ -197,6 +201,12 @@ func (t *transpiler) flushTmp() {
 
 	t.ctx.out = append(t.ctx.out, t.ctx.tmp...)
 	t.ctx.tmp = t.ctx.tmp[:0]
+
+	// TODO: t.ctx.lineDirectiveMangled = true?
+	// I think that this should set lineDirectiveMangled to true, not
+	// the ones above, because tmp migth bet reverted.
+	// Find a test case.
+	//t.ctx.lineDirectiveMangled = true
 
 	// Some source is going to be written soon, so the current scope, is not going
 	// to be empty, preserve that information so that all left braces, openned till this
@@ -456,6 +466,12 @@ func (t *transpiler) tgoFunc(n ast.Node, funcType *ast.FuncType, body *ast.Block
 			t.appendFromSource(param.Names[0].Pos())
 			t.appendSource(t.ctx.tgoIdent)
 			t.ctx.lastPosWritten = param.Names[0].End()
+
+			// The code below does not handle:
+			//func a(a, /*l*/
+			////comment
+			//	b int) {
+			//}
 
 			// TODO: add test cases. and comments :).
 			ld := lineDirectiveOneLineLSpace

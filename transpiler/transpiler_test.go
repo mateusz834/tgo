@@ -79,23 +79,14 @@ import (
 //`
 
 const testSrc = `package A
-
-import "github.com/mateusz834/tgo" //
-
-func A() {
-	0 %
-		func(A tgo.Ctx) error {
-			0000
-			<div></div>
-		} % 0 % func(A tgo.Ctx) error { /*0000000000000000000000000000000000000000000*/
-		<div></div>
-	}
-}
+import"github.com/mateusz834/tgo"
+func A(tgo.Ctx)error{<div
+A:></div>}
 `
 
 func TestTest(t *testing.T) {
-	//fuzzSource(t, "a", testSrc)
-	//return
+	fuzzSource(t, "a", testSrc)
+	return
 	fset := token.NewFileSet()
 	f, err := parser.ParseFile(fset, "0", testSrc, parser.SkipObjectResolution|parser.ParseComments)
 	if err != nil {
