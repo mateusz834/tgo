@@ -17,13 +17,15 @@ import (
 
 const (
 	debug   = false
-	verbose = false
+	verbose = true
 )
 
 // TODO: what would happen?
 //<div
 //L:
 //>
+
+// TODO: shouldn't handling of inStaticWrite be moved to flushTmp?
 
 func Transpile(f *ast.File, fs *token.FileSet, src string) string {
 	info := tgofuncs.Check(f)
@@ -88,40 +90,225 @@ type transpiler struct {
 	inTgoFunc        bool
 }
 
+// posToOffset converts a token.Pos into an source offset in t.ctx.src.
 func (t *transpiler) posToOffset(p token.Pos) int {
 	return t.ctx.fs.File(t.ctx.f.FileStart).Offset(p)
 }
 
+// offsetToPos converts an t.ctx.src source offset into token.Pos.
 func (t *transpiler) offsetToPos(off int) token.Pos {
 	return t.ctx.fs.File(t.ctx.f.FileStart).Pos(off)
 }
 
-func (t *transpiler) appendSource(s string) {
-	if verbose {
-		debugPrintf("t.ctx.appendString(%q)\n", s)
+func debugPrintf(format string, args ...any) {
+	pc, file, line, _ := runtime.Caller(2)
+	funcName := ""
+	f, _ := runtime.CallersFrames([]uintptr{pc}).Next()
+	if f.Func != nil {
+		funcName = f.Func.Name()
+		i := strings.LastIndexByte(funcName, '.')
+		if i >= 0 {
+			funcName = funcName[i+1:]
+		}
 	}
+	fmt.Printf("%v:%v (%v) "+format+"\n", append([]any{filepath.Base(file), line, funcName}, args...)...)
+}
+
+// appendSource appends a string into t.ctx.out, flushing t.ctx.tmp.
+func (t *transpiler) appendSource(s string) {
 	t.flushTmp()
+	if verbose {
+		debugPrintf("appendString(%q)", s)
+	}
 	t.ctx.out = append(t.ctx.out, s...)
 }
 
-func debugPrintf(format string, args ...any) {
-	_, file, line, _ := runtime.Caller(2)
-	fmt.Printf("%v:%v "+format, append([]any{filepath.Base(file), line}, args...)...)
-}
-
+// appendFromSource appends t.ctx.src[t.ctx.lastPosWritten:end] into t.ctx.out,
+// flushing t.tmp and updating the t.ctx.lastPosWritten to end.
 func (t *transpiler) appendFromSource(end token.Pos) {
+	if t.ctx.lastPosWritten == end {
+		return
+	}
+	t.flushTmp()
+	src := t.ctx.src[t.posToOffset(t.ctx.lastPosWritten):t.posToOffset(end)]
 	if verbose {
 		pos := t.ctx.fs.Position(end)
-		debugPrintf("t.ctx.appendFromSource(%v:%v (offset: %v)) -> ", pos.Line, pos.Column, pos.Offset)
+		debugPrintf("appendFromSource(%v:%v (offset: %v)) -> %q", pos.Line, pos.Column, pos.Offset, src)
 	}
-	t.appendSource(t.ctx.src[t.posToOffset(t.ctx.lastPosWritten):t.posToOffset(end)])
+	t.ctx.out = append(t.ctx.out, src...)
 	t.ctx.lastPosWritten = end
 }
 
+func (t *transpiler) appendIndent(b []byte) []byte {
+	b = append(b, t.lastIndentation...)
+	for range t.additionalIndent {
+		b = append(b, '\t')
+	}
+	return b
+}
+
+// indent append the current indentation to t.ctx.out, flushing t.tmp.
+func (t *transpiler) indent() {
+	t.flushTmp()
+	if verbose {
+		debugPrintf(
+			"indent() -> %q; t.ctx.additionalIndent = %v",
+			t.lastIndentation+strings.Repeat("\t", t.additionalIndent),
+			t.additionalIndent,
+		)
+	}
+	t.ctx.out = t.appendIndent(t.ctx.out)
+}
+
+// tmpAppendSource appends s into t.ctx.tmp.
+func (t *transpiler) tmpAppendSource(s string) {
+	if verbose {
+		debugPrintf("tmpAppendSource(%q)", s)
+	}
+	t.ctx.tmp = append(t.ctx.tmp, s...)
+	if verbose {
+		debugPrintf("t.ctx.tmp = %q", t.ctx.tmp)
+	}
+}
+
+// tmpAppendSource appends the current indentation into t.ctx.tmp.
+func (t *transpiler) tmpIndent() {
+	if verbose {
+		debugPrintf(
+			"tmpIndent() -> %q; t.ctx.additionalIndent = %v",
+			t.lastIndentation+strings.Repeat("\t", t.additionalIndent),
+			t.additionalIndent,
+		)
+	}
+	t.ctx.tmp = t.appendIndent(t.ctx.tmp)
+	if verbose {
+		debugPrintf("t.ctx.tmp = %q", t.ctx.tmp)
+	}
+}
+
+// flushTmp flushes pending source inside of t.ctx.tmp into t.ctx.out.
 func (t *transpiler) flushTmp() {
+	if verbose && len(t.ctx.tmp) != 0 {
+		debugPrintf("flushTmp() -> %q", t.ctx.tmp)
+	}
+
 	t.ctx.out = append(t.ctx.out, t.ctx.tmp...)
 	t.ctx.tmp = t.ctx.tmp[:0]
+
+	// Some source is going to be written soon, so the current scope, is not going
+	// to be empty, preserve that information so that all left braces, openned till this
+	// point would get closed (see the (*transpiler).scopeEnd method).
 	t.ctx.implicitBlockStmtForceCloseBefore = t.ctx.implicitBlockStmtCount
+}
+
+type scopeState struct {
+	beforeLen int
+}
+
+// scopeStart starts a new BlockStmt for open tags and ElementBlockStmts.
+// Each scopeStart must have a corresponding scopeEnd call.
+func (t *transpiler) scopeStart() scopeState {
+	if verbose {
+		debugPrintf("scopeState()")
+	}
+
+	beforeLen := len(t.ctx.tmp)
+	t.tmpIndent()
+	t.tmpAppendSource("{")
+	t.ctx.implicitBlockStmtCount++
+	return scopeState{beforeLen: beforeLen}
+}
+
+// scopeEnd end a scope started by scopeStart.
+func (t *transpiler) scopeEnd(s scopeState) {
+	if t.ctx.implicitBlockStmtCount <= t.ctx.implicitBlockStmtForceCloseBefore {
+		if verbose {
+			debugPrintf("scopeEnd() -> keep")
+		}
+
+		// Some source has been written bettwen scopeState and scopeEnd calls,
+		// so we need to close the BlockStmt with an corresponding right brace.
+		// TODO: can we flush here tmp to out? And write this directly to out?
+		// Also think about how this behaves with the use of t.ctx.tmp of staticWriteIndent.
+		t.tmpIndent()
+		t.tmpAppendSource("}")
+		t.ctx.implicitBlockStmtForceCloseBefore--
+	} else {
+		if verbose {
+			debugPrintf("scopeEnd() -> drop")
+		}
+
+		if debug {
+			for _, v := range t.ctx.tmp[s.beforeLen:] {
+				switch v {
+				case ' ', '\t', '\n', '{', '}':
+				default:
+					panic("unreachable")
+				}
+			}
+		}
+
+		// Nothing has been written between the last scopeState and this
+		// scopeEnd call, so it is safe to ignore it, as we don't want to produce
+		// empty BlockStmts in the transpiled code.
+		t.ctx.tmp = t.ctx.tmp[:s.beforeLen]
+
+		if verbose {
+			debugPrintf("t.ctx.tmp = %q", t.ctx.tmp)
+		}
+	}
+	t.ctx.implicitBlockStmtCount--
+}
+
+type lineDirective uint8
+
+const (
+	_ lineDirective = iota
+
+	lineDirectiveFullLine       // "//line file:line:col\n"
+	lineDirectiveOneLine        // "/*line file:line:col*/"
+	lineDirectiveOneLineLSpace  // " /*line file:line:col*/"
+	lineDirectiveOneLineRSpace  // "/*line file:line:col*/ "
+	lineDirectiveOneLineLRSpace // " /*line file:line:col*/ "
+)
+
+func (t *transpiler) writeLineDirective(ld lineDirective, pos token.Pos) {
+	switch ld {
+	case lineDirectiveOneLineLSpace, lineDirectiveOneLine:
+		pos -= 1
+	case lineDirectiveOneLineRSpace, lineDirectiveOneLineLRSpace:
+		// TODO: explain:
+		if t.ctx.fs.Position(pos+1).Column-2 <= 0 {
+			pos++
+			ld = lineDirectiveOneLine
+		}
+		pos -= 2
+	case lineDirectiveFullLine:
+	default:
+		panic("unreachable")
+	}
+
+	p := t.ctx.fs.Position(pos + 1)
+	switch ld {
+	case lineDirectiveOneLineLSpace, lineDirectiveOneLineLRSpace:
+		t.appendSource(" /*line ")
+	case lineDirectiveOneLineRSpace, lineDirectiveOneLine:
+		t.appendSource("/*line ")
+	default:
+		t.appendSource("\n//line ")
+	}
+
+	t.appendSource(":")
+	t.appendSource(strconv.FormatInt(int64(p.Line), 10))
+	t.appendSource(":")
+	t.appendSource(strconv.FormatInt(int64(p.Column), 10))
+
+	switch ld {
+	case lineDirectiveOneLineRSpace, lineDirectiveOneLineLRSpace:
+		t.appendSource("*/ ")
+	case lineDirectiveOneLineLSpace, lineDirectiveOneLine:
+		t.appendSource("*/")
+	}
 }
 
 func (t *transpiler) transpile() {
@@ -326,74 +513,6 @@ func (t *transpiler) Visit(n ast.Node) ast.Visitor {
 	return t
 }
 
-type lineDirective uint8
-
-const (
-	_ lineDirective = iota
-
-	lineDirectiveFullLine       // "//line file:line:col\n"
-	lineDirectiveOneLine        // "/*line file:line:col*/"
-	lineDirectiveOneLineLSpace  // " /*line file:line:col*/"
-	lineDirectiveOneLineRSpace  // "/*line file:line:col*/ "
-	lineDirectiveOneLineLRSpace // " /*line file:line:col*/ "
-)
-
-func (t *transpiler) writeLineDirective(ld lineDirective, pos token.Pos) {
-	switch ld {
-	case lineDirectiveOneLineLSpace, lineDirectiveOneLine:
-		pos -= 1
-	case lineDirectiveOneLineRSpace, lineDirectiveOneLineLRSpace:
-		if t.ctx.fs.Position(pos+1).Column-2 <= 0 {
-			pos++
-			ld = lineDirectiveOneLine
-		}
-		pos -= 2
-	case lineDirectiveFullLine:
-	default:
-		panic("unreachable")
-	}
-
-	p := t.ctx.fs.Position(pos + 1)
-	if ld == lineDirectiveOneLineLSpace || ld == lineDirectiveOneLineLRSpace {
-		t.appendSource(" /*line ")
-	} else if ld == lineDirectiveOneLineRSpace || ld == lineDirectiveOneLine {
-		t.appendSource("/*line ")
-	} else {
-		t.appendSource("\n//line ")
-	}
-
-	t.appendSource(":")
-	t.appendSource(strconv.FormatInt(int64(p.Line), 10))
-	t.appendSource(":")
-	t.appendSource(strconv.FormatInt(int64(p.Column), 10))
-
-	if ld == lineDirectiveOneLineRSpace || ld == lineDirectiveOneLineLRSpace {
-		t.appendSource("*/ ")
-	} else if ld == lineDirectiveOneLineLSpace || ld == lineDirectiveOneLine {
-		t.appendSource("*/")
-	}
-}
-
-func (t *transpiler) appendIndent(b []byte) []byte {
-	b = append(b, t.lastIndentation...)
-	for range t.additionalIndent {
-		b = append(b, '\t')
-	}
-	return b
-}
-
-func (t *transpiler) wantIndent() {
-	if verbose {
-		debugPrintf(
-			"t.ctx.wantIndent(%v): appending %q\n",
-			t.additionalIndent,
-			t.lastIndentation+strings.Repeat("\t", t.additionalIndent),
-		)
-	}
-	t.flushTmp()
-	t.ctx.out = t.appendIndent(t.ctx.out)
-}
-
 func isTgo(n ast.Node, inTgoFunc bool) bool {
 	switch n := n.(type) {
 	case *ast.OpenTag, *ast.AttributeStmt, *ast.ElementBlockStmt:
@@ -406,40 +525,6 @@ func isTgo(n ast.Node, inTgoFunc bool) bool {
 		return (isBasicLit && x.Kind == token.STRING && inTgoFunc) || isTemplate
 	}
 	return false
-}
-
-type scopeState struct {
-	beforeLen int
-}
-
-func (t *transpiler) scopeStart() scopeState {
-	beforeLen := len(t.ctx.tmp)
-	t.ctx.tmp = t.appendIndent(t.ctx.tmp)
-	t.ctx.tmp = append(t.ctx.tmp, '{')
-	t.ctx.implicitBlockStmtCount++
-	return scopeState{
-		beforeLen: beforeLen,
-	}
-}
-
-func (t *transpiler) scopeEnd(s scopeState) {
-	if t.ctx.implicitBlockStmtCount <= t.ctx.implicitBlockStmtForceCloseBefore {
-		t.ctx.tmp = t.appendIndent(t.ctx.tmp)
-		t.ctx.tmp = append(t.ctx.tmp, '}')
-		t.ctx.implicitBlockStmtForceCloseBefore--
-	} else {
-		if debug {
-			for _, v := range t.ctx.tmp[s.beforeLen:] {
-				switch v {
-				case ' ', '\t', '\n', '{', '}':
-				default:
-					panic("unreachable")
-				}
-			}
-		}
-		t.ctx.tmp = t.ctx.tmp[:s.beforeLen]
-	}
-	t.ctx.implicitBlockStmtCount--
 }
 
 type whiteAlgResult struct {
@@ -563,7 +648,7 @@ func (t *transpiler) transpileStmt(i int, early bool, n ast.Stmt, name string) {
 		}
 
 		t.appendFromSource(lastCommentEndPos)
-		t.wantIndent()
+		t.indent()
 		t.appendSource(t.ctx.tgoIdent)
 		t.appendSource(" := ")
 		t.appendSource(name)
@@ -573,9 +658,9 @@ func (t *transpiler) transpileStmt(i int, early bool, n ast.Stmt, name string) {
 				r.ld = lineDirectiveFullLine
 			} else if lastWhite {
 				r.ld = lineDirectiveOneLine
-				t.wantIndent()
+				t.indent()
 			} else {
-				t.wantIndent()
+				t.indent()
 			}
 		}
 		t.ctx.lineDirectiveMangled = true
@@ -730,7 +815,7 @@ func (t *transpiler) transpileTemplateLiteral(x *ast.TemplateLiteralExpr) {
 }
 
 func (t *transpiler) dynamicWriteIndent(x *ast.TemplateLiteralExpr, n *ast.TemplateLiteralPart) {
-	t.wantIndent()
+	t.indent()
 
 	t.appendSource("if err := ")
 	if d, ok := t.ctx.info.UsableImportForTemplate[x]; ok {
@@ -783,9 +868,9 @@ func (t *transpiler) dynamicWriteIndent(x *ast.TemplateLiteralExpr, n *ast.Templ
 	t.appendFromSource(n.End() - 1)
 
 	t.appendSource(")); err != nil {")
-	t.wantIndent()
+	t.indent()
 	t.appendSource("\treturn err")
-	t.wantIndent()
+	t.indent()
 	t.appendSource("}")
 }
 
@@ -799,12 +884,17 @@ func (t *transpiler) staticWriteIndentGoString(s string) {
 }
 
 func (t *transpiler) staticWriteIndent(s string) {
+	if verbose {
+		debugPrintf("staticWriteIndent(%q); t.ctx.inStaticWrite = %v", s, t.ctx.inStaticWrite)
+	}
+
 	if t.ctx.inStaticWrite {
 		t.ctx.out = append(t.ctx.out, s...)
 		return
 	}
+
 	t.ctx.inStaticWrite = true
-	t.wantIndent()
+	t.indent()
 	t.appendSource("if err := ")
 	t.appendSource(t.ctx.tgoIdent)
 	t.appendSource(".WriteString(\"")
@@ -924,7 +1014,7 @@ func (t *transpiler) blockIndent(b *ast.BlockStmt) string {
 	return t.lastIndentation + "\t"
 }
 
-// fileUniqueIdent return an identifier that is not used thorough the entire
+// fileUniqueIdent return an identifier that is not used throughout the entire
 // file. Returns defaultIdent, if it is not used in the file, otherwise an identifier
 // based on defaultIdent is generated.
 func fileUniqueIdent(f *ast.File, defaultIdent string) string {

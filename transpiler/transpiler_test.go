@@ -59,13 +59,10 @@ import (
 //}
 //`
 
-const testSrc = `package A00000
-import "github.com/mateusz834/tgo"
-func _(tgo.Ctx) error {
-	<div
-	L:
-	>
-	</div>
+const testSrc = `package A
+import"github.com/mateusz834/tgo"
+func A(tgo.Ctx)error{
+	<div;;>"0"</div>
 }
 `
 
