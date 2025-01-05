@@ -121,6 +121,7 @@ func (t *transpiler) appendSource(s string) {
 		debugPrintf("appendString(%q)", s)
 	}
 	t.ctx.out = append(t.ctx.out, s...)
+	t.ctx.inStaticWrite = false
 }
 
 // appendFromSource appends t.ctx.src[t.ctx.lastPosWritten:end] into t.ctx.out,
@@ -136,6 +137,7 @@ func (t *transpiler) appendFromSource(end token.Pos) {
 		debugPrintf("appendFromSource(%v:%v (offset: %v)) -> %q", pos.Line, pos.Column, pos.Offset, src)
 	}
 	t.ctx.out = append(t.ctx.out, src...)
+	t.ctx.inStaticWrite = false
 	t.ctx.lastPosWritten = end
 }
 
@@ -158,6 +160,7 @@ func (t *transpiler) indent() {
 		)
 	}
 	t.ctx.out = t.appendIndent(t.ctx.out)
+	t.ctx.inStaticWrite = false
 }
 
 // tmpAppendSource appends s into t.ctx.tmp.
@@ -405,7 +408,6 @@ func (t *transpiler) addLineDirectiveBeforeRbrace(rbracePos token.Pos) {
 			}
 		}
 		t.writeLineDirective(r.ld, t.ctx.lastPosWritten)
-		t.ctx.inStaticWrite = false
 		t.ctx.lineDirectiveMangled = false
 	}
 }
@@ -493,10 +495,6 @@ func (t *transpiler) tgoFunc(n ast.Node, funcType *ast.FuncType, body *ast.Block
 }
 
 func (t *transpiler) Visit(n ast.Node) ast.Visitor {
-	t.ctx.inStaticWrite = false
-	defer func() {
-		t.ctx.inStaticWrite = false
-	}()
 	switch n := n.(type) {
 	case *ast.FuncDecl:
 		t.tgoFunc(n, n.Type, n.Body)
@@ -655,7 +653,6 @@ func (t *transpiler) transpileList(list []ast.Stmt, name string) {
 
 		unlabeled, lastLabelEndPos := unlabel(n)
 		if lastLabelEndPos.IsValid() {
-			t.ctx.inStaticWrite = false
 			if t.ctx.lineDirectiveMangled {
 				t.writeLineDirective(r.ld, t.ctx.lastPosWritten)
 				t.ctx.lineDirectiveMangled = false
@@ -667,7 +664,6 @@ func (t *transpiler) transpileList(list []ast.Stmt, name string) {
 			r = t.whiteAlg(lastLabelEndPos, unlabeled.Pos())
 		}
 
-		// TODO: get rid of early and the index params.
 		t.transpileStmt(r, unlabeled)
 	}
 }
@@ -689,7 +685,6 @@ func (t *transpiler) transpileStmt(r whiteAlgResult, n ast.Stmt) {
 		t.ctx.lineDirectiveMangled = true
 	} else {
 		if t.ctx.lineDirectiveMangled {
-			t.ctx.inStaticWrite = false
 			t.ctx.lineDirectiveMangled = false
 			if r.ld == lineDirectiveOneLineLSpace {
 				for v := range t.iterWhite(t.ctx.lastPosWritten, n.Pos()) {
@@ -809,7 +804,6 @@ func (t *transpiler) transpileTemplateLiteral(x *ast.TemplateLiteralExpr) {
 		} else {
 			t.staticWriteIndentGoString("\"" + x.Strings[i] + "\"")
 		}
-		t.ctx.inStaticWrite = false
 		t.dynamicWriteIndent(x, x.Parts[i])
 	}
 	t.staticWriteIndentGoString("\"" + x.Strings[len(x.Strings)-1])
@@ -895,7 +889,6 @@ func (t *transpiler) staticWriteIndent(s string) {
 		return
 	}
 
-	t.ctx.inStaticWrite = true
 	t.indent()
 	t.appendSource("if err := ")
 	t.appendSource(t.ctx.tgoIdent)
@@ -908,6 +901,8 @@ func (t *transpiler) staticWriteIndent(s string) {
 	t.tmpAppendSource("\treturn err")
 	t.tmpIndent()
 	t.tmpAppendSource("}")
+
+	t.ctx.inStaticWrite = true
 }
 
 // blockIndent returns an indentation to be used inside of the provided [*ast.BlockStmt].
