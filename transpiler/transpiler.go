@@ -453,6 +453,7 @@ func (t *transpiler) tgoFunc(n ast.Node, funcType *ast.FuncType, body *ast.Block
 			t.appendSource(t.ctx.tgoIdent)
 			t.ctx.lastPosWritten = param.Names[0].End()
 
+			// TODO: add test cases. and comments :).
 			ld := lineDirectiveOneLineLSpace
 			if len(param.Names) > 1 {
 				firstNameLine := t.ctx.fs.Position(param.Names[0].Pos()).Line
@@ -607,76 +608,71 @@ func unlabel(n ast.Stmt) (ast.Stmt, token.Pos) {
 
 func (t *transpiler) transpileList(list []ast.Stmt, name string) {
 	for i, n := range list {
-		early := false
+		r := t.whiteAlg(t.ctx.lastPosWritten, n.Pos())
+
+		if i == 0 && name != "" {
+			var (
+				lastCommentEndPos = t.ctx.lastPosWritten
+				lastIndent        bool
+				lastWhite         bool
+			)
+			for v := range t.iterWhite(t.ctx.lastPosWritten, n.Pos()) {
+				lastIndent = false
+				lastWhite = false
+				switch v.whiteType {
+				case whiteWhite:
+					lastWhite = true
+				case whiteIndent:
+					lastIndent = true
+					lastCommentEndPos = v.pos
+				case whiteComment:
+					lastCommentEndPos = v.end()
+				case whiteSemi:
+				default:
+					panic("unreachable")
+				}
+			}
+
+			t.appendFromSource(lastCommentEndPos)
+			t.indent()
+			t.appendSource(t.ctx.tgoIdent)
+			t.appendSource(" := ")
+			t.appendSource(name)
+			if !isTgo(n, t.inTgoFunc) {
+				r.ld = lineDirectiveOneLineRSpace
+				if lastIndent {
+					r.ld = lineDirectiveFullLine
+				} else if lastWhite {
+					r.ld = lineDirectiveOneLine
+					t.indent()
+				} else {
+					t.indent()
+				}
+			}
+			t.ctx.lineDirectiveMangled = true
+			r.lastNewlineOrNodePos = lastCommentEndPos
+		}
+
 		unlabeled, lastLabelEndPos := unlabel(n)
 		if lastLabelEndPos.IsValid() {
 			t.ctx.inStaticWrite = false
-			r := t.whiteAlg(t.ctx.lastPosWritten, n.Pos())
 			if t.ctx.lineDirectiveMangled {
 				t.writeLineDirective(r.ld, t.ctx.lastPosWritten)
 				t.ctx.lineDirectiveMangled = false
 			}
 			t.appendFromSource(lastLabelEndPos)
 			if n, ok := unlabeled.(*ast.EmptyStmt); ok && i == len(list)-1 && n.Implicit {
-				early = true
+				return
 			}
+			r = t.whiteAlg(lastLabelEndPos, unlabeled.Pos())
 		}
 
 		// TODO: get rid of early and the index params.
-		t.transpileStmt(i, early, unlabeled, name)
+		t.transpileStmt(r, unlabeled)
 	}
 }
 
-func (t *transpiler) transpileStmt(i int, early bool, n ast.Stmt, name string) {
-	r := t.whiteAlg(t.ctx.lastPosWritten, n.Pos())
-
-	if i == 0 && name != "" {
-		var (
-			lastCommentEndPos = t.ctx.lastPosWritten
-			lastIndent        bool
-			lastWhite         bool
-		)
-		for v := range t.iterWhite(t.ctx.lastPosWritten, n.Pos()) {
-			lastIndent = false
-			lastWhite = false
-			switch v.whiteType {
-			case whiteWhite:
-				lastWhite = true
-			case whiteIndent:
-				lastIndent = true
-				lastCommentEndPos = v.pos
-			case whiteComment:
-				lastCommentEndPos = v.end()
-			case whiteSemi:
-			default:
-				panic("unreachable")
-			}
-		}
-
-		t.appendFromSource(lastCommentEndPos)
-		t.indent()
-		t.appendSource(t.ctx.tgoIdent)
-		t.appendSource(" := ")
-		t.appendSource(name)
-		if !isTgo(n, t.inTgoFunc) {
-			r.ld = lineDirectiveOneLineRSpace
-			if lastIndent {
-				r.ld = lineDirectiveFullLine
-			} else if lastWhite {
-				r.ld = lineDirectiveOneLine
-				t.indent()
-			} else {
-				t.indent()
-			}
-		}
-		t.ctx.lineDirectiveMangled = true
-		r.lastNewlineOrNodePos = lastCommentEndPos
-	}
-
-	if early {
-		return
-	}
-
+func (t *transpiler) transpileStmt(r whiteAlgResult, n ast.Stmt) {
 	if isTgo(n, t.inTgoFunc) {
 		// When previous node was non-tgo and now we have a tgo node,
 		// preserve whitespace, comments and semicolons up to last newline
