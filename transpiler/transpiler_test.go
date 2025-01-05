@@ -80,12 +80,16 @@ import (
 
 const testSrc = `package A
 
-import "github.com/mateusz834/tgo"
+import "github.com/mateusz834/tgo" //
 
-func A(A tgo.Ctx) error {
-A:
-	;
-	<div></div>
+func A() {
+	0 %
+		func(A tgo.Ctx) error {
+			0000
+			<div></div>
+		} % 0 % func(A tgo.Ctx) error { /*0000000000000000000000000000000000000000000*/
+		<div></div>
+	}
 }
 `
 

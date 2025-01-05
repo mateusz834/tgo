@@ -17,15 +17,13 @@ import (
 
 const (
 	debug   = false
-	verbose = false
+	verbose = true
 )
 
 // TODO: what would happen?
 //<div
 //L:
 //>
-
-// TODO: shouldn't handling of inStaticWrite be moved to flushTmp?
 
 func Transpile(f *ast.File, fs *token.FileSet, src string) string {
 	info := tgofuncs.Check(f)
@@ -122,6 +120,7 @@ func (t *transpiler) appendSource(s string) {
 	}
 	t.ctx.out = append(t.ctx.out, s...)
 	t.ctx.inStaticWrite = false
+	t.ctx.lineDirectiveMangled = true
 }
 
 // appendFromSource appends t.ctx.src[t.ctx.lastPosWritten:end] into t.ctx.out,
@@ -161,6 +160,7 @@ func (t *transpiler) indent() {
 	}
 	t.ctx.out = t.appendIndent(t.ctx.out)
 	t.ctx.inStaticWrite = false
+	t.ctx.lineDirectiveMangled = true
 }
 
 // tmpAppendSource appends s into t.ctx.tmp.
@@ -312,6 +312,8 @@ func (t *transpiler) writeLineDirective(ld lineDirective, pos token.Pos) {
 	case lineDirectiveOneLineLSpace, lineDirectiveOneLine:
 		t.appendSource("*/")
 	}
+
+	t.ctx.lineDirectiveMangled = false
 }
 
 func (t *transpiler) transpile() {
@@ -323,6 +325,7 @@ func (t *transpiler) transpile() {
 	t.appendSource("//line ")
 	t.appendSource(t.ctx.fs.File(t.ctx.f.FileStart).Name())
 	t.appendSource(":1:1\n")
+	t.ctx.lineDirectiveMangled = false
 
 	if t.ctx.info.NeedsSpecialTgoImport {
 		t.ctx.tgoAddtionalImportIdent = fileUniqueIdent(t.ctx.f, "__tgo")
@@ -408,7 +411,6 @@ func (t *transpiler) addLineDirectiveBeforeRbrace(rbracePos token.Pos) {
 			}
 		}
 		t.writeLineDirective(r.ld, t.ctx.lastPosWritten)
-		t.ctx.lineDirectiveMangled = false
 	}
 }
 
@@ -647,7 +649,6 @@ func (t *transpiler) transpileList(list []ast.Stmt, name string) {
 					t.indent()
 				}
 			}
-			t.ctx.lineDirectiveMangled = true
 			r.lastNewlineOrNodePos = lastCommentEndPos
 		}
 
@@ -655,7 +656,6 @@ func (t *transpiler) transpileList(list []ast.Stmt, name string) {
 		if lastLabelEndPos.IsValid() {
 			if t.ctx.lineDirectiveMangled {
 				t.writeLineDirective(r.ld, t.ctx.lastPosWritten)
-				t.ctx.lineDirectiveMangled = false
 			}
 			t.appendFromSource(lastLabelEndPos)
 			if n, ok := unlabeled.(*ast.EmptyStmt); ok && i == len(list)-1 && n.Implicit {
@@ -682,10 +682,8 @@ func (t *transpiler) transpileStmt(r whiteAlgResult, n ast.Stmt) {
 		// When the current node is a tgo-node, ignore the whitespace
 		// the logic below will add the indentation (from t.ctx.lastIndentation),
 		// when necessary.
-		t.ctx.lineDirectiveMangled = true
 	} else {
 		if t.ctx.lineDirectiveMangled {
-			t.ctx.lineDirectiveMangled = false
 			if r.ld == lineDirectiveOneLineLSpace {
 				for v := range t.iterWhite(t.ctx.lastPosWritten, n.Pos()) {
 					if v.whiteType == whiteWhite {
@@ -726,7 +724,6 @@ func (t *transpiler) transpileStmt(r whiteAlgResult, n ast.Stmt) {
 		t.staticWriteIndent(n.EndTag.Name.Name)
 		t.staticWriteIndent(">")
 		t.ctx.lastPosWritten = n.End()
-		t.ctx.lineDirectiveMangled = true
 	case *ast.OpenTag:
 		t.staticWriteIndent("<")
 		t.staticWriteIndent(n.Name.Name)
