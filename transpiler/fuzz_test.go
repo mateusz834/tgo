@@ -424,6 +424,11 @@ func fuzzSource(t *testing.T, name, src string) string {
 			//import()
 			//func()A()(
 			///**/A)`
+
+			//package A
+			//import()
+			//func()A(A(
+			///**/A))
 			if len(f.Comments) != 0 {
 				hasMultiLineReturn := false
 				ast.Inspect(f, func(n ast.Node) bool {
