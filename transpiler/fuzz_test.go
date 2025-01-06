@@ -419,6 +419,30 @@ func fuzzSource(t *testing.T, name, src string) string {
 					return
 				}
 			}
+
+			//const testSrc = `package A
+			//import()
+			//func()A()(
+			///**/A)`
+			if len(f.Comments) != 0 {
+				hasMultiLineReturn := false
+				ast.Inspect(f, func(n ast.Node) bool {
+					switch n := n.(type) {
+					case *ast.FuncType:
+						if n.Results != nil {
+							if fset.Position(n.Params.Opening).Line != fset.Position(n.Params.Closing).Line {
+								hasMultiLineReturn = true
+								return false
+							}
+						}
+					}
+					return true
+				})
+				if hasMultiLineReturn {
+					return
+				}
+			}
+
 			t.Fatalf("format.Node() = %v; want <nil>", err)
 		}
 	}()
