@@ -211,14 +211,18 @@ func (t *transpiler) flushTmp() {
 		debugPrintf("flushTmp() -> %q", t.ctx.tmp)
 	}
 
-	t.ctx.out = append(t.ctx.out, t.ctx.tmp...)
-	t.ctx.tmp = t.ctx.tmp[:0]
+	//if len(t.ctx.tmp) != 0 && !t.ctx.lineDirectiveMangled {
+	//	panic("unreachable")
+	//}
 
 	// TODO: t.ctx.lineDirectiveMangled = true?
 	// I think that this should set lineDirectiveMangled to true, not
 	// the ones above, because tmp migth bet reverted.
 	// Find a test case.
-	//t.ctx.lineDirectiveMangled = true
+	//t.ctx.lineDirectiveMangled = len(t.ctx.tmp) != 0
+
+	t.ctx.out = append(t.ctx.out, t.ctx.tmp...)
+	t.ctx.tmp = t.ctx.tmp[:0]
 
 	// Some source is going to be written soon, so the current scope, is not going
 	// to be empty, preserve that information so that all left braces, openned till this
@@ -234,7 +238,7 @@ type scopeState struct {
 // Each scopeStart must have a corresponding scopeEnd call.
 func (t *transpiler) scopeStart() scopeState {
 	if verbose {
-		debugPrintf("scopeState()")
+		debugPrintf("scopeStart()")
 	}
 
 	beforeLen := len(t.ctx.tmp)
@@ -253,8 +257,22 @@ func (t *transpiler) scopeEnd(s scopeState) {
 
 		// Some source has been written bettwen scopeState and scopeEnd calls,
 		// so we need to close the BlockStmt with an corresponding right brace.
-		// TODO: can we flush here tmp to out? And write this directly to out?
-		// Also think about how this behaves with the use of t.ctx.tmp of staticWriteIndent.
+		//
+		// We cannot flush t.ctx.tmp and write the end brace into the t.ctx.out directly, because
+		// this will limit our static string concatenation optimization (see [staticWriteIndent]).
+		// For example:
+		//
+		//	func test(tgo.Ctx) error {
+		// 		<div>
+		// 			_ = "sth"
+		// 			"test"
+		// 		</div>
+		// 	}
+		//
+		// "test" and </div> can be written in a single WriteString call, appending t.ctx.out,
+		// would cause t.ctx.inStaticWrite to be set to false, which would cause both of the strings
+		// be written separately ("test", then "</div>") (see [appendSource] and [staticWriteIndent]).
+
 		t.tmpIndent()
 		t.tmpAppendSource("}")
 		t.ctx.implicitBlockStmtForceCloseBefore--
