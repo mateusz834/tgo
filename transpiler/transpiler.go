@@ -17,7 +17,7 @@ import (
 
 const (
 	debug   = false
-	verbose = false
+	verbose = true
 )
 
 // TODO: what would happen?
@@ -130,6 +130,24 @@ func (t *transpiler) appendFromSource(end token.Pos) {
 	if t.ctx.lastPosWritten == end {
 		return
 	}
+
+	// While appending source from t.ctx.src into t.ctx.out, we
+	// need to be sure that the line directive is valid, and was
+	// not mangled by any code that we generated.
+	if t.ctx.lineDirectiveMangled {
+		panic("unreachable")
+	}
+
+	// At this point t.ctx.tmp, must be empty, because the t.ctx.lineDirectiveMangled
+	// is equal to false (see assert above), which means that a line directive
+	// has been written before, which caused the t.ctx.tmp to be flushed.
+	// TODO: calling t.tmpAppendSource, does not set lineDirectiveMangled to false and
+	// it append to t.ctx.tmp.
+	//if len(t.ctx.tmp) != 0 {
+	//	panic("unreachable")
+	//}
+
+	// TODO: assuming the panic above, is this needed?
 	t.flushTmp()
 	src := t.ctx.src[t.posToOffset(t.ctx.lastPosWritten):t.posToOffset(end)]
 	if verbose {
@@ -211,10 +229,6 @@ func (t *transpiler) flushTmp() {
 		debugPrintf("flushTmp() -> %q", t.ctx.tmp)
 	}
 
-	//if len(t.ctx.tmp) != 0 && !t.ctx.lineDirectiveMangled {
-	//	panic("unreachable")
-	//}
-
 	// TODO: t.ctx.lineDirectiveMangled = true?
 	// I think that this should set lineDirectiveMangled to true, not
 	// the ones above, because tmp migth bet reverted.
@@ -269,7 +283,7 @@ func (t *transpiler) scopeEnd(s scopeState) {
 		// 		</div>
 		// 	}
 		//
-		// "test" and </div> can be written in a single WriteString call, appending t.ctx.out,
+		// "test" and </div> can be written in a single WriteString call, appending into t.ctx.out,
 		// would cause t.ctx.inStaticWrite to be set to false, which would cause both of the strings
 		// be written separately ("test", then "</div>") (see [appendSource] and [staticWriteIndent]).
 
