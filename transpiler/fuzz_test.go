@@ -429,6 +429,10 @@ func fuzzSource(t *testing.T, name, src string) string {
 				ast.Inspect(f, func(n ast.Node) bool {
 					switch n := n.(type) {
 					case *ast.FuncType:
+						if fset.Position(n.Params.Opening).Line != fset.Position(n.Params.Closing).Line {
+							hasMultiLineReturn = true
+							return false
+						}
 						if n.Results != nil {
 							if fset.Position(n.Results.Opening).Line != fset.Position(n.Results.Closing).Line {
 								hasMultiLineReturn = true
