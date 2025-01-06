@@ -17,7 +17,7 @@ import (
 
 const (
 	debug   = false
-	verbose = false
+	verbose = true
 )
 
 // TODO: what would happen?
@@ -528,6 +528,7 @@ func (t *transpiler) tgoFunc(n ast.Node, funcType *ast.FuncType, body *ast.Block
 				firstNameLine := t.ctx.fs.Position(param.Names[0].Pos()).Line
 				secondNameLine := t.ctx.fs.Position(param.Names[1].Pos()).Line
 				if firstNameLine != secondNameLine {
+					t.ctx.lineDirectiveMangled = false // TODO: fix
 					t.appendFromSource(t.ctx.fs.File(t.ctx.f.FileStart).LineStart(firstNameLine+1) - 1)
 					ld = lineDirectiveFullLine
 				}

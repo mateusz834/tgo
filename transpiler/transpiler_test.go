@@ -85,7 +85,10 @@ import (
 //}
 //`
 
-const testSrc = "package A"
+const testSrc = `package A
+import"github.com/mateusz834/tgo"
+func A(_,
+A tgo.Ctx)error{<div></div>}`
 
 func TestTest(t *testing.T) {
 	fset := token.NewFileSet()
