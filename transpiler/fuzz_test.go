@@ -430,7 +430,7 @@ func fuzzSource(t *testing.T, name, src string) string {
 					switch n := n.(type) {
 					case *ast.FuncType:
 						if n.Results != nil {
-							if fset.Position(n.Params.Opening).Line != fset.Position(n.Params.Closing).Line {
+							if fset.Position(n.Results.Opening).Line != fset.Position(n.Results.Closing).Line {
 								hasMultiLineReturn = true
 								return false
 							}
