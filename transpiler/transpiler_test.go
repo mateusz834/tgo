@@ -86,9 +86,15 @@ import (
 //`
 
 const testSrc = `package A
+
 import"github.com/mateusz834/tgo"
-func A(_,
-A tgo.Ctx)error{<div></div>}`
+
+func test(tgo.Ctx) error {
+	<div>
+		_ = 3
+	</div>
+}
+`
 
 func TestTest(t *testing.T) {
 	fset := token.NewFileSet()
@@ -109,11 +115,11 @@ func TestTest(t *testing.T) {
 	t.Logf("transpiled:\n%q", out)
 
 	fsetgo := gotoken.NewFileSet()
-	fgo, err := goparser.ParseFile(fsetgo, "transpiled.go", out, goparser.ParseComments|goparser.SkipObjectResolution)
+	_, err = goparser.ParseFile(fsetgo, "transpiled.go", out, goparser.ParseComments|goparser.SkipObjectResolution)
 	if err != nil {
 		if v, ok := err.(goscanner.ErrorList); ok {
 			for _, v := range v {
-				file := fsetgo.File(fgo.FileStart)
+				file := fsetgo.File(1)
 				t.Logf("%v: %v", file.PositionFor(file.Pos(v.Pos.Offset), false), v)
 			}
 		}

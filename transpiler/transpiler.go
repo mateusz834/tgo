@@ -125,7 +125,7 @@ func (t *transpiler) skipSourceUpTo(pos token.Pos) {
 }
 
 // appendFromSource appends t.ctx.src[t.ctx.lastPosWritten:end] into t.ctx.out,
-// flushing t.tmp and updating the t.ctx.lastPosWritten to end.
+// updating the t.ctx.lastPosWritten to end.
 func (t *transpiler) appendFromSource(end token.Pos) {
 	if t.ctx.lastPosWritten == end {
 		return
@@ -141,14 +141,16 @@ func (t *transpiler) appendFromSource(end token.Pos) {
 	// At this point t.ctx.tmp, must be empty, because the t.ctx.lineDirectiveMangled
 	// is equal to false (see assert above), which means that a line directive
 	// has been written before, which caused the t.ctx.tmp to be flushed.
-	// TODO: calling t.tmpAppendSource, does not set lineDirectiveMangled to false and
-	// it append to t.ctx.tmp.
-	//if len(t.ctx.tmp) != 0 {
-	//	panic("unreachable")
-	//}
+	// There is one case, where it might fail: call to [writeLineDirective],
+	// then [tmpAppendSource] (or [tmpIndent]), then [appendFromSource].
+	// This way we would get t.ctx.lineDirectiveMangled == false and len(t.ctx.tmp) != 0,
+	// but with the current transpiler, this kind of call combination is not possible.
+	// TODO: maybe we should set t.ctx.lineDirectiveMangled = true in [tmpIndent] and [tmpAppendSource]?
+	// Wouldn't that cause duplicated line directives? We can "rollback" scopes ([scopeStart], [scopeEnd]).
+	if len(t.ctx.tmp) != 0 {
+		panic("unreachable")
+	}
 
-	// TODO: assuming the panic above, is this needed?
-	t.flushTmp()
 	src := t.ctx.src[t.posToOffset(t.ctx.lastPosWritten):t.posToOffset(end)]
 	if verbose {
 		pos := t.ctx.fs.Position(end)
@@ -167,6 +169,7 @@ func (t *transpiler) appendSource(s string) {
 		debugPrintf("appendString(%q)", s)
 	}
 	t.ctx.out = append(t.ctx.out, s...)
+	// TODO: move to flushTmp?
 	t.ctx.inStaticWrite = false
 	t.ctx.lineDirectiveMangled = true
 }
@@ -200,7 +203,7 @@ func (t *transpiler) tmpAppendSource(s string) {
 	if verbose {
 		debugPrintf("tmpAppendSource(%q)", s)
 	}
-	// TODO: t.ctx.lineDirectiveMangled = true?
+
 	t.ctx.tmp = append(t.ctx.tmp, s...)
 	if verbose {
 		debugPrintf("t.ctx.tmp = %q", t.ctx.tmp)
@@ -216,7 +219,7 @@ func (t *transpiler) tmpIndent() {
 			t.additionalIndent,
 		)
 	}
-	// TODO: t.ctx.lineDirectiveMangled = true?
+
 	t.ctx.tmp = t.appendIndent(t.ctx.tmp)
 	if verbose {
 		debugPrintf("t.ctx.tmp = %q", t.ctx.tmp)
@@ -228,12 +231,6 @@ func (t *transpiler) flushTmp() {
 	if verbose && len(t.ctx.tmp) != 0 {
 		debugPrintf("flushTmp() -> %q", t.ctx.tmp)
 	}
-
-	// TODO: t.ctx.lineDirectiveMangled = true?
-	// I think that this should set lineDirectiveMangled to true, not
-	// the ones above, because tmp migth bet reverted.
-	// Find a test case.
-	//t.ctx.lineDirectiveMangled = len(t.ctx.tmp) != 0
 
 	t.ctx.out = append(t.ctx.out, t.ctx.tmp...)
 	t.ctx.tmp = t.ctx.tmp[:0]
@@ -253,6 +250,23 @@ type scopeState struct {
 func (t *transpiler) scopeStart() scopeState {
 	if verbose {
 		debugPrintf("scopeStart()")
+	}
+
+	// Before every scope start, there must be at least one WriteString call, consider
+	// both cases where we need start a new scope (OpenTag and ElementBlockStmt body):
+	//
+	//	<div
+	//		one()
+	//	>
+	//		two()
+	//	</div>
+	//
+	// Before starting a scope for the one() call, just before that there must be a "<div" write,
+	// same for the scope of the two() call, ">" write must exist just before the scope starts.
+	//
+	// So at this point t.ctx.lineDirectiveMangled must be set to true.
+	if !t.ctx.lineDirectiveMangled {
+		panic("unreachable")
 	}
 
 	beforeLen := len(t.ctx.tmp)
@@ -286,6 +300,31 @@ func (t *transpiler) scopeEnd(s scopeState) {
 		// "test" and </div> can be written in a single WriteString call, appending into t.ctx.out,
 		// would cause t.ctx.inStaticWrite to be set to false, which would cause both of the strings
 		// be written separately ("test", then "</div>") (see [appendSource] and [staticWriteIndent]).
+		//
+		// In every other case, the t.ctx.tmp has been already flushed (see [appendSource],
+		// [appendFromSource], [indent], [flushTmp]), meaning that the only way len(t.ctx.tmp) > 0
+		// is when t.ctx.inStaticWrite is set to true.
+		if !t.ctx.inStaticWrite && len(t.ctx.tmp) != 0 {
+			panic("unreachable")
+		}
+
+		// We do not have to set t.ctx.lineDirectiveMangled to true, since the next operation
+		// in the transpiler would set that for us, consider:
+		//
+		//	func _(tgo.Ctx) error {
+		//		<div
+		//			one()
+		//		>
+		//			two()
+		//		</div>
+		//	}
+		//
+		// lineDirectiveMangled will be set to true, by the static write call.
+		//
+		// But for correctness let's do this, maybe it might be usefull for our asserts.
+		// At this point we know that this right brace is going to be written, so we know
+		// that we indeed mangled the line directive.
+		t.ctx.lineDirectiveMangled = true
 
 		t.tmpIndent()
 		t.tmpAppendSource("}")
@@ -956,6 +995,10 @@ func (t *transpiler) staticWriteIndent(s string) {
 	t.appendSource(".WriteString(\"")
 	t.appendSource(s)
 
+	if !t.ctx.lineDirectiveMangled {
+		panic("unreachable")
+	}
+
 	// TODO: describe why to tmp.
 	t.tmpAppendSource("\"); err != nil {")
 	t.tmpIndent()
@@ -1025,7 +1068,7 @@ func (t *transpiler) blockIndent(b *ast.BlockStmt) string {
 
 	lastIndent := ""
 	for v := range t.iterWhite(start, b.Rbrace) {
-		lastIndent = ""
+		lastIndent = "" // TODO: why?
 		switch v.whiteType {
 		case whiteIndent:
 			lastIndent = v.text
