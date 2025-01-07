@@ -118,9 +118,18 @@ func (t *transpiler) skipSourceUpTo(pos token.Pos) {
 		pos := t.ctx.fs.Position(pos)
 		debugPrintf("skipSourceUpTo(%v:%v (offset: %v))", pos.Line, pos.Column, pos.Offset)
 	}
+
 	if t.ctx.lastPosWritten > pos {
 		panic("unreachable")
 	}
+
+	// We should set lineDirectiveMangled to true here, but currently we should
+	// not get here with t.ctx.lineDirectiveMangled == false, so we can assert
+	// that for now instead.
+	if !t.ctx.lineDirectiveMangled {
+		panic("unreachable")
+	}
+
 	t.ctx.lastPosWritten = pos
 }
 
@@ -578,6 +587,7 @@ func (t *transpiler) tgoFunc(n ast.Node, funcType *ast.FuncType, body *ast.Block
 				if firstNameLine != secondNameLine {
 					t.ctx.lineDirectiveMangled = false // TODO: fix
 					t.appendFromSource(t.ctx.fs.File(t.ctx.f.FileStart).LineStart(firstNameLine+1) - 1)
+					t.ctx.lineDirectiveMangled = true // TODO: fix
 					ld = lineDirectiveFullLine
 				}
 			}
