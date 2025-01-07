@@ -17,7 +17,7 @@ import (
 
 const (
 	debug   = false
-	verbose = false
+	verbose = true
 )
 
 // TODO: what would happen?
@@ -377,43 +377,51 @@ const (
 	lineDirectiveOneLineLRSpace // " /*line :line:col*/ "
 )
 
-// writeLineDirective writes an line directive, in one of the format
-// as provided in the ld argument.
-// Sets t.ctx.lineDirectiveMangled to false.
+// writeLineDirective writes a line directive, in one of the format as provided
+// in the ld argument. Sets t.ctx.lineDirectiveMangled to false.
 func (t *transpiler) writeLineDirective(ld lineDirective, pos token.Pos) {
 	// We should not add a line directive when we already have a valid one.
 	if !t.ctx.lineDirectiveMangled {
 		panic("unreachable")
 	}
 
+	var p token.Position
 	switch ld {
 	case lineDirectiveOneLineLSpace, lineDirectiveOneLine:
-		// TODO: explain:
-		pos -= 1
+		p = t.ctx.fs.Position(pos)
 	case lineDirectiveOneLineRSpace, lineDirectiveOneLineLRSpace:
-		// TODO: explain:
-		if t.ctx.fs.Position(pos+1).Column-2 <= 0 {
-			pos++
+		p = t.ctx.fs.Position(pos)
+		p.Column--
+
+		// Caller requested a space after a oneline line directive, but it is not possible
+		// to add one. Column in the line directive must be >= 1. Silently fallback to
+		// [lineDirectiveOneLine], this can only happen when the input source was not formatted, so
+		// we are fine. For example:
+		//
+		//	func A(
+		//	tgo.Ctx) error {<div></div>}
+		//
+		// Here we are naming the fist param to "__tgo_ctx", thus we need a line directive
+		// for the tgo.Ctx type (at Column == 1).
+		if p.Column == 0 {
+			p.Column = 1
 			ld = lineDirectiveOneLine
 		}
-		// TODO: explain:
-		pos -= 2
 	case lineDirectiveFullLine:
+		p = t.ctx.fs.Position(pos + 1)
 	default:
 		panic("unreachable")
 	}
 
-	p := t.ctx.fs.Position(pos + 1)
 	switch ld {
 	case lineDirectiveOneLineLSpace, lineDirectiveOneLineLRSpace:
-		t.appendSource(" /*line ")
+		t.appendSource(" /*line :")
 	case lineDirectiveOneLineRSpace, lineDirectiveOneLine:
-		t.appendSource("/*line ")
+		t.appendSource("/*line :")
 	default:
-		t.appendSource("\n//line ")
+		t.appendSource("\n//line :")
 	}
 
-	t.appendSource(":")
 	t.appendSource(strconv.FormatInt(int64(p.Line), 10))
 	t.appendSource(":")
 	t.appendSource(strconv.FormatInt(int64(p.Column), 10))
