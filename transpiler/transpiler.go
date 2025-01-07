@@ -553,12 +553,11 @@ func (t *transpiler) tgoFunc(n ast.Node, funcType *ast.FuncType, body *ast.Block
 		params := funcType.Params
 		param := params.List[0]
 		if param.Names == nil {
-			// TODO: are we handling this case:?
-			// a := func(tgo.Ctx, error)
-			// a := func(__tgo_ctx tgo.Ctx, error)
-			t.appendFromSource(param.Type.Pos())
-			t.appendSource(t.ctx.tgoIdent)
-			t.writeLineDirective(lineDirectiveOneLineLRSpace, param.Type.Pos())
+			for _, param := range funcType.Params.List {
+				t.appendFromSource(param.Type.Pos())
+				t.appendSource(t.ctx.tgoIdent)
+				t.writeLineDirective(lineDirectiveOneLineLRSpace, param.Type.Pos())
+			}
 			t.appendFromSource(params.Closing)
 		} else if param.Names[0].Name == "_" {
 			t.appendFromSource(param.Names[0].Pos())

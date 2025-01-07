@@ -89,7 +89,8 @@ const testSrc = `package A
 
 import"github.com/mateusz834/tgo"
 
-func test(tgo.Ctx) error {
+func test(tgo.Ctx, A) error {
+	<div></div>
 }
 `
 
