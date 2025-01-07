@@ -1,0 +1,3 @@
+go test fuzz v1
+string("0")
+string("package A\n\nimport (\n\t\"\"\n\t\"0\"\n)\n\nfunc (A00) A() {\n\tif 0 != 0 {\n\t\t0 % 0\n\t\t0 % 0(0, 0)\n\t\t0 + 0 + 0\n\t\t\"\"\n\tA:\n\t}\n}\n")
