@@ -361,16 +361,25 @@ type lineDirective uint8
 const (
 	_ lineDirective = iota
 
-	lineDirectiveFullLine       // "//line file:line:col\n"
-	lineDirectiveOneLine        // "/*line file:line:col*/"
-	lineDirectiveOneLineLSpace  // " /*line file:line:col*/"
-	lineDirectiveOneLineRSpace  // "/*line file:line:col*/ "
-	lineDirectiveOneLineLRSpace // " /*line file:line:col*/ "
+	lineDirectiveFullLine       // "\n//line :line:col"
+	lineDirectiveOneLine        // "/*line :line:col*/"
+	lineDirectiveOneLineLSpace  // " /*line :line:col*/"
+	lineDirectiveOneLineRSpace  // "/*line :line:col*/ "
+	lineDirectiveOneLineLRSpace // " /*line :line:col*/ "
 )
 
+// writeLineDirective writes an line directive, in one of the format
+// as provided in the ld argument.
+// Sets t.ctx.lineDirectiveMangled to false.
 func (t *transpiler) writeLineDirective(ld lineDirective, pos token.Pos) {
+	// We should not add a line directive when we already have a valid one.
+	if !t.ctx.lineDirectiveMangled {
+		panic("unreachable")
+	}
+
 	switch ld {
 	case lineDirectiveOneLineLSpace, lineDirectiveOneLine:
+		// TODO: explain:
 		pos -= 1
 	case lineDirectiveOneLineRSpace, lineDirectiveOneLineLRSpace:
 		// TODO: explain:
@@ -378,6 +387,7 @@ func (t *transpiler) writeLineDirective(ld lineDirective, pos token.Pos) {
 			pos++
 			ld = lineDirectiveOneLine
 		}
+		// TODO: explain:
 		pos -= 2
 	case lineDirectiveFullLine:
 	default:

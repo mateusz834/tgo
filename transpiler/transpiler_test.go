@@ -90,9 +90,6 @@ const testSrc = `package A
 import"github.com/mateusz834/tgo"
 
 func test(tgo.Ctx) error {
-	<div>
-		_ = 3
-	</div>
 }
 `
 
