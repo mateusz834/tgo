@@ -409,6 +409,12 @@ func (t *transpiler) writeLineDirective(ld lineDirective, pos token.Pos) {
 		}
 	case lineDirectiveFullLine:
 		p = t.ctx.fs.Position(pos + 1)
+
+		// We should not produce sources that have FullLine line directives,
+		// with Column != 1, like: "//line :1:2".
+		if p.Column != 1 {
+			panic("unreachable")
+		}
 	default:
 		panic("unreachable")
 	}
@@ -434,6 +440,19 @@ func (t *transpiler) writeLineDirective(ld lineDirective, pos token.Pos) {
 	}
 
 	t.ctx.lineDirectiveMangled = false
+}
+
+func (t *transpiler) writeLineDirectiveSkipWhite(ld lineDirective, nodeStartPos token.Pos) {
+	if ld == lineDirectiveOneLineLSpace {
+		for v := range t.iterWhite(t.ctx.lastPosWritten, nodeStartPos) {
+			if v.whiteType == whiteWhite {
+				t.skipSourceUpTo(v.end())
+				ld = lineDirectiveOneLineLRSpace
+			}
+			break
+		}
+	}
+	t.writeLineDirective(ld, t.ctx.lastPosWritten)
 }
 
 func (t *transpiler) transpile() {
@@ -523,22 +542,6 @@ var _ = (*tgo.Error)((*error)(nil))
 	}
 }
 
-func (t *transpiler) addLineDirectiveBeforeRbrace(rbracePos token.Pos) {
-	if t.ctx.lineDirectiveMangled {
-		r := t.whiteAlg(t.ctx.lastPosWritten, rbracePos)
-		if r.ld == lineDirectiveOneLineLSpace {
-			for v := range t.iterWhite(t.ctx.lastPosWritten, rbracePos) {
-				if v.whiteType == whiteWhite {
-					t.ctx.lastPosWritten = v.end()
-					r.ld = lineDirectiveOneLineLRSpace
-				}
-				break
-			}
-		}
-		t.writeLineDirective(r.ld, t.ctx.lastPosWritten)
-	}
-}
-
 func (t *transpiler) tgoFunc(n ast.Node, funcType *ast.FuncType, body *ast.BlockStmt) {
 	if body == nil {
 		return
@@ -573,7 +576,7 @@ func (t *transpiler) tgoFunc(n ast.Node, funcType *ast.FuncType, body *ast.Block
 			for _, param := range funcType.Params.List {
 				t.appendFromSource(param.Type.Pos())
 				t.appendSource(t.ctx.tgoIdent)
-				t.writeLineDirective(lineDirectiveOneLineLRSpace, param.Type.Pos())
+				t.writeLineDirective(lineDirectiveOneLineLRSpace, t.ctx.lastPosWritten)
 			}
 			t.appendFromSource(params.Closing)
 		} else if param.Names[0].Name == "_" {
@@ -610,7 +613,11 @@ func (t *transpiler) tgoFunc(n ast.Node, funcType *ast.FuncType, body *ast.Block
 			}
 			t.appendFromSource(body.Lbrace + 1)
 			t.transpileList(body.List, params.List[0].Names[0].Name)
-			t.addLineDirectiveBeforeRbrace(body.Rbrace)
+			if t.ctx.lineDirectiveMangled {
+				// TODO:whyneed to skip white?
+				t.writeLineDirectiveSkipWhite(t.whiteAlg(t.ctx.lastPosWritten, body.Rbrace).ld, body.Rbrace)
+				//t.writeLineDirective(t.whiteAlg(t.ctx.lastPosWritten, body.Rbrace).ld, t.ctx.lastPosWritten)
+			}
 			t.appendFromSource(body.Rbrace + 1)
 			return
 		}
@@ -645,7 +652,11 @@ func (t *transpiler) Visit(n ast.Node) ast.Visitor {
 		}
 		t.appendFromSource(n.Lbrace + 1)
 		t.transpileList(n.List, "")
-		t.addLineDirectiveBeforeRbrace(n.Rbrace)
+		if t.ctx.lineDirectiveMangled {
+			// TODO:whyneed to skip white?
+			t.writeLineDirectiveSkipWhite(t.whiteAlg(t.ctx.lastPosWritten, n.Rbrace).ld, n.Rbrace)
+			//t.writeLineDirective(t.whiteAlg(t.ctx.lastPosWritten, n.Rbrace).ld, t.ctx.lastPosWritten)
+		}
 		t.appendFromSource(n.Rbrace + 1)
 		return nil
 	}
@@ -816,16 +827,8 @@ func (t *transpiler) transpileStmt(r whiteAlgResult, n ast.Stmt) {
 		// when necessary.
 	} else {
 		if t.ctx.lineDirectiveMangled {
-			if r.ld == lineDirectiveOneLineLSpace {
-				for v := range t.iterWhite(t.ctx.lastPosWritten, n.Pos()) {
-					if v.whiteType == whiteWhite {
-						t.ctx.lastPosWritten = v.end()
-						r.ld = lineDirectiveOneLineLRSpace
-					}
-					break
-				}
-			}
-			t.writeLineDirective(r.ld, t.ctx.lastPosWritten)
+			// TODO:whyneed to skip white?
+			t.writeLineDirectiveSkipWhite(r.ld, n.Pos())
 		}
 	}
 
@@ -896,7 +899,7 @@ func (t *transpiler) transpileStmt(r whiteAlgResult, n ast.Stmt) {
 		if x, ok := n.X.(*ast.BasicLit); ok && x.Kind == token.STRING {
 			if t.inTgoFunc {
 				t.staticWriteIndentGoString(x.Value)
-				t.ctx.lastPosWritten = n.End()
+				t.skipSourceUpTo(n.End())
 			} else {
 				t.appendFromSource(n.End())
 			}
@@ -967,6 +970,7 @@ func (t *transpiler) dynamicWriteIndent(x *ast.TemplateLiteralExpr, n *ast.Templ
 	t.skipSourceUpTo(n.LBrace + 1)
 	lineDirectivePos := t.ctx.lastPosWritten
 
+	// TODO writeLineDirectiveSkipWhite?
 	var prev iterWhiteResult
 	for v := range t.iterWhite(t.ctx.lastPosWritten, n.X.Pos()) {
 		if prev.whiteType != whiteInvalid {
