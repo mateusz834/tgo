@@ -17,7 +17,7 @@ import (
 
 const (
 	debug   = false
-	verbose = true
+	verbose = false
 )
 
 // TODO: what would happen?
