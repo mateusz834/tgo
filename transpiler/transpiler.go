@@ -987,6 +987,7 @@ func (t *transpiler) dynamicWriteIndent(x *ast.TemplateLiteralExpr, n *ast.Templ
 	t.writeLineDirective(lineDirectiveOneLineLRSpace, lineDirectivePos)
 
 	// TODO: figure out whether t.ctx.lineDirectiveMangled behaves right with this.
+	// now we have a panic (assert) in appendFromSource, so it might be right.
 
 	t.appendFromSource(n.X.Pos())
 	indent := t.lastIndentation

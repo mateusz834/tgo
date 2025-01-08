@@ -89,7 +89,7 @@ const testSrc = `package A
 import "github.com/mateusz834/tgo"
 
 func template(tgo.Ctx) error {
-	<div></div>
+	"a \{ /*a*/ a}"
 }
 `
 
