@@ -249,6 +249,8 @@ func TestTgoExpectedNodeInfos(t *testing.T) {
 					cmp.Compare(a.nodeStart.column, b.nodeStart.column),
 					cmp.Compare(a.nodeEnd.line, b.nodeEnd.line),
 					cmp.Compare(a.nodeEnd.column, b.nodeEnd.column),
+					cmp.Compare(a.nodeName, b.nodeName),
+					cmp.Compare(a.other, b.other),
 				)
 			})
 
