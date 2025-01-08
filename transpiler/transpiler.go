@@ -617,9 +617,27 @@ func (t *transpiler) tgoFunc(n ast.Node, funcType *ast.FuncType, body *ast.Block
 			t.appendFromSource(body.Lbrace + 1)
 			t.transpileList(body.List, params.List[0].Names[0].Name)
 			if t.ctx.lineDirectiveMangled {
-				// TODO:whyneed to skip white?
+				// The line directive was mangled, by the transpilation of a tgo node.
+				// Such as:
+				//
+				//	"testing" // test
+				//	"test"    // test
+				//
+				// Because we converted these into function calls, the aligment of comments
+				// no longer holds true, so we have to skip the trailing space, so that the generated code
+				// looks like this (we keep it formatted):
+				//
+				//	if err := __tgo_ctx.WriteString("testingtest"); err != nil {
+				//		return err
+				//	} /*line :X:11*/ // test
+				//
+				// not like:
+				//
+				//	if err := __tgo_ctx.WriteString("testingtest"); err != nil {
+				//	        return err
+				//	} /*line :X:8*/    // test
+				//
 				t.writeLineDirectiveSkipWhite(t.whiteAlg(t.ctx.lastPosWritten, body.Rbrace).ld, body.Rbrace)
-				//t.writeLineDirective(t.whiteAlg(t.ctx.lastPosWritten, body.Rbrace).ld, t.ctx.lastPosWritten)
 			}
 			t.appendFromSource(body.Rbrace + 1)
 			return
@@ -656,9 +674,7 @@ func (t *transpiler) Visit(n ast.Node) ast.Visitor {
 		t.appendFromSource(n.Lbrace + 1)
 		t.transpileList(n.List, "")
 		if t.ctx.lineDirectiveMangled {
-			// TODO:whyneed to skip white?
 			t.writeLineDirectiveSkipWhite(t.whiteAlg(t.ctx.lastPosWritten, n.Rbrace).ld, n.Rbrace)
-			//t.writeLineDirective(t.whiteAlg(t.ctx.lastPosWritten, n.Rbrace).ld, t.ctx.lastPosWritten)
 		}
 		t.appendFromSource(n.Rbrace + 1)
 		return nil

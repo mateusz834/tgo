@@ -88,8 +88,9 @@ import (
 const testSrc = `package A
 import "github.com/mateusz834/tgo"
 
-func template(tgo.Ctx) error {
-	"a \{ /*a*/ a}"
+func _(t tgo.Ctx) error {
+	"testing" // test
+	"test"    // test
 }
 `
 
