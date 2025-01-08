@@ -1,0 +1,61 @@
+package templates
+
+import "github.com/mateusz834/tgo"
+
+func _(tgo.Ctx) error {
+	<div
+		@test1
+		@test2="test2"
+		@test3="test3 \{4} \{"test5"}"
+		@test4="\{func(tgo.Ctx) error {
+			<div
+				@test111
+				@test222="test222"
+				@test333="test333 \{444} \{"test555"}"
+			>
+				"test112"
+				"test113 \{"test113"} \{115}"
+			</div>
+			return nil
+		}}"
+	>
+		"test11"
+		"test12 \{"test13"} \{14}"
+	</div>
+}
+======
+{Ident {1 9} {1 18} NamePos:1:9;Name:"templates"}
+{GenDecl {3 1} {3 35} TokPos:3:1;Tok:import;Lparen:0:0;Rparen:0:0}
+{BasicLit {3 8} {3 35} ValuePos:3:8;Kind:STRING;Value:"\"github.com/mateusz834/tgo\""}
+{ImportSpec {3 8} {3 35} EndPos:0:0}
+{FuncType {5 1} {5 22} Func:5:1}
+{Ident {5 6} {5 7} NamePos:5:6;Name:"_"}
+{FieldList {5 7} {5 16} Opening:5:7;Closing:5:15}
+{Ident {5 8} {5 11} NamePos:5:8;Name:"tgo"}
+{Field {5 8} {5 15} }
+{SelectorExpr {5 8} {5 15} }
+{Ident {5 12} {5 15} NamePos:5:12;Name:"Ctx"}
+{Field {5 17} {5 22} }
+{FieldList {5 17} {5 22} Opening:0:0;Closing:0:0}
+{Ident {5 17} {5 22} NamePos:5:17;Name:"error"}
+{BlockStmt {5 23} {25 2} Lbrace:5:23;Rbrace:25:1}
+{BasicLit {9 19} {9 20} ValuePos:9:19;Kind:INT;Value:"4"}
+{BasicLit {9 24} {9 31} ValuePos:9:24;Kind:STRING;Value:"\"test5\""}
+{FuncType {10 13} {10 32} Func:10:13}
+{FieldList {10 17} {10 26} Opening:10:17;Closing:10:25}
+{Ident {10 18} {10 21} NamePos:10:18;Name:"tgo"}
+{Field {10 18} {10 25} }
+{SelectorExpr {10 18} {10 25} }
+{Ident {10 22} {10 25} NamePos:10:22;Name:"Ctx"}
+{Field {10 27} {10 32} }
+{FieldList {10 27} {10 32} Opening:0:0;Closing:0:0}
+{Ident {10 27} {10 32} NamePos:10:27;Name:"error"}
+{BlockStmt {10 33} {20 4} Lbrace:10:33;Rbrace:20:3}
+{BasicLit {14 25} {14 28} ValuePos:14:25;Kind:INT;Value:"444"}
+{BasicLit {14 32} {14 41} ValuePos:14:32;Kind:STRING;Value:"\"test555\""}
+{BasicLit {17 16} {17 25} ValuePos:17:16;Kind:STRING;Value:"\"test113\""}
+{BasicLit {17 29} {17 32} ValuePos:17:29;Kind:INT;Value:"115"}
+{ReturnStmt {19 4} {19 14} Return:19:4}
+{Ident {19 11} {19 14} NamePos:19:11;Name:"nil"}
+{BasicLit {23 13} {23 21} ValuePos:23:13;Kind:STRING;Value:"\"test13\""}
+{BasicLit {23 25} {23 27} ValuePos:23:25;Kind:INT;Value:"14"}
