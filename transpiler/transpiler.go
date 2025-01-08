@@ -573,9 +573,12 @@ func (t *transpiler) tgoFunc(n ast.Node, funcType *ast.FuncType, body *ast.Block
 		params := funcType.Params
 		param := params.List[0]
 		if param.Names == nil {
-			for _, param := range funcType.Params.List {
+			t.appendFromSource(param.Type.Pos())
+			t.appendSource(t.ctx.tgoIdent)
+			t.writeLineDirective(lineDirectiveOneLineLRSpace, t.ctx.lastPosWritten)
+			for _, param := range funcType.Params.List[1:] {
 				t.appendFromSource(param.Type.Pos())
-				t.appendSource(t.ctx.tgoIdent)
+				t.appendSource("_")
 				t.writeLineDirective(lineDirectiveOneLineLRSpace, t.ctx.lastPosWritten)
 			}
 			t.appendFromSource(params.Closing)

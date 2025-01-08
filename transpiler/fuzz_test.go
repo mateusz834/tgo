@@ -261,26 +261,20 @@ func fuzzSource(t *testing.T, name, src string) string {
 		)
 	}
 
-	want := expectedNodes(f, fset)
+	want := tgoExpectedNodeInfos(f, fset)
 	missing := maps.Clone(want)
 	goast.Inspect(fgo, func(n goast.Node) bool {
 		if n == nil {
 			return true
 		}
-
 		info := genNodeInfo[gotoken.Token](n, func(p gotoken.Pos) (line int, column int) {
 			pos := fsetgo.Position(p)
 			return pos.Line, pos.Column
 		})
-
 		if testing.Verbose() {
 			t.Logf("go key: %v", info)
 		}
-
-		if _, ok := want[info]; ok {
-			delete(missing, info)
-		}
-
+		delete(missing, info)
 		return true
 	})
 
@@ -485,3 +479,4 @@ func fuzzSource(t *testing.T, name, src string) string {
 }
 
 // TODO: fuzz test (if tgo type checking succedes, the transpiled with go/types should also).
+// and the error position (of go/types and tgo-lang/lang/types) and the error messages should be similar (and the same positions).

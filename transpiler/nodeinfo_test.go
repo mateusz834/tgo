@@ -1,20 +1,104 @@
 package transpiler
 
 import (
+	"cmp"
 	"fmt"
 	goast "go/ast"
+	"maps"
+	"os"
+	"path/filepath"
 	"reflect"
+	"slices"
 	"strconv"
 	"strings"
+	"testing"
 
 	"github.com/mateusz834/tgo/tgofuncs"
 	"github.com/tgo-lang/lang/ast"
+	"github.com/tgo-lang/lang/parser"
 	"github.com/tgo-lang/lang/token"
 )
 
-// TODO: add tests for this.
+type pos struct {
+	line, column int
+}
 
-func expectedNodes(f *ast.File, fset *token.FileSet) map[nodeInfo]struct{} {
+type nodeInfo struct {
+	nodeName  string
+	nodeStart pos
+	nodeEnd   pos
+	other     string
+}
+
+func genNodeInfo[TOK fmt.Stringer, POS interface{ IsValid() bool }](
+	n interface {
+		Pos() POS
+		End() POS
+	},
+	posToLineCol func(pos POS) (line int, column int),
+) nodeInfo {
+	v := reflect.ValueOf(n).Elem()
+
+	var info strings.Builder
+	info.Grow(32)
+
+	appendPos := func(name string, pos POS) {
+		if info.Len() != 0 {
+			info.WriteString(";")
+		}
+		line, column := posToLineCol(pos)
+		info.WriteString(name)
+		info.WriteString(":")
+		info.WriteString(strconv.FormatInt(int64(line), 10))
+		info.WriteString(":")
+		info.WriteString(strconv.FormatInt(int64(column), 10))
+	}
+
+	for i := range v.NumField() {
+		fv := v.Field(i)
+		fieldName := v.Type().Field(i).Name
+		if fv.Type() == reflect.TypeFor[POS]() {
+			appendPos(fieldName, fv.Interface().(POS))
+		} else if fv.Type() == reflect.TypeFor[string]() {
+			if info.Len() != 0 {
+				info.WriteString(";")
+			}
+			info.WriteString(fieldName)
+			info.WriteString(":")
+			info.WriteString(strconv.Quote(fv.String()))
+		} else if fv.Type() == reflect.TypeFor[TOK]() {
+			if info.Len() != 0 {
+				info.WriteString(";")
+			}
+			info.WriteString(fieldName)
+			info.WriteString(":")
+			info.WriteString(fv.Interface().(TOK).String())
+		} else if fv.Type() == reflect.TypeFor[bool]() {
+			if info.Len() != 0 {
+				info.WriteString(";")
+			}
+			info.WriteString(fieldName)
+			info.WriteString(":")
+			info.WriteString(strconv.FormatBool(fv.Interface().(bool)))
+		}
+	}
+
+	startLine, startCol := posToLineCol(n.Pos())
+	endLine, endCol := posToLineCol(n.End())
+	switch any(n).(type) {
+	case *ast.LabeledStmt, *goast.LabeledStmt:
+		endLine, endCol = 0, 0
+	}
+
+	return nodeInfo{
+		nodeName:  v.Type().Name(),
+		nodeStart: pos{line: startLine, column: startCol},
+		nodeEnd:   pos{line: endLine, column: endCol},
+		other:     info.String(),
+	}
+}
+
+func tgoExpectedNodeInfos(f *ast.File, fset *token.FileSet) map[nodeInfo]struct{} {
 	info := tgofuncs.Check(f)
 	tgoFuncs := make(map[ast.Node]struct{})
 	for _, v := range info.TgoFuncs {
@@ -133,81 +217,58 @@ func (a *nodeInfoAnalyzer) Visit(n ast.Node) ast.Visitor {
 	return a
 }
 
-type pos struct {
-	line, column int
-}
+func TestTgoExpectedNodeInfos(t *testing.T) {
+	const testdata = "./testdata/nodeinfos"
+	files, err := os.ReadDir(testdata)
+	if err != nil {
+		t.Fatal(err)
+	}
 
-type nodeInfo struct {
-	nodeName  string
-	nodeStart pos
-	nodeEnd   pos
-	other     string
-}
-
-func genNodeInfo[TOK fmt.Stringer, POS interface{ IsValid() bool }](
-	n interface {
-		Pos() POS
-		End() POS
-	},
-	posToLineCol func(pos POS) (line int, column int),
-) nodeInfo {
-	v := reflect.ValueOf(n).Elem()
-
-	var info strings.Builder
-	info.Grow(32)
-
-	appendPos := func(name string, pos POS) {
-		if info.Len() != 0 {
-			info.WriteString(";")
+	for _, v := range files {
+		if v.IsDir() {
+			continue
 		}
-		line, column := posToLineCol(pos)
-		info.WriteString(name)
-		info.WriteString(":")
-		info.WriteString(strconv.FormatInt(int64(line), 10))
-		info.WriteString(":")
-		info.WriteString(strconv.FormatInt(int64(column), 10))
-	}
-
-	for i := range v.NumField() {
-		fv := v.Field(i)
-		fieldName := v.Type().Field(i).Name
-		if fv.Type() == reflect.TypeFor[POS]() {
-			appendPos(fieldName, fv.Interface().(POS))
-		} else if fv.Type() == reflect.TypeFor[string]() {
-			if info.Len() != 0 {
-				info.WriteString(";")
+		t.Run(v.Name(), func(t *testing.T) {
+			file := filepath.Join(testdata, v.Name())
+			content, err := os.ReadFile(file)
+			if err != nil {
+				t.Fatal(err)
 			}
-			info.WriteString(fieldName)
-			info.WriteString(":")
-			info.WriteString(strconv.Quote(fv.String()))
-		} else if fv.Type() == reflect.TypeFor[TOK]() {
-			if info.Len() != 0 {
-				info.WriteString(";")
-			}
-			info.WriteString(fieldName)
-			info.WriteString(":")
-			info.WriteString(fv.Interface().(TOK).String())
-		} else if fv.Type() == reflect.TypeFor[bool]() {
-			if info.Len() != 0 {
-				info.WriteString(";")
-			}
-			info.WriteString(fieldName)
-			info.WriteString(":")
-			info.WriteString(strconv.FormatBool(fv.Interface().(bool)))
-		}
-	}
 
-	startLine, startCol := posToLineCol(n.Pos())
-	endLine, endCol := posToLineCol(n.End())
-	switch any(n).(type) {
-	case *ast.LabeledStmt, *goast.LabeledStmt:
-		endLine, endCol = 0, 0
-	}
+			tgo, nodeinfos, _ := strings.Cut(string(content), "======\n")
 
-	return nodeInfo{
-		nodeName:  v.Type().Name(),
-		nodeStart: pos{line: startLine, column: startCol},
-		nodeEnd:   pos{line: endLine, column: endCol},
-		other:     info.String(),
+			fset := token.NewFileSet()
+			f, err := parser.ParseFile(fset, "test.tgo", tgo, parser.ParseComments|parser.SkipObjectResolution)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			nis := slices.SortedFunc(maps.Keys(tgoExpectedNodeInfos(f, fset)), func(a, b nodeInfo) int {
+				return cmp.Or(
+					cmp.Compare(a.nodeStart.line, b.nodeStart.line),
+					cmp.Compare(a.nodeStart.column, b.nodeStart.column),
+					cmp.Compare(a.nodeEnd.line, b.nodeEnd.line),
+					cmp.Compare(a.nodeEnd.column, b.nodeEnd.column),
+				)
+			})
+
+			var s strings.Builder
+			for _, ni := range nis {
+				s.WriteString(fmt.Sprintf("%v\n", ni))
+			}
+
+			if *update {
+				nodeinfos = s.String()
+				if err := os.WriteFile(file, []byte(tgo+"======\n"+nodeinfos), 0660); err != nil {
+					t.Fatal(err)
+				}
+			}
+
+			if nodeinfos != s.String() {
+				t.Logf("got nodeinfos:\n%s", s.String())
+				t.Logf("want nodeinfos:\n%s", nodeinfos)
+				t.Log(gitDiff(t.TempDir(), s.String(), nodeinfos))
+			}
+		})
 	}
 }

@@ -145,7 +145,7 @@ func template(_, _ tgo.Ctx) error {
 func template(_, test tgo.Ctx) error {
 }
 
-func template(__tgo_ctx /*line :52:14*/ tgo.Ctx, __tgo_ctx /*line :52:23*/ int) error {
+func template(__tgo_ctx /*line :52:14*/ tgo.Ctx, _ /*line :52:23*/ int) error {
 	a := 3
 	if err := __tgo_ctx.WriteString("<div></div>"); err != nil {
 		return err
@@ -153,7 +153,7 @@ func template(__tgo_ctx /*line :52:14*/ tgo.Ctx, __tgo_ctx /*line :52:23*/ int) 
 //line :55:1
 }
 
-func template(__tgo_ctx /*line :57:14*/ tgo.Ctx, __tgo_ctx /*line :57:23*/ int) error {
+func template(__tgo_ctx /*line :57:14*/ tgo.Ctx, _ /*line :57:23*/ int) error {
 	a := 3
 	if err := __tgo_ctx.WriteString("<div></div>"); err != nil {
 		return err
