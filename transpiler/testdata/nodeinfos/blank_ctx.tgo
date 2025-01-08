@@ -1,0 +1,40 @@
+package templates
+
+import "github.com/mateusz834/tgo"
+
+func test(_ tgo.Ctx) error {
+	<div>"\{test}"</div>
+	_ = func(_ tgo.Ctx) error {
+		<div>"\{test}"</div>
+	}
+}
+======
+{Ident {1 9} {1 18} NamePos:1:9;Name:"templates"}
+{GenDecl {3 1} {3 35} TokPos:3:1;Tok:import;Lparen:0:0;Rparen:0:0}
+{BasicLit {3 8} {3 35} ValuePos:3:8;Kind:STRING;Value:"\"github.com/mateusz834/tgo\""}
+{ImportSpec {3 8} {3 35} EndPos:0:0}
+{FuncType {5 1} {5 27} Func:5:1}
+{Ident {5 6} {5 10} NamePos:5:6;Name:"test"}
+{FieldList {5 10} {5 21} Opening:5:10;Closing:5:20}
+{Field {5 11} {5 20} }
+{Ident {5 13} {5 16} NamePos:5:13;Name:"tgo"}
+{SelectorExpr {5 13} {5 20} }
+{Ident {5 17} {5 20} NamePos:5:17;Name:"Ctx"}
+{Field {5 22} {5 27} }
+{FieldList {5 22} {5 27} Opening:0:0;Closing:0:0}
+{Ident {5 22} {5 27} NamePos:5:22;Name:"error"}
+{BlockStmt {5 28} {10 2} Lbrace:5:28;Rbrace:10:1}
+{Ident {6 10} {6 14} NamePos:6:10;Name:"test"}
+{Ident {7 2} {7 3} NamePos:7:2;Name:"_"}
+{AssignStmt {7 2} {9 3} TokPos:7:4;Tok:=}
+{FuncType {7 6} {7 27} Func:7:6}
+{FieldList {7 10} {7 21} Opening:7:10;Closing:7:20}
+{Field {7 11} {7 20} }
+{Ident {7 13} {7 16} NamePos:7:13;Name:"tgo"}
+{SelectorExpr {7 13} {7 20} }
+{Ident {7 17} {7 20} NamePos:7:17;Name:"Ctx"}
+{Field {7 22} {7 27} }
+{FieldList {7 22} {7 27} Opening:0:0;Closing:0:0}
+{Ident {7 22} {7 27} NamePos:7:22;Name:"error"}
+{BlockStmt {7 28} {9 3} Lbrace:7:28;Rbrace:9:2}
+{Ident {8 11} {8 15} NamePos:8:11;Name:"test"}

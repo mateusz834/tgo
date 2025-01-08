@@ -86,8 +86,10 @@ func genNodeInfo[TOK fmt.Stringer, POS interface{ IsValid() bool }](
 	startLine, startCol := posToLineCol(n.Pos())
 	endLine, endCol := posToLineCol(n.End())
 	switch any(n).(type) {
-	case *ast.LabeledStmt, *goast.LabeledStmt:
-		endLine, endCol = 0, 0
+	case *ast.LabeledStmt, *goast.LabeledStmt,
+		*ast.CommClause, *goast.CommClause,
+		*ast.CaseClause, *goast.CaseClause:
+		endLine, endCol = -1, -1
 	}
 
 	return nodeInfo{
@@ -110,7 +112,6 @@ func tgoExpectedNodeInfos(f *ast.File, fset *token.FileSet) map[nodeInfo]struct{
 		tgoFunc:  tgoFuncs,
 		nodeInfo: make(map[nodeInfo]struct{}),
 	}
-
 	ast.Walk(&nodeInfoAnalyzer{ctx: ctx}, f)
 	return ctx.nodeInfo
 }
@@ -122,27 +123,26 @@ type nodeInfoAnalyzerContext struct {
 }
 
 type nodeInfoAnalyzer struct {
-	ctx         *nodeInfoAnalyzerContext
-	ignoreIdent *ast.Ident
-	inTgo       bool
+	ctx                  *nodeInfoAnalyzerContext
+	tgoFuncBlankCtxIdent *ast.Ident
+	inTgo                bool
 }
 
 func (a *nodeInfoAnalyzer) Visit(n ast.Node) ast.Visitor {
 	funcHandler := func(n ast.Node, ft *ast.FuncType) *nodeInfoAnalyzer {
-		var ignore *ast.Ident
+		var tgoFuncBlankCtxIdent *ast.Ident
 		_, isTgo := a.ctx.tgoFunc[n]
-
-		params := ft.Params.List
-		if isTgo && len(params) != 0 {
-			if params[0].Names != nil && params[0].Names[0].Name == "_" {
-				ignore = params[0].Names[0]
+		if isTgo {
+			names := ft.Params.List[0].Names
+			if names != nil && names[0].Name == "_" {
+				tgoFuncBlankCtxIdent = names[0]
 			}
 		}
 
 		return &nodeInfoAnalyzer{
-			ctx:         a.ctx,
-			ignoreIdent: ignore,
-			inTgo:       isTgo,
+			ctx:                  a.ctx,
+			tgoFuncBlankCtxIdent: tgoFuncBlankCtxIdent,
+			inTgo:                isTgo,
 		}
 	}
 
@@ -156,9 +156,6 @@ func (a *nodeInfoAnalyzer) Visit(n ast.Node) ast.Visitor {
 			ast.Walk(a, n.Value)
 		}
 		return nil
-	case *ast.TemplateLiteralExpr,
-		*ast.TemplateLiteralPart, *ast.File:
-		return a
 	case *ast.ElementBlockStmt:
 		ast.Walk(a, n.OpenTag)
 		for i, v := range n.Body {
@@ -179,10 +176,6 @@ func (a *nodeInfoAnalyzer) Visit(n ast.Node) ast.Visitor {
 			ast.Walk(a, v)
 		}
 		return nil
-	case *ast.EndTag:
-		return nil
-	case *ast.CommentGroup, *ast.Comment:
-		return nil
 	case *ast.ExprStmt:
 		switch n := n.X.(type) {
 		case *ast.TemplateLiteralExpr:
@@ -193,14 +186,12 @@ func (a *nodeInfoAnalyzer) Visit(n ast.Node) ast.Visitor {
 			}
 		}
 	case *ast.Ident:
-		if a.ignoreIdent == n {
+		if a.tgoFuncBlankCtxIdent == n {
 			return nil
 		}
-	case *ast.CommClause:
-		return nil
-	case *ast.CaseClause:
-		return nil
-	case nil:
+	case *ast.File, *ast.TemplateLiteralExpr, *ast.TemplateLiteralPart:
+		return a
+	case *ast.EndTag, *ast.CommentGroup, *ast.Comment, nil:
 		return nil
 	}
 

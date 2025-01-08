@@ -2,14 +2,16 @@ package templates
 
 import "github.com/mateusz834/tgo"
 
-func _(tgo.Ctx) error {
+func _(ctx tgo.Ctx) error {
 	a := 3
 	<div>
 		for i := range 3 {
 			<div>"\{i}"</div>
+
 			if i == 2 {
 				"two"
 			}
+
 			switch t {
 			case 1:
 				one := "one"
@@ -20,38 +22,94 @@ func _(tgo.Ctx) error {
 				"test"
 				"\{test}"
 			}
+
+			select {
+			case <-a:
+				<div
+					@val1attr="\{val1}"
+				>
+					"\{test1}"
+				</div>
+			default:
+				<div
+					@val1attr="\{val2}"
+				>
+					"\{test2}"
+				</div>
+			}
 		}
 	</div>
+
+	_ = func(tgo tgo.Ctx) error {
+		<div>"\{test}"</div>
+	}
 }
 ======
 {Ident {1 9} {1 18} NamePos:1:9;Name:"templates"}
 {GenDecl {3 1} {3 35} TokPos:3:1;Tok:import;Lparen:0:0;Rparen:0:0}
 {BasicLit {3 8} {3 35} ValuePos:3:8;Kind:STRING;Value:"\"github.com/mateusz834/tgo\""}
 {ImportSpec {3 8} {3 35} EndPos:0:0}
-{FuncType {5 1} {5 22} Func:5:1}
+{FuncType {5 1} {5 26} Func:5:1}
 {Ident {5 6} {5 7} NamePos:5:6;Name:"_"}
-{FieldList {5 7} {5 16} Opening:5:7;Closing:5:15}
-{Ident {5 8} {5 11} NamePos:5:8;Name:"tgo"}
-{Field {5 8} {5 15} }
-{SelectorExpr {5 8} {5 15} }
-{Ident {5 12} {5 15} NamePos:5:12;Name:"Ctx"}
-{Field {5 17} {5 22} }
-{FieldList {5 17} {5 22} Opening:0:0;Closing:0:0}
-{Ident {5 17} {5 22} NamePos:5:17;Name:"error"}
-{BlockStmt {5 23} {25 2} Lbrace:5:23;Rbrace:25:1}
+{FieldList {5 7} {5 20} Opening:5:7;Closing:5:19}
+{Ident {5 8} {5 11} NamePos:5:8;Name:"ctx"}
+{Field {5 8} {5 19} }
+{Ident {5 12} {5 15} NamePos:5:12;Name:"tgo"}
+{SelectorExpr {5 12} {5 19} }
+{Ident {5 16} {5 19} NamePos:5:16;Name:"Ctx"}
+{Field {5 21} {5 26} }
+{FieldList {5 21} {5 26} Opening:0:0;Closing:0:0}
+{Ident {5 21} {5 26} NamePos:5:21;Name:"error"}
+{BlockStmt {5 27} {46 2} Lbrace:5:27;Rbrace:46:1}
 {Ident {6 2} {6 3} NamePos:6:2;Name:"a"}
 {AssignStmt {6 2} {6 8} TokPos:6:4;Tok::=}
 {BasicLit {6 7} {6 8} ValuePos:6:7;Kind:INT;Value:"3"}
-{RangeStmt {8 3} {23 4} For:8:3;TokPos:8:9;Tok::=;Range:8:12}
+{RangeStmt {8 3} {40 4} For:8:3;TokPos:8:9;Tok::=;Range:8:12}
 {Ident {8 7} {8 8} NamePos:8:7;Name:"i"}
 {BasicLit {8 18} {8 19} ValuePos:8:18;Kind:INT;Value:"3"}
-{BlockStmt {8 20} {23 4} Lbrace:8:20;Rbrace:23:3}
+{BlockStmt {8 20} {40 4} Lbrace:8:20;Rbrace:40:3}
 {Ident {9 12} {9 13} NamePos:9:12;Name:"i"}
-{IfStmt {10 4} {12 5} If:10:4}
-{Ident {10 7} {10 8} NamePos:10:7;Name:"i"}
-{BinaryExpr {10 7} {10 13} OpPos:10:9;Op:==}
-{BasicLit {10 12} {10 13} ValuePos:10:12;Kind:INT;Value:"2"}
-{BlockStmt {10 14} {12 5} Lbrace:10:14;Rbrace:12:4}
-{SwitchStmt {13 4} {22 5} Switch:13:4}
-{Ident {13 11} {13 12} NamePos:13:11;Name:"t"}
-{BlockStmt {13 13} {22 5} Lbrace:13:13;Rbrace:22:4}
+{IfStmt {11 4} {13 5} If:11:4}
+{Ident {11 7} {11 8} NamePos:11:7;Name:"i"}
+{BinaryExpr {11 7} {11 13} OpPos:11:9;Op:==}
+{BasicLit {11 12} {11 13} ValuePos:11:12;Kind:INT;Value:"2"}
+{BlockStmt {11 14} {13 5} Lbrace:11:14;Rbrace:13:4}
+{SwitchStmt {15 4} {24 5} Switch:15:4}
+{Ident {15 11} {15 12} NamePos:15:11;Name:"t"}
+{BlockStmt {15 13} {24 5} Lbrace:15:13;Rbrace:24:4}
+{CaseClause {16 4} {-1 -1} Case:16:4;Colon:16:10}
+{BasicLit {16 9} {16 10} ValuePos:16:9;Kind:INT;Value:"1"}
+{Ident {17 5} {17 8} NamePos:17:5;Name:"one"}
+{AssignStmt {17 5} {17 17} TokPos:17:9;Tok::=}
+{BasicLit {17 12} {17 17} ValuePos:17:12;Kind:STRING;Value:"\"one\""}
+{Ident {19 8} {19 11} NamePos:19:8;Name:"one"}
+{CaseClause {20 4} {-1 -1} Case:20:4;Colon:20:11}
+{Ident {21 5} {21 9} NamePos:21:5;Name:"test"}
+{AssignStmt {21 5} {21 23} TokPos:21:10;Tok::=}
+{BasicLit {21 13} {21 23} ValuePos:21:13;Kind:STRING;Value:"\"sth else\""}
+{Ident {23 8} {23 12} NamePos:23:8;Name:"test"}
+{SelectStmt {26 4} {39 5} Select:26:4}
+{BlockStmt {26 11} {39 5} Lbrace:26:11;Rbrace:39:4}
+{CommClause {27 4} {-1 -1} Case:27:4;Colon:27:12}
+{ExprStmt {27 9} {27 12} }
+{UnaryExpr {27 9} {27 12} OpPos:27:9;Op:<-}
+{Ident {27 11} {27 12} NamePos:27:11;Name:"a"}
+{Ident {29 19} {29 23} NamePos:29:19;Name:"val1"}
+{Ident {31 9} {31 14} NamePos:31:9;Name:"test1"}
+{CommClause {33 4} {-1 -1} Case:33:4;Colon:33:11}
+{Ident {35 19} {35 23} NamePos:35:19;Name:"val2"}
+{Ident {37 9} {37 14} NamePos:37:9;Name:"test2"}
+{Ident {43 2} {43 3} NamePos:43:2;Name:"_"}
+{AssignStmt {43 2} {45 3} TokPos:43:4;Tok:=}
+{FuncType {43 6} {43 29} Func:43:6}
+{FieldList {43 10} {43 23} Opening:43:10;Closing:43:22}
+{Ident {43 11} {43 14} NamePos:43:11;Name:"tgo"}
+{Field {43 11} {43 22} }
+{Ident {43 15} {43 18} NamePos:43:15;Name:"tgo"}
+{SelectorExpr {43 15} {43 22} }
+{Ident {43 19} {43 22} NamePos:43:19;Name:"Ctx"}
+{Field {43 24} {43 29} }
+{FieldList {43 24} {43 29} Opening:0:0;Closing:0:0}
+{Ident {43 24} {43 29} NamePos:43:24;Name:"error"}
+{BlockStmt {43 30} {45 3} Lbrace:43:30;Rbrace:45:2}
+{Ident {44 11} {44 15} NamePos:44:11;Name:"test"}
