@@ -89,12 +89,12 @@ const testSrc = `package A
 import "github.com/mateusz834/tgo"
 
 func _(t tgo.Ctx) error {
-	"testing" // test
-	"test"    // test
+	<div>/*l*/</div>
 }
 `
 
 func TestTest(t *testing.T) {
+	fuzzSource(t, "a", testSrc)
 	fset := token.NewFileSet()
 	f, err := parser.ParseFile(fset, "0", testSrc, parser.SkipObjectResolution|parser.ParseComments)
 	if err != nil {

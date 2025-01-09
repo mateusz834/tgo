@@ -800,14 +800,15 @@ func (t *transpiler) transpileList(list []ast.Stmt, name string) {
 			t.appendSource(t.ctx.tgoIdent)
 			t.appendSource(" := ")
 			t.appendSource(name)
+
 			if !isTgo(n, t.inTgoFunc) {
-				r.ld = lineDirectiveOneLineRSpace
 				if lastIndent {
 					r.ld = lineDirectiveFullLine
 				} else if lastWhite {
 					r.ld = lineDirectiveOneLine
 					t.indent()
 				} else {
+					r.ld = lineDirectiveOneLineRSpace
 					t.indent()
 				}
 			}
@@ -846,7 +847,6 @@ func (t *transpiler) transpileStmt(r whiteAlgResult, n ast.Stmt) {
 		// when necessary.
 	} else {
 		if t.ctx.lineDirectiveMangled {
-			// TODO:whyneed to skip white?
 			t.writeLineDirectiveSkipWhite(r.ld, n.Pos())
 		}
 	}

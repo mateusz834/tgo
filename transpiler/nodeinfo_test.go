@@ -35,7 +35,7 @@ func genNodeInfo[TOK fmt.Stringer, POS interface{ IsValid() bool }](
 		Pos() POS
 		End() POS
 	},
-	posToLineCol func(pos POS) (line int, column int),
+	posToLineCol func(pos POS) token.Position,
 ) nodeInfo {
 	v := reflect.ValueOf(n).Elem()
 
@@ -46,12 +46,12 @@ func genNodeInfo[TOK fmt.Stringer, POS interface{ IsValid() bool }](
 		if info.Len() != 0 {
 			info.WriteString(";")
 		}
-		line, column := posToLineCol(pos)
+		p := posToLineCol(pos)
 		info.WriteString(name)
 		info.WriteString(":")
-		info.WriteString(strconv.FormatInt(int64(line), 10))
+		info.WriteString(strconv.FormatInt(int64(p.Line), 10))
 		info.WriteString(":")
-		info.WriteString(strconv.FormatInt(int64(column), 10))
+		info.WriteString(strconv.FormatInt(int64(p.Column), 10))
 	}
 
 	for i := range v.NumField() {
@@ -83,19 +83,19 @@ func genNodeInfo[TOK fmt.Stringer, POS interface{ IsValid() bool }](
 		}
 	}
 
-	startLine, startCol := posToLineCol(n.Pos())
-	endLine, endCol := posToLineCol(n.End())
+	start := posToLineCol(n.Pos())
+	end := posToLineCol(n.End())
 	switch any(n).(type) {
 	case *ast.LabeledStmt, *goast.LabeledStmt,
 		*ast.CommClause, *goast.CommClause,
 		*ast.CaseClause, *goast.CaseClause:
-		endLine, endCol = -1, -1
+		end.Line, end.Column = -1, -1
 	}
 
 	return nodeInfo{
 		nodeName:  v.Type().Name(),
-		nodeStart: pos{line: startLine, column: startCol},
-		nodeEnd:   pos{line: endLine, column: endCol},
+		nodeStart: pos{line: start.Line, column: start.Column},
+		nodeEnd:   pos{line: end.Line, column: end.Column},
 		other:     info.String(),
 	}
 }
@@ -112,6 +112,25 @@ func tgoExpectedNodeInfos(f *ast.File, fset *token.FileSet) map[nodeInfo]struct{
 		tgoFunc:  tgoFuncs,
 		nodeInfo: make(map[nodeInfo]struct{}),
 	}
+
+	//for _, cg := range f.Comments {
+	//	for _, v := range cg.List {
+	//		info := genNodeInfo[token.Token](v, fset.Position)
+	//		if _, ok := ctx.nodeInfo[info]; ok {
+	//			panic("unreachable")
+	//		}
+	//		ctx.nodeInfo[info] = struct{}{}
+	//	}
+	//	//info := genNodeInfo[token.Token](cg, func(p token.Pos) (line int, column int) {
+	//	//	pos := fset.Position(p)
+	//	//	return pos.Line, pos.Column
+	//	//})
+	//	//if _, ok := ctx.nodeInfo[info]; ok {
+	//	//	panic("unreachable")
+	//	//}
+	//	//ctx.nodeInfo[info] = struct{}{}
+	//}
+
 	ast.Walk(&nodeInfoAnalyzer{ctx: ctx}, f)
 	return ctx.nodeInfo
 }
@@ -195,11 +214,7 @@ func (a *nodeInfoAnalyzer) Visit(n ast.Node) ast.Visitor {
 		return nil
 	}
 
-	info := genNodeInfo[token.Token](n, func(p token.Pos) (line int, column int) {
-		pos := a.ctx.fset.Position(p)
-		return pos.Line, pos.Column
-	})
-
+	info := genNodeInfo[token.Token](n, a.ctx.fset.Position)
 	if _, ok := a.ctx.nodeInfo[info]; ok {
 		panic("unreachable")
 	}

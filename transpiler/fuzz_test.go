@@ -267,16 +267,19 @@ func fuzzSource(t *testing.T, name, src string) string {
 		if n == nil {
 			return true
 		}
-		info := genNodeInfo[gotoken.Token](n, func(p gotoken.Pos) (line int, column int) {
-			pos := fsetgo.Position(p)
-			return pos.Line, pos.Column
-		})
+		info := genNodeInfo[gotoken.Token](n, fsetgo.Position)
 		if testing.Verbose() {
 			t.Logf("go key: %v", info)
 		}
 		delete(missing, info)
 		return true
 	})
+
+	//for _, cg := range fgo.Comments {
+	//	for _, v := range cg.List {
+	//		delete(missing, genNodeInfo[gotoken.Token](v, fsetgo.Position))
+	//	}
+	//}
 
 	if len(missing) != 0 {
 		//var transpiled, input strings.Builder
