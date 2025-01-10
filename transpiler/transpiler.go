@@ -494,7 +494,7 @@ func (t *transpiler) transpile() {
 					return path == "github.com/mateusz834/tgo"
 				})
 
-				if i == -1 {
+				if true || i == -1 {
 					continue
 				}
 
