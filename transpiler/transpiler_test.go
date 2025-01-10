@@ -94,6 +94,9 @@ func _(t tgo.Ctx) error {
 `
 
 func TestTest(t *testing.T) {
+	const testSrc = `package A
+import."github.com/mateusz834/tgo"; func A(Ctx)error{DynamicWrite=""
+"\{1}"}`
 	fuzzSource(t, "a", testSrc)
 	fset := token.NewFileSet()
 	f, err := parser.ParseFile(fset, "0", testSrc, parser.SkipObjectResolution|parser.ParseComments)

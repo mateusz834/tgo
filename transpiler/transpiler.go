@@ -507,6 +507,8 @@ func (t *transpiler) transpile() {
 		rd := t.whiteAlg(cur.End(), next.Pos())
 		if rd.ld == lineDirectiveFullLine {
 			t.appendSource("\n")
+		} else {
+			t.appendSource(";")
 		}
 		t.writeLineDirective(rd.ld, t.ctx.lastPosWritten)
 
