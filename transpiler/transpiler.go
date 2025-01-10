@@ -17,7 +17,7 @@ import (
 
 const (
 	debug   = false
-	verbose = false
+	verbose = true
 )
 
 // TODO: what would happen?
@@ -370,11 +370,14 @@ type lineDirective uint8
 const (
 	_ lineDirective = iota
 
-	lineDirectiveFullLine       // "\n//line :line:col"
+	lineDirectiveFullLine              // "\n//line :line:col"
+	lineDirectiveFullLineAdditonalLine // "\n//line :line:col\n"
+
 	lineDirectiveOneLine        // "/*line :line:col*/"
 	lineDirectiveOneLineLSpace  // " /*line :line:col*/"
 	lineDirectiveOneLineRSpace  // "/*line :line:col*/ "
 	lineDirectiveOneLineLRSpace // " /*line :line:col*/ "
+
 )
 
 // writeLineDirective writes a line directive, in one of the format as provided
@@ -415,6 +418,15 @@ func (t *transpiler) writeLineDirective(ld lineDirective, pos token.Pos) {
 		if p.Column != 1 {
 			panic("unreachable")
 		}
+	case lineDirectiveFullLineAdditonalLine:
+		p = t.ctx.fs.Position(pos + 1)
+		if p.Column != 1 {
+			panic("unreachable")
+		}
+		p.Line--
+		if p.Line == 0 {
+			panic("unreachable")
+		}
 	default:
 		panic("unreachable")
 	}
@@ -437,6 +449,8 @@ func (t *transpiler) writeLineDirective(ld lineDirective, pos token.Pos) {
 		t.appendSource("*/ ")
 	case lineDirectiveOneLineLSpace, lineDirectiveOneLine:
 		t.appendSource("*/")
+	case lineDirectiveFullLineAdditonalLine:
+		t.appendSource("\n")
 	}
 
 	t.ctx.lineDirectiveMangled = false
@@ -469,51 +483,84 @@ func (t *transpiler) transpile() {
 	if t.ctx.info.NeedsSpecialTgoImport {
 		t.ctx.tgoAddtionalImportIdent = fileUniqueIdent(t.ctx.f, "__tgo")
 
-		i := -1
-		for j, v := range t.ctx.f.Decls {
+		added := false
+		for _, v := range t.ctx.f.Decls {
 			if v, ok := v.(*ast.GenDecl); ok && v.Tok == token.IMPORT {
-				i = j
-				break
+				i := slices.IndexFunc(v.Specs, func(v ast.Spec) bool {
+					path, err := strconv.Unquote(v.(*ast.ImportSpec).Path.Value)
+					if err != nil {
+						panic(err) // unreachable, AST is valid
+					}
+					return path == "github.com/mateusz834/tgo"
+				})
+
+				if i == -1 {
+					continue
+				}
+
+				if v.Rparen.IsValid() {
+					tgoSpec := v.Specs[i].(*ast.ImportSpec)
+
+					nextPos := v.Rparen
+					if len(v.Specs) != i+1 {
+						nextPos = v.Specs[i+1].(*ast.ImportSpec).Pos()
+					}
+
+					lastIndent := nextPos
+					for v := range t.iterWhite(tgoSpec.End(), nextPos) {
+						if v.whiteType == whiteIndent {
+							lastIndent = v.pos
+						}
+					}
+					t.appendFromSource(lastIndent)
+
+					t.appendSource("\n\t")
+					t.appendSource(t.ctx.tgoAddtionalImportIdent)
+					t.appendSource(` "github.com/mateusz834/tgo"`)
+
+					ld := lineDirectiveFullLine
+					if t.ctx.fs.Position(t.ctx.lastPosWritten+1).Column != 1 {
+						ld = lineDirectiveOneLineLRSpace
+					}
+					t.writeLineDirective(ld, t.ctx.lastPosWritten)
+					added = true
+					break
+				}
 			}
 		}
 
-		if i == -1 || len(t.ctx.f.Decls) == i-1 {
-			// NeedsSpecialTgoImport can only be set to true when there is a import
-			// and when more decls exist (there must be a tgo func).
-			panic("unreachable")
-		}
-
-		cur, next := t.ctx.f.Decls[i].(*ast.GenDecl), t.ctx.f.Decls[i+1]
-
-		//TODO: cur.End() == next.ctx.Pos()
-
-		var last iterWhiteResult
-	outer:
-		for last = range t.iterWhite(cur.End(), next.Pos()) {
-			switch last.whiteType {
-			case whiteWhite:
-			case whiteComment:
-			case whiteSemi:
-			case whiteIndent:
-				break outer
+		if !added {
+			last := -1
+			for i, v := range t.ctx.f.Decls {
+				if v, ok := v.(*ast.GenDecl); ok && v.Tok == token.IMPORT {
+					last = i
+				}
 			}
+
+			lastImportDecl := t.ctx.f.Decls[last].(*ast.GenDecl)
+
+			// TODO: panic possible
+			nextDecl := t.ctx.f.Decls[last+1]
+
+			lastIndent := nextDecl.Pos()
+			for v := range t.iterWhite(lastImportDecl.End(), nextDecl.Pos()) {
+				if v.whiteType == whiteIndent {
+					lastIndent = v.pos
+				}
+			}
+			t.appendFromSource(lastIndent)
+
+			t.appendSource("\nimport ")
+			t.appendSource(t.ctx.tgoAddtionalImportIdent)
+			t.appendSource(" \"github.com/mateusz834/tgo\"\n")
+
+			ld := lineDirectiveFullLineAdditonalLine
+			if t.ctx.fs.Position(t.ctx.lastPosWritten+1).Column != 1 {
+				ld = lineDirectiveOneLineRSpace
+			}
+
+			t.writeLineDirective(ld, t.ctx.lastPosWritten)
 		}
-
-		t.appendFromSource(last.pos)
-		t.appendSource("\n\nimport ")
-		t.appendSource(t.ctx.tgoAddtionalImportIdent)
-		t.appendSource(" \"github.com/mateusz834/tgo\"")
-
-		rd := t.whiteAlg(cur.End(), next.Pos())
-		if rd.ld == lineDirectiveFullLine {
-			t.appendSource("\n")
-		} else {
-			t.appendSource(";")
-		}
-		t.writeLineDirective(rd.ld, t.ctx.lastPosWritten)
-
-		// TODO: this logic beloow is bad bad bad
-		// we need to do this differenlty and better
 	}
 
 	ast.Walk(t, t.ctx.f)

@@ -15,6 +15,7 @@ import (
 
 	"github.com/mateusz834/tgo/analyzer"
 	"github.com/tgo-lang/lang/ast"
+	"github.com/tgo-lang/lang/format"
 	"github.com/tgo-lang/lang/parser"
 	"github.com/tgo-lang/lang/printer"
 	"github.com/tgo-lang/lang/token"
@@ -85,25 +86,29 @@ import (
 //}
 //`
 
-const testSrc = `package A
-import "github.com/mateusz834/tgo"
-
-func _(t tgo.Ctx) error {
-	<div>/*l*/</div>
-}
-`
+const testSrc = "package A\nimport.\"github.com/mateusz834/tgo\";func A(Ctx)error{DynamicWrite=\"\"\n\"\\{\"\"}\"}"
 
 func TestTest(t *testing.T) {
-	const testSrc = `package A
-import."github.com/mateusz834/tgo"; func A(Ctx)error{DynamicWrite=""
-"\{1}"}`
-	fuzzSource(t, "a", testSrc)
+	//	const testSrc = `package A
+	//
+	// import."github.com/mateusz834/tgo"; func A(Ctx)error{DynamicWrite=""
+	// "\{1}"}`
+
+	//	const testSrc = `package A
+	//import."github.com/mateusz834/tgo";func A(Ctx)error{DynamicWrite=""
+	//"\{""}"}`
+
+	//fuzzSource(t, "a", testSrc)
 	fset := token.NewFileSet()
 	f, err := parser.ParseFile(fset, "0", testSrc, parser.SkipObjectResolution|parser.ParseComments)
 	if err != nil {
 		ast.Print(fset, f)
 		t.Fatal(err)
 	}
+
+	var s strings.Builder
+	format.Node(&s, fset, f)
+	t.Log(s.String())
 
 	ast.Print(fset, f)
 
