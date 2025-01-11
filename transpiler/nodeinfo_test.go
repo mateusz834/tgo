@@ -131,25 +131,6 @@ func tgoExpectedNodeInfos(f *ast.File, fset *token.FileSet) map[nodeInfo]struct{
 	//	//ctx.nodeInfo[info] = struct{}{}
 	//}
 
-	list := func(stmts []ast.Stmt) {
-	}
-
-	ast.Inspect(f, func(n ast.Node) bool {
-		switch n := n.(type) {
-		case *ast.BlockStmt:
-			list(n.List)
-		case *ast.ElementBlockStmt:
-			list(n.Body)
-		case *ast.OpenTag:
-			list(n.Body)
-		case *ast.CaseClause:
-			list(n.Body)
-		case *ast.CommClause:
-			list(n.Body)
-		}
-		return true
-	})
-
 	ast.Walk(&nodeInfoAnalyzer{ctx: ctx}, f)
 	return ctx.nodeInfo
 }

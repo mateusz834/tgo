@@ -636,26 +636,18 @@ func (t *transpiler) tgoFunc(n ast.Node, funcType *ast.FuncType, body *ast.Block
 			t.appendSource(t.ctx.tgoIdent)
 			t.skipSourceUpTo(param.Names[0].End())
 
-			// The code below does not handle:
-			//func a(a, /*l*/
-			////comment
-			//	b int) {
-			//}
-
-			// TODO: add test cases. and comments :).
-			ld := lineDirectiveOneLineLSpace
 			if len(param.Names) > 1 {
 				firstNameLine := t.ctx.fs.Position(param.Names[0].Pos()).Line
 				secondNameLine := t.ctx.fs.Position(param.Names[1].Pos()).Line
 				if firstNameLine != secondNameLine {
-					t.ctx.lineDirectiveMangled = false // TODO: fix
-					t.appendFromSource(t.ctx.fs.File(t.ctx.f.FileStart).LineStart(firstNameLine+1) - 1)
-					t.ctx.lineDirectiveMangled = true // TODO: fix
-					ld = lineDirectiveFullLine
+					if t.ctx.src[t.posToOffset(param.Names[0].End())] == ',' {
+						t.ctx.out = append(t.ctx.out, ',')
+						t.ctx.lastPosWritten++
+					}
 				}
 			}
 
-			t.writeLineDirective(ld, t.ctx.lastPosWritten)
+			t.writeLineDirective(lineDirectiveOneLineLSpace, t.ctx.lastPosWritten)
 			t.appendFromSource(params.Closing)
 		} else {
 			t := &transpiler{

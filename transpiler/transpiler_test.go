@@ -117,10 +117,12 @@ func TestTest(t *testing.T) {
 
 import "github.com/mateusz834/tgo"
 
-func A(tgo.Ctx) error {
+func A(_, /*l*/
+	_ tgo.Ctx, _ int) error {
 	a := 3
-	/* test */ <div></div>
+	<div></div>
 }
+
 `
 
 	fuzzSource(t, "a", testSrc)
