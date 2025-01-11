@@ -86,9 +86,24 @@ import (
 //}
 //`
 
-const testSrc = "package A\nimport.\"github.com/mateusz834/tgo\";func A(Ctx)error{DynamicWrite=\"\"\n\"\\{\"\"}\"}"
+const testSrc = `package A
+
+import (
+	"fmt"
+	"github.com/mateusz834/tgo"
+)
+
+func a(tgo.Ctx) error {
+	tgo := "nil"
+	"\{1}"
+}
+`
 
 func TestTest(t *testing.T) {
+	//func a(__tgo_ctx tgo. // aa
+	//			Ctx) error {
+	//}
+	//
 	//	const testSrc = `package A
 	//
 	// import."github.com/mateusz834/tgo"; func A(Ctx)error{DynamicWrite=""
@@ -98,7 +113,19 @@ func TestTest(t *testing.T) {
 	//import."github.com/mateusz834/tgo";func A(Ctx)error{DynamicWrite=""
 	//"\{""}"}`
 
-	//fuzzSource(t, "a", testSrc)
+	const testSrc = `package A
+
+import "github.com/mateusz834/tgo"
+
+func A(tgo. //
+		Ctx) error {
+	<div></div>
+}
+`
+
+	fuzzSource(t, "a", testSrc)
+	return
+
 	fset := token.NewFileSet()
 	f, err := parser.ParseFile(fset, "0", testSrc, parser.SkipObjectResolution|parser.ParseComments)
 	if err != nil {

@@ -494,7 +494,7 @@ func (t *transpiler) transpile() {
 					return path == "github.com/mateusz834/tgo"
 				})
 
-				if true || i == -1 {
+				if i == -1 {
 					continue
 				}
 
@@ -539,7 +539,7 @@ func (t *transpiler) transpile() {
 
 			lastImportDecl := t.ctx.f.Decls[last].(*ast.GenDecl)
 
-			// TODO: panic possible
+			// TODO: this cannot panic because of a guard NeedsSpecialTgoImport :).
 			nextDecl := t.ctx.f.Decls[last+1]
 
 			lastIndent := nextDecl.Pos()

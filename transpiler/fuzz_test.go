@@ -2,6 +2,7 @@ package transpiler
 
 import (
 	"cmp"
+	"fmt"
 	"maps"
 	"math"
 	"os"
@@ -297,6 +298,33 @@ func fuzzSource(t *testing.T, name, src string) string {
 		}
 		t.Fatal("invalid line directives")
 	}
+
+	//	func A(tgo. //
+	//			Ctx) error {
+	//		<div></div>
+	//	}
+	ast.Inspect(f, func(n ast.Node) bool {
+		switch n := n.(type) {
+		case *ast.FuncType:
+			ast.Inspect(n.Params, func(n ast.Node) bool {
+				switch n := n.(type) {
+				case *ast.SelectorExpr:
+					ast.Print(fset, n)
+					from, to := n.X.End(), n.Sel.Pos()
+					for _, cg := range f.Comments {
+						for _, c := range cg.List {
+							fmt.Println(c.Pos() > from && to < c.End())
+							if c.Text[1] == '/' && c.Pos() > from && c.End() < to {
+								t.Skip()
+							}
+						}
+					}
+				}
+				return true
+			})
+		}
+		return true
+	})
 
 	// The Go formatter moves comments around, bacause it treats every comment
 	// at Column == 1 as doc comment, and it moves directives to the end of a comment.
