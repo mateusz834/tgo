@@ -686,7 +686,7 @@ func (t *transpiler) tgoFunc(n ast.Node, funcType *ast.FuncType, body *ast.Block
 				//	        return err
 				//	} /*line :X:8*/    // test
 				//
-				t.writeLineDirectiveSkipWhite(t.whiteAlg(t.ctx.lastPosWritten, body.Rbrace).ld, body.Rbrace)
+				t.writeLineDirectiveSkipWhite(t.whiteAlg(t.ctx.lastPosWritten, body.Rbrace), body.Rbrace)
 			}
 			t.appendFromSource(body.Rbrace + 1)
 			return
@@ -723,7 +723,7 @@ func (t *transpiler) Visit(n ast.Node) ast.Visitor {
 		t.appendFromSource(n.Lbrace + 1)
 		t.transpileList(n.List, "")
 		if t.ctx.lineDirectiveMangled {
-			t.writeLineDirectiveSkipWhite(t.whiteAlg(t.ctx.lastPosWritten, n.Rbrace).ld, n.Rbrace)
+			t.writeLineDirectiveSkipWhite(t.whiteAlg(t.ctx.lastPosWritten, n.Rbrace), n.Rbrace)
 		}
 		t.appendFromSource(n.Rbrace + 1)
 		return nil
@@ -745,12 +745,8 @@ func isTgo(n ast.Node, inTgoFunc bool) bool {
 	return false
 }
 
-type whiteAlgResult struct {
-	ld                   lineDirective
-	lastNewlineOrNodePos token.Pos
-}
-
-func (t *transpiler) whiteAlg(start, end token.Pos) whiteAlgResult {
+// TODO: rename
+func (t *transpiler) whiteAlg(start, end token.Pos) lineDirective {
 	var (
 		onelineDirective = t.ctx.fs.Position(start).Line == t.ctx.fs.Position(end).Line
 
@@ -758,9 +754,8 @@ func (t *transpiler) whiteAlg(start, end token.Pos) whiteAlgResult {
 		// comment, it is not a problem for what we are using it now.
 		beforeNewline = true
 
-		firstWhite           = false
-		afterFirst           = false
-		lastNewlineOrNodePos = start
+		firstWhite = false
+		afterFirst = false
 	)
 
 	for v := range t.iterWhite(start, end) {
@@ -775,7 +770,6 @@ func (t *transpiler) whiteAlg(start, end token.Pos) whiteAlgResult {
 		case whiteIndent:
 			//t.lastIndentation = v.text
 			beforeNewline = false
-			lastNewlineOrNodePos = v.pos
 		case whiteComment:
 			if beforeNewline {
 				onelineDirective = true
@@ -798,10 +792,7 @@ func (t *transpiler) whiteAlg(start, end token.Pos) whiteAlgResult {
 		}
 	}
 
-	return whiteAlgResult{
-		ld:                   ld,
-		lastNewlineOrNodePos: lastNewlineOrNodePos,
-	}
+	return ld
 }
 
 func unlabel(n ast.Stmt) (ast.Stmt, token.Pos) {
@@ -819,7 +810,7 @@ func unlabel(n ast.Stmt) (ast.Stmt, token.Pos) {
 
 func (t *transpiler) transpileList(list []ast.Stmt, name string) {
 	for i, n := range list {
-		r := t.whiteAlg(t.ctx.lastPosWritten, n.Pos())
+		ld := t.whiteAlg(t.ctx.lastPosWritten, n.Pos())
 
 		if i == 0 && name != "" {
 			var (
@@ -852,41 +843,48 @@ func (t *transpiler) transpileList(list []ast.Stmt, name string) {
 
 			if !isTgo(n, t.inTgoFunc) {
 				if lastIndent {
-					r.ld = lineDirectiveFullLine
+					ld = lineDirectiveFullLine
 				} else if lastWhite {
-					r.ld = lineDirectiveOneLine
+					ld = lineDirectiveOneLine
 					t.indent()
 				} else {
-					r.ld = lineDirectiveOneLineRSpace
+					ld = lineDirectiveOneLineRSpace
 					t.indent()
 				}
 			}
-			r.lastNewlineOrNodePos = lastCommentEndPos
 		}
 
 		unlabeled, lastLabelEndPos := unlabel(n)
 		if lastLabelEndPos.IsValid() {
 			if t.ctx.lineDirectiveMangled {
-				t.writeLineDirective(r.ld, t.ctx.lastPosWritten)
+				t.writeLineDirective(ld, t.ctx.lastPosWritten)
 			}
 			t.appendFromSource(lastLabelEndPos)
 			if n, ok := unlabeled.(*ast.EmptyStmt); ok && i == len(list)-1 && n.Implicit {
 				return
 			}
-			r = t.whiteAlg(lastLabelEndPos, unlabeled.Pos())
+			ld = t.whiteAlg(lastLabelEndPos, unlabeled.Pos())
 		}
 
-		t.transpileStmt(r, unlabeled)
+		t.transpileStmt(ld, unlabeled)
 	}
 }
 
-func (t *transpiler) transpileStmt(r whiteAlgResult, n ast.Stmt) {
+// TODO: it would be nice to drop the ld parameter.
+func (t *transpiler) transpileStmt(ld lineDirective, n ast.Stmt) {
 	if isTgo(n, t.inTgoFunc) {
 		// When previous node was non-tgo and now we have a tgo node,
 		// preserve whitespace, comments and semicolons up to last newline
 		// (or up to n.Pos() if no newline found between prev and n).
 		if !t.ctx.lineDirectiveMangled {
-			t.appendFromSource(r.lastNewlineOrNodePos)
+			lastPos := t.ctx.lastPosWritten
+			for v := range t.iterWhite(t.ctx.lastPosWritten, n.Pos()) {
+				switch v.whiteType {
+				case whiteComment, whiteSemi:
+					lastPos = v.end()
+				}
+			}
+			t.appendFromSource(lastPos)
 		}
 
 		// TODO: we are ingnoring comments between tgo tags.
@@ -896,7 +894,7 @@ func (t *transpiler) transpileStmt(r whiteAlgResult, n ast.Stmt) {
 		// when necessary.
 	} else {
 		if t.ctx.lineDirectiveMangled {
-			t.writeLineDirectiveSkipWhite(r.ld, n.Pos())
+			t.writeLineDirectiveSkipWhite(ld, n.Pos())
 		}
 	}
 

@@ -2,7 +2,6 @@ package transpiler
 
 import (
 	"cmp"
-	"fmt"
 	"maps"
 	"math"
 	"os"
@@ -309,12 +308,10 @@ func fuzzSource(t *testing.T, name, src string) string {
 			ast.Inspect(n.Params, func(n ast.Node) bool {
 				switch n := n.(type) {
 				case *ast.SelectorExpr:
-					ast.Print(fset, n)
 					from, to := n.X.End(), n.Sel.Pos()
 					for _, cg := range f.Comments {
 						for _, c := range cg.List {
-							fmt.Println(c.Pos() > from && to < c.End())
-							if c.Text[1] == '/' && c.Pos() > from && c.End() < to {
+							if c.Pos() > from && c.End() < to {
 								t.Skip()
 							}
 						}

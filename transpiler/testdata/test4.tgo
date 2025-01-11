@@ -106,7 +106,8 @@ func A() {
 
 func A() {
 	0 %
-		func(__tgo_ctx /*line :33:9*/ tgo.Ctx) error {
+		func(__tgo_ctx /*line :33:9*/ tgo.Ctx) error { /* test
+			test*/
 			if err := __tgo_ctx.WriteString("<div></div>"); err != nil {
 				return err
 			}
@@ -117,7 +118,8 @@ func A() {
 func A(a tgo.Ctx) error {
 	__tgo_ctx := a
 //line :39:1
-	if a == 3 {
+	if a == 3 { /*l
+		 */
 		if err := __tgo_ctx.WriteString("<div></div>"); err != nil {
 			return err
 		}
@@ -129,7 +131,8 @@ func A(a tgo.Ctx) error {
 	__tgo_ctx := a
 //line :45:1
 	switch a {
-	case "a":
+	case "a": /*
+		 */
 		if err := __tgo_ctx.WriteString("<div></div>"); err != nil {
 			return err
 		}

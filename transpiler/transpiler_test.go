@@ -117,9 +117,9 @@ func TestTest(t *testing.T) {
 
 import "github.com/mateusz834/tgo"
 
-func A(tgo. //
-		Ctx) error {
-	<div></div>
+func A(tgo.Ctx) error {
+	a := 3
+	/* test */ <div></div>
 }
 `
 

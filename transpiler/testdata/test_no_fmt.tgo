@@ -60,7 +60,7 @@ func test(tgo tgo.Ctx) error {
 func test() {
 	_ = func(tgo tgo.Ctx) error {
 		__tgo_ctx := tgo
-		/*line :13:31*/ a := 3
+		/*line :13:31*/ a := 3;
 		if err := __tgo_ctx.WriteString("<div>"); err != nil {
 			return err
 		}
@@ -76,7 +76,7 @@ func test() {
 
 func test(tgo tgo.Ctx) error {
 	__tgo_ctx := tgo
-	/*line :16:31*/ a := 3
+	/*line :16:31*/ a := 3;
 	if err := __tgo_ctx.WriteString("<div>"); err != nil {
 		return err
 	}
