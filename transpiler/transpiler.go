@@ -1008,6 +1008,7 @@ func (t *transpiler) dynamicWriteIndent(x *ast.TemplateLiteralExpr, n *ast.Templ
 	lineDirectivePos := t.ctx.lastPosWritten
 
 	// TODO writeLineDirectiveSkipWhite?
+	// TODO: simplify
 	var prev iterWhiteResult
 	for v := range t.iterWhite(t.ctx.lastPosWritten, n.X.Pos()) {
 		if prev.whiteType != whiteInvalid {
