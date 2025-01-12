@@ -1,0 +1,3 @@
+go test fuzz v1
+string("X\"B")
+string("package A00000\nimport \"github.com/mateusz834/tgo\" \nfunc A000(tgo.Ctx)error{ A00%00\nA0\n\"\\{\"0\"}\"} \nfunc A0000(tgo.Ctx) error { <div>\n0\n \"\\{\"\"}\" \nA:\n\"0\"</div>} ")
