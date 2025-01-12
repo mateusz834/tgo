@@ -16,7 +16,6 @@ import (
 )
 
 const (
-	debug   = false
 	verbose = false
 )
 
@@ -333,13 +332,11 @@ func (t *transpiler) scopeEnd(s scopeState) {
 			debugPrintf("scopeEnd() -> drop")
 		}
 
-		if debug {
-			for _, v := range t.ctx.tmp[s.beforeLen:] {
-				switch v {
-				case ' ', '\t', '\n', '{', '}':
-				default:
-					panic("unreachable")
-				}
+		for _, v := range t.ctx.tmp[s.beforeLen:] {
+			switch v {
+			case ' ', '\t', '\r', '\n', '{', '}':
+			default:
+				panic("unreachable")
 			}
 		}
 
