@@ -113,24 +113,6 @@ func tgoExpectedNodeInfos(f *ast.File, fset *token.FileSet) map[nodeInfo]struct{
 		nodeInfo: make(map[nodeInfo]struct{}),
 	}
 
-	//for _, cg := range f.Comments {
-	//	for _, v := range cg.List {
-	//		info := genNodeInfo[token.Token](v, fset.Position)
-	//		if _, ok := ctx.nodeInfo[info]; ok {
-	//			panic("unreachable")
-	//		}
-	//		ctx.nodeInfo[info] = struct{}{}
-	//	}
-	//	//info := genNodeInfo[token.Token](cg, func(p token.Pos) (line int, column int) {
-	//	//	pos := fset.Position(p)
-	//	//	return pos.Line, pos.Column
-	//	//})
-	//	//if _, ok := ctx.nodeInfo[info]; ok {
-	//	//	panic("unreachable")
-	//	//}
-	//	//ctx.nodeInfo[info] = struct{}{}
-	//}
-
 	ast.Walk(&nodeInfoAnalyzer{ctx: ctx}, f)
 	return ctx.nodeInfo
 }
