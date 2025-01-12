@@ -20,6 +20,12 @@ const (
 	verbose = false
 )
 
+func assert(b bool) {
+	if !b {
+		panic("unreachable")
+	}
+}
+
 // TODO: what would happen?
 //<div
 //L:
@@ -48,9 +54,7 @@ func Transpile(f *ast.File, fs *token.FileSet, src string) string {
 		lastIndentation: "\n",
 	}
 	t.transpile()
-	if len(t.ctx.tmp) != 0 {
-		panic("unreachable")
-	}
+	assert(len(t.ctx.tmp) == 0)
 	return string(t.ctx.out)
 }
 
@@ -119,16 +123,12 @@ func (t *transpiler) skipSourceUpTo(pos token.Pos) {
 		debugPrintf("skipSourceUpTo(%v:%v (offset: %v))", pos.Line, pos.Column, pos.Offset)
 	}
 
-	if t.ctx.lastPosWritten > pos {
-		panic("unreachable")
-	}
+	assert(t.ctx.lastPosWritten <= pos)
 
 	// We should set lineDirectiveMangled to true here, but currently we should
 	// not get here with t.ctx.lineDirectiveMangled == false, so we can assert
 	// that for now instead.
-	if !t.ctx.lineDirectiveMangled {
-		panic("unreachable")
-	}
+	assert(t.ctx.lineDirectiveMangled)
 
 	t.ctx.lastPosWritten = pos
 }
@@ -143,9 +143,7 @@ func (t *transpiler) appendFromSource(end token.Pos) {
 	// While appending source from t.ctx.src into t.ctx.out, we
 	// need to be sure that the line directive is valid, and was
 	// not mangled by any code that we generated.
-	if t.ctx.lineDirectiveMangled {
-		panic("unreachable")
-	}
+	assert(!t.ctx.lineDirectiveMangled)
 
 	// At this point t.ctx.tmp, must be empty, because the t.ctx.lineDirectiveMangled
 	// is equal to false (see assert above), which means that a line directive
@@ -156,9 +154,7 @@ func (t *transpiler) appendFromSource(end token.Pos) {
 	// but with the current transpiler, this kind of call combination is not possible.
 	// TODO: maybe we should set t.ctx.lineDirectiveMangled = true in [tmpIndent] and [tmpAppendSource]?
 	// Wouldn't that cause duplicated line directives? We can "rollback" scopes ([scopeStart], [scopeEnd]).
-	if len(t.ctx.tmp) != 0 {
-		panic("unreachable")
-	}
+	assert(len(t.ctx.tmp) == 0)
 
 	src := t.ctx.src[t.posToOffset(t.ctx.lastPosWritten):t.posToOffset(end)]
 	if verbose {
@@ -178,8 +174,6 @@ func (t *transpiler) appendSource(s string) {
 		debugPrintf("appendString(%q)", s)
 	}
 	t.ctx.out = append(t.ctx.out, s...)
-	// TODO: move to flushTmp?
-	t.ctx.inStaticWrite = false
 	t.ctx.lineDirectiveMangled = true
 }
 
@@ -195,7 +189,6 @@ func (t *transpiler) indent() {
 		)
 	}
 	t.ctx.out = t.appendIndent(t.ctx.out)
-	t.ctx.inStaticWrite = false
 	t.ctx.lineDirectiveMangled = true
 }
 
@@ -248,6 +241,8 @@ func (t *transpiler) flushTmp() {
 	// to be empty, preserve that information so that all left braces, openned till this
 	// point would get closed (see the (*transpiler).scopeEnd method).
 	t.ctx.implicitBlockStmtForceCloseBefore = t.ctx.implicitBlockStmtCount
+
+	t.ctx.inStaticWrite = false
 }
 
 type scopeState struct {
@@ -274,9 +269,7 @@ func (t *transpiler) scopeStart() scopeState {
 	// same for the scope of the two() call, ">" write must exist just before the scope starts.
 	//
 	// So at this point t.ctx.lineDirectiveMangled must be set to true.
-	if !t.ctx.lineDirectiveMangled {
-		panic("unreachable")
-	}
+	assert(t.ctx.lineDirectiveMangled)
 
 	beforeLen := len(t.ctx.tmp)
 	t.tmpIndent()
@@ -308,14 +301,11 @@ func (t *transpiler) scopeEnd(s scopeState) {
 		//
 		// "test" and </div> can be written in a single WriteString call, appending into t.ctx.out,
 		// would cause t.ctx.inStaticWrite to be set to false, which would cause both of the strings
-		// be written separately ("test", then "</div>") (see [appendSource] and [staticWriteIndent]).
+		// to be written separately ("test", then "</div>") (see [appendSource] and [staticWriteIndent]).
 		//
 		// In every other case, the t.ctx.tmp has been already flushed (see [appendSource],
-		// [appendFromSource], [indent], [flushTmp]), meaning that the only way len(t.ctx.tmp) > 0
-		// is when t.ctx.inStaticWrite is set to true.
-		if !t.ctx.inStaticWrite && len(t.ctx.tmp) != 0 {
-			panic("unreachable")
-		}
+		// [appendFromSource], [indent], [flushTmp]), meaning that the only way len(t.ctx.tmp) > 0 is when t.ctx.inStaticWrite is set to true.
+		assert(t.ctx.inStaticWrite || len(t.ctx.tmp) == 0)
 
 		// We do not have to set t.ctx.lineDirectiveMangled to true, since the next operation
 		// in the transpiler would set that for us, consider:
@@ -384,9 +374,7 @@ const (
 // in the ld argument. Sets t.ctx.lineDirectiveMangled to false.
 func (t *transpiler) writeLineDirective(ld lineDirective, pos token.Pos) {
 	// We should not add a line directive when we already have a valid one.
-	if !t.ctx.lineDirectiveMangled {
-		panic("unreachable")
-	}
+	assert(t.ctx.lineDirectiveMangled)
 
 	var p token.Position
 	switch ld {
@@ -415,18 +403,12 @@ func (t *transpiler) writeLineDirective(ld lineDirective, pos token.Pos) {
 
 		// We should not produce sources that have FullLine line directives,
 		// with Column != 1, like: "//line :1:2".
-		if p.Column != 1 {
-			panic("unreachable")
-		}
+		assert(p.Column == 1)
 	case lineDirectiveFullLineAdditonalLine:
 		p = t.ctx.fs.Position(pos + 1)
-		if p.Column != 1 {
-			panic("unreachable")
-		}
 		p.Line--
-		if p.Line == 0 {
-			panic("unreachable")
-		}
+		assert(p.Column == 1)
+		assert(p.Line != 0)
 	default:
 		panic("unreachable")
 	}
@@ -1018,10 +1000,9 @@ func (t *transpiler) dynamicWriteIndent(x *ast.TemplateLiteralExpr, n *ast.Templ
 
 	t.appendSource(t.ctx.tgoIdent)
 	t.appendSource(", " +
-		// We wrap n in parentheses to create a *ast.ParenExpr,
-		// because the Go parser does not preserve the position of commas.
-		// Without the parentheses, comments get moved before the comma during formatting.
-		// See: https://go.dev/issue/13113
+		// Wrap n in parentheses to create a *ast.ParenExpr, because the Go parser does
+		// not preserve the position of commas. Without the parentheses, comments get moved
+		// before the comma during formatting. See: https://go.dev/issue/13113
 		"(",
 	)
 
@@ -1085,9 +1066,7 @@ func (t *transpiler) staticWriteIndent(s string) {
 	t.appendSource(".WriteString(\"")
 	t.appendSource(s)
 
-	if !t.ctx.lineDirectiveMangled {
-		panic("unreachable")
-	}
+	assert(t.ctx.lineDirectiveMangled)
 
 	// TODO: describe why to tmp.
 	t.tmpAppendSource("\"); err != nil {")
