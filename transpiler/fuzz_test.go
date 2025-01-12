@@ -15,15 +15,20 @@ import (
 	goast "go/ast"
 	"go/build/constraint"
 	goformat "go/format"
+	goimporter "go/importer"
 	goparser "go/parser"
 	goscanner "go/scanner"
 	gotoken "go/token"
+	gotypes "go/types"
 
 	"github.com/mateusz834/tgo/analyzer"
+	"github.com/mateusz834/tgo/internal/tgoimporter"
 	"github.com/tgo-lang/lang/ast"
 	"github.com/tgo-lang/lang/format"
+	"github.com/tgo-lang/lang/importer"
 	"github.com/tgo-lang/lang/parser"
 	"github.com/tgo-lang/lang/token"
+	"github.com/tgo-lang/lang/types"
 )
 
 func fuzzAddDir(f *testing.F, testdata string, transform func(string) string) {
@@ -301,7 +306,11 @@ func fuzzSource(t *testing.T, name, src string) string {
 	validComments := make(map[nodeInfo]struct{})
 	for _, cg := range f.Comments {
 		for _, c := range cg.List {
-			validComments[genNodeInfo[token.Token](c, fset.Position)] = struct{}{}
+			info := genNodeInfo[token.Token](c, fset.Position)
+			if testing.Verbose() {
+				t.Logf("go comment key: %v", info)
+			}
+			validComments[info] = struct{}{}
 		}
 	}
 	for _, cg := range fgo.Comments {
@@ -529,7 +538,66 @@ func fuzzSource(t *testing.T, name, src string) string {
 		)
 	}
 
+	//fuzzTypes(t, fset, f, fsetgo, fgo)
+
 	return ""
+}
+
+func fuzzTypes(t *testing.T, fset *token.FileSet, f *ast.File, gofset *gotoken.FileSet, gof *goast.File) {
+	type typeError struct {
+		Line int
+		Col  int
+		Msg  string
+		Soft bool
+	}
+
+	tgoErrs := []typeError{}
+	cfg := types.Config{
+		Importer: &tgoimporter.TgoDefaultImporter{I: importer.Default().(types.ImporterFrom)},
+		Error: func(err error) {
+			e := err.(types.Error)
+			pos := fset.Position(e.Pos)
+			tgoErrs = append(tgoErrs, typeError{
+				Line: pos.Line,
+				Col:  pos.Column,
+				Msg:  e.Msg,
+				Soft: e.Soft,
+			})
+		},
+	}
+	cfg.Check("test", fset, []*ast.File{f}, nil)
+
+	goErrs := make(map[typeError]struct{})
+	gocfg := gotypes.Config{
+		Importer: &tgoimporter.TgoDefaultImporter2{I: goimporter.Default().(gotypes.ImporterFrom)},
+		Error: func(err error) {
+			e := err.(gotypes.Error)
+			pos := gofset.Position(e.Pos)
+			goErrs[typeError{
+				Line: pos.Line,
+				Col:  pos.Column,
+				Msg:  e.Msg,
+				Soft: e.Soft,
+			}] = struct{}{}
+		},
+	}
+	gocfg.Check("test", gofset, []*goast.File{gof}, nil)
+
+	// TODO: strings.Replace errors
+
+	unreported := maps.Clone(goErrs)
+	for _, v := range tgoErrs {
+		if _, ok := goErrs[v]; !ok {
+			t.Errorf("missing error: %v", v)
+		} else if testing.Verbose() {
+			t.Logf("ok error: %v", v)
+		}
+		delete(unreported, v)
+	}
+
+	for v := range unreported {
+		t.Errorf("additional unexpected error: %v", v)
+	}
 }
 
 // TODO: fuzz test (if tgo type checking succedes, the transpiled with go/types should also).

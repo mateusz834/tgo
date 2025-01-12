@@ -114,16 +114,9 @@ func TestTest(t *testing.T) {
 	//"\{""}"}`
 
 	const testSrc = `package A
-
-import "github.com/mateusz834/tgo"
-
-func A(_, /*l*/
-	_ tgo.Ctx, _ int) error {
-	a := 3
-	<div></div>
-}
-
-`
+import."github.com/mateusz834/tgo"
+func A(Ctx)error{"0\{ //
+""}"}`
 
 	fuzzSource(t, "a", testSrc)
 	return

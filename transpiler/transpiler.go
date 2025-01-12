@@ -562,11 +562,13 @@ func (t *transpiler) transpile() {
 	}
 
 	if needsErrorAssert {
-		// TODO: import ident should not be static.
-		t.appendSource(`
-// Assert that no other file in this package overrides the error builtin interface.
-var _ = (*tgo.Error)((*error)(nil))
-`)
+		t.appendSource("\n// Assert that no other file in this package overrides the error builtin interface.\n")
+		t.appendSource("var _ = (*")
+		if t.ctx.info.UsableGlobalImport != "" {
+			t.appendSource(t.ctx.info.UsableGlobalImport)
+			t.appendSource(".")
+		}
+		t.appendSource("Error)((*error)(nil))\n")
 	}
 }
 
@@ -739,7 +741,6 @@ func (t *transpiler) whiteAlg(start, end token.Pos) lineDirective {
 				firstWhite = true
 			}
 		case whiteIndent:
-			//t.lastIndentation = v.text
 			beforeNewline = false
 		case whiteComment:
 			if beforeNewline {
@@ -1013,7 +1014,6 @@ func (t *transpiler) dynamicWriteIndent(x *ast.TemplateLiteralExpr, n *ast.Templ
 			if prev.whiteType == whiteWhite && prev.text == " " && v.whiteType == whiteComment {
 				// Comment prefixed with a space, skip it, so we
 				// don't end up with two spaces in a row.
-				t.ctx.lastPosWritten++
 			}
 			break
 		}

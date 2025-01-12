@@ -22,6 +22,7 @@ type Info struct {
 	TgoFuncs                []ast.Node // *ast.FuncDecl or *ast.FuncLit.
 	NeedsSpecialTgoImport   bool
 	UsableImportForTemplate map[*ast.TemplateLiteralExpr]ImportDetails
+	UsableGlobalImport      string
 }
 
 func Check(f *ast.File) Info {
@@ -94,10 +95,15 @@ func Check(f *ast.File) Info {
 	// But we can fuzz agaisnt go/types :).
 
 	ast.Walk(c, f)
+	usableGlobalImport := ""
+	if len(tgoImports) != 0 {
+		usableGlobalImport = tgoImports[0]
+	}
 	return Info{
 		TgoFuncs:                c.ctx.tgoFuncs,
 		NeedsSpecialTgoImport:   c.ctx.needsSpecialTgoImport,
 		UsableImportForTemplate: c.ctx.usableImportForTemplate,
+		UsableGlobalImport:      usableGlobalImport,
 	}
 }
 
