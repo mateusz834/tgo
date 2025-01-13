@@ -39,7 +39,7 @@ var tgoPkg2 = sync.OnceValues(func() (*types.Package, error) {
 	cfg := types.Config{
 		Importer: importer.Default(),
 	}
-	tgoPkg, err := cfg.Check("github.com/tgo-lang/tgo", fset, []*ast.File{tgoModuleFile}, nil)
+	tgoPkg, err := cfg.Check("github.com/mateusz834/tgo", fset, []*ast.File{tgoModuleFile}, nil)
 	if err != nil {
 		return nil, err
 	}

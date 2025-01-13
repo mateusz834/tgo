@@ -1,0 +1,3 @@
+go test fuzz v1
+string("/")
+string("package A\nimport\"github.com/mateusz834/tgo\"\nfunc A(tgo.Ctx)error{<div>\n0\n</div>}\nfunc A(tgo.Ctx)error{<div>\n0000\nA:</div>}\nfunc A(tgo.Ctx)error{a:<div>\n{goto a}\na:</div>}")

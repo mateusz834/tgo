@@ -64,6 +64,11 @@ func FuzzFormattedTgoProducesFormattedGoSource(f *testing.F) {
 	fuzzAddDir(f, "../../tgoast/ast", nil)
 	fuzzAddDir(f, "../analyzer/testdata", nil)
 	fuzzAddDir(f, "../tgofuncs/testdata", nil)
+	fuzzAddDir(f, "../../tgoast/internal/types/testdata/tgo", nil)
+	fuzzAddDir(f, "../../tgoast/internal/types/testdata/spec", nil)
+	fuzzAddDir(f, "../../tgoast/internal/types/testdata/check", nil)
+	fuzzAddDir(f, "../../tgoast/internal/types/testdata/examples", nil)
+	fuzzAddDir(f, "../../tgoast/internal/types/testdata/fixedbugs", nil)
 	fuzzAddDir(f, "./testdata", func(s string) string {
 		return strings.Split(s, "======\n")[0]
 	})
@@ -538,12 +543,23 @@ func fuzzSource(t *testing.T, name, src string) string {
 		)
 	}
 
-	//fuzzTypes(t, fset, f, fsetgo, fgo)
+	fuzzTypes(t, fset, f, fsetgo, fgo)
 
 	return ""
 }
 
+// TODO: error position of DynamicWrite (in case of an error, invalid type provided)
+
 func fuzzTypes(t *testing.T, fset *token.FileSet, f *ast.File, gofset *gotoken.FileSet, gof *goast.File) {
+	name := fset.File(f.FileStart).Name()
+	// https://go.dev/issue/69689
+	if !filepath.IsAbs(name) {
+		return
+	}
+	if filepath.Clean(name) != name {
+		return
+	}
+
 	type typeError struct {
 		Line int
 		Col  int
@@ -551,29 +567,13 @@ func fuzzTypes(t *testing.T, fset *token.FileSet, f *ast.File, gofset *gotoken.F
 		Soft bool
 	}
 
-	tgoErrs := []typeError{}
+	tgoErrs := make(map[typeError]struct{})
 	cfg := types.Config{
 		Importer: &tgoimporter.TgoDefaultImporter{I: importer.Default().(types.ImporterFrom)},
 		Error: func(err error) {
 			e := err.(types.Error)
 			pos := fset.Position(e.Pos)
-			tgoErrs = append(tgoErrs, typeError{
-				Line: pos.Line,
-				Col:  pos.Column,
-				Msg:  e.Msg,
-				Soft: e.Soft,
-			})
-		},
-	}
-	cfg.Check("test", fset, []*ast.File{f}, nil)
-
-	goErrs := make(map[typeError]struct{})
-	gocfg := gotypes.Config{
-		Importer: &tgoimporter.TgoDefaultImporter2{I: goimporter.Default().(gotypes.ImporterFrom)},
-		Error: func(err error) {
-			e := err.(gotypes.Error)
-			pos := gofset.Position(e.Pos)
-			goErrs[typeError{
+			tgoErrs[typeError{
 				Line: pos.Line,
 				Col:  pos.Column,
 				Msg:  e.Msg,
@@ -581,24 +581,55 @@ func fuzzTypes(t *testing.T, fset *token.FileSet, f *ast.File, gofset *gotoken.F
 			}] = struct{}{}
 		},
 	}
+	cfg.Check("test", fset, []*ast.File{f}, nil)
+
+	goErrs := []typeError{}
+	gocfg := gotypes.Config{
+		Importer: &tgoimporter.TgoDefaultImporter2{I: goimporter.Default().(gotypes.ImporterFrom)},
+		Error: func(err error) {
+			e := err.(gotypes.Error)
+			pos := gofset.Position(e.Pos)
+			goErrs = append(goErrs, typeError{
+				Line: pos.Line,
+				Col:  pos.Column,
+				Msg:  e.Msg,
+				Soft: e.Soft,
+			})
+		},
+	}
 	gocfg.Check("test", gofset, []*goast.File{gof}, nil)
 
-	// TODO: strings.Replace errors
+	tgoCtxIdent := fileUniqueIdent(f, "__tgo_ctx")
 
-	unreported := maps.Clone(goErrs)
-	for _, v := range tgoErrs {
-		if _, ok := goErrs[v]; !ok {
+	unreported := maps.Clone(tgoErrs)
+	for _, v := range goErrs {
+		possibleMsgs := []string{
+			v.Msg,
+			strings.ReplaceAll(v.Msg, "func("+tgoCtxIdent+" ", "func("),   // func(__tgo_ctx tgo.Ctx) -> func(tgo.Ctx)
+			strings.ReplaceAll(v.Msg, "func("+tgoCtxIdent+" ", "func(_ "), // func(__tgo_ctx tgo.Ctx) -> func(_ tgo.Ctx)
+		}
+
+		for _, msg := range possibleMsgs {
+			vv := v
+			vv.Msg = msg
+			if _, ok := tgoErrs[vv]; ok {
+				v.Msg = msg
+				break
+			}
+		}
+
+		if _, ok := tgoErrs[v]; !ok {
 			t.Errorf("missing error: %v", v)
 		} else if testing.Verbose() {
-			t.Logf("ok error: %v", v)
+			t.Logf("error: %v", v)
 		}
 		delete(unreported, v)
 	}
 
 	for v := range unreported {
-		t.Errorf("additional unexpected error: %v", v)
+		if v.Msg == `"github.com/mateusz834/tgo" imported and not used` {
+			continue
+		}
+		t.Errorf("unreported error: %v", v)
 	}
 }
-
-// TODO: fuzz test (if tgo type checking succedes, the transpiled with go/types should also).
-// and the error position (of go/types and tgo-lang/lang/types) and the error messages should be similar (and the same positions).

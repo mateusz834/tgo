@@ -1,0 +1,3 @@
+go test fuzz v1
+string("/estdatatlabels.tgo")
+string("package A000000000\nimport \"github.com/mateusz834/tgo\" \nfunc A000(tgo.Ctx) error {  <div>\n a:{goto a}\n </div>} ")
