@@ -122,7 +122,7 @@ func test(tgo.Ctx) error {
 func test(tgo.Ctx) error {
 	<div
 		"\{"test"}" // ERROR: col(3): "template literal is not allowed in this context"
-		"test"
+		"test"      // ERROR: col(3): "string basic literal is not allowed in this context"
 	>
 		@attr1                   // ERROR: col(3): "attribute is not allowed in this context"
 		@attr2="value"           // ERROR: col(3): "attribute is not allowed in this context"
@@ -131,7 +131,7 @@ func test(tgo.Ctx) error {
 	_ = func(tgo.Ctx) error {
 		<div
 			"\{"test"}" // ERROR: col(4): "template literal is not allowed in this context"
-			"test"
+			"test"      // ERROR: col(4): "string basic literal is not allowed in this context"
 		>
 			@attr1                   // ERROR: col(4): "attribute is not allowed in this context"
 			@attr2="value"           // ERROR: col(4): "attribute is not allowed in this context"
@@ -146,15 +146,15 @@ func test() {
 	@attr1                   // ERROR: col(2): "attribute is not allowed in this context"
 	@attr2="value"           // ERROR: col(2): "attribute is not allowed in this context"
 	@attr3="value \{"test"}" // ERROR: col(2): "attribute is not allowed in this context"
-	"test"
-	"\{"test"}" // ERROR: col(2): "template literal is not allowed in this context"
+	"test"                   // ERROR: col(2): "string basic literal is not allowed in this context"
+	"\{"test"}"              // ERROR: col(2): "template literal is not allowed in this context"
 	_ = func() {
 		<div> // ERROR: col(3): "open tag is not allowed in this context"
 		</div> // ERROR: col(3): "end tag is not allowed in this context"
 		@attr1                   // ERROR: col(3): "attribute is not allowed in this context"
 		@attr2="value"           // ERROR: col(3): "attribute is not allowed in this context"
 		@attr3="value \{"test"}" // ERROR: col(3): "attribute is not allowed in this context"
-		"test"
-		"\{"test"}" // ERROR: col(3): "template literal is not allowed in this context"
+		"test"                   // ERROR: col(3): "string basic literal is not allowed in this context"
+		"\{"test"}"              // ERROR: col(3): "template literal is not allowed in this context"
 	}
 }

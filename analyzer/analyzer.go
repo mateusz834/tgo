@@ -121,8 +121,19 @@ func (f *contextAnalyzer) Visit(list ast.Node) ast.Visitor {
 		*ast.SwitchStmt, *ast.CaseClause,
 		*ast.ForStmt, *ast.SelectStmt,
 		*ast.CommClause, *ast.RangeStmt,
-		*ast.TypeSwitchStmt, *ast.ExprStmt,
-		*ast.LabeledStmt, *ast.BlockStmt:
+		*ast.TypeSwitchStmt, *ast.LabeledStmt,
+		*ast.BlockStmt:
+		return f
+	case *ast.ExprStmt:
+		if x, ok := n.X.(*ast.BasicLit); ok && x.Kind == token.STRING {
+			if f.context != contextTgoBody {
+				f.ctx.ctx.errors = append(f.ctx.ctx.errors, AnalyzeError{
+					Message:  "string basic literal is not allowed in this context",
+					StartPos: f.ctx.ctx.fset.Position(n.Pos()),
+					EndPos:   f.ctx.ctx.fset.Position(n.End()),
+				})
+			}
+		}
 		return f
 	case *ast.TemplateLiteralExpr:
 		if f.context != contextTgoBody {
