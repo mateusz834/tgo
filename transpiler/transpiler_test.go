@@ -88,37 +88,16 @@ import (
 
 const testSrc = `package A
 
-import (
-	"fmt"
-	"github.com/mateusz834/tgo"
-)
+import "github.com/mateusz834/tgo"
 
-func a(tgo.Ctx) error {
-	tgo := "nil"
-	"\{1}"
+func A(tgo.Ctx)
+func A(tgo.Ctx) error {
+	<div>"\{A}"</div>
 }
 `
 
 func TestTest(t *testing.T) {
-	//func a(__tgo_ctx tgo. // aa
-	//			Ctx) error {
-	//}
-	//
-	//	const testSrc = `package A
-	//
-	// import."github.com/mateusz834/tgo"; func A(Ctx)error{DynamicWrite=""
-	// "\{1}"}`
-
-	//	const testSrc = `package A
-	//import."github.com/mateusz834/tgo";func A(Ctx)error{DynamicWrite=""
-	//"\{""}"}`
-
-	const testSrc = `package A
-import."github.com/mateusz834/tgo"
-func A(Ctx)error{"0\{ //
-""}"}`
-
-	fuzzSource(t, "a", testSrc)
+	fuzzSource(t, "/a", testSrc)
 	return
 
 	fset := token.NewFileSet()

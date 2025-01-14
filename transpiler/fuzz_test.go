@@ -664,7 +664,7 @@ func fuzzTypes(t *testing.T, fset *token.FileSet, f *ast.File, gofset *gotoken.F
 		}
 
 		if _, ok := tgoErrs[v]; !ok {
-			t.Errorf("missing error: %v", v)
+			t.Errorf("unexpected error: %v", v)
 		} else if testing.Verbose() {
 			t.Logf("error: %v", v)
 		}
