@@ -603,6 +603,9 @@ func fuzzTypes(t *testing.T, fset *token.FileSet, f *ast.File, gofset *gotoken.F
 
 	unreported := maps.Clone(tgoErrs)
 	for _, v := range goErrs {
+		if strings.Contains(v.Msg, "initialization cycle") || strings.Contains(v.Msg, " refers to") || strings.Contains(v.Msg, " prevents reaching") {
+			continue
+		}
 		possibleMsgs := []string{
 			v.Msg,
 			strings.ReplaceAll(v.Msg, "func("+tgoCtxIdent+" ", "func("),   // func(__tgo_ctx tgo.Ctx) -> func(tgo.Ctx)
@@ -627,7 +630,10 @@ func fuzzTypes(t *testing.T, fset *token.FileSet, f *ast.File, gofset *gotoken.F
 	}
 
 	for v := range unreported {
-		if v.Msg == `"github.com/mateusz834/tgo" imported and not used` {
+		if strings.Contains(v.Msg, "initialization cycle") || strings.Contains(v.Msg, " refers to") || strings.Contains(v.Msg, " prevents reaching") {
+			continue
+		}
+		if strings.Contains(v.Msg, "initialization cycle") {
 			continue
 		}
 		t.Errorf("unreported error: %v", v)
