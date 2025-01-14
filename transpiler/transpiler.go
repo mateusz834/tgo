@@ -982,17 +982,15 @@ func (t *transpiler) dynamicWriteIndent(x *ast.TemplateLiteralExpr, n *ast.Templ
 	t.indent()
 
 	t.appendSource("if err :=")
+	t.writeLineDirective(lineDirectiveOneLineLRSpace, n.X.Pos())
 	if d, ok := t.ctx.info.UsableImportForTemplate[x]; ok {
 		if d.DotImport {
-			t.writeLineDirective(lineDirectiveOneLineLRSpace, n.X.Pos())
 			t.appendSource("DynamicWrite(")
 		} else {
-			t.writeLineDirective(lineDirectiveOneLineLRSpace, n.X.Pos())
 			t.appendSource(d.ImportIdent)
 			t.appendSource(".DynamicWrite(")
 		}
 	} else if t.ctx.info.NeedsSpecialTgoImport {
-		t.writeLineDirective(lineDirectiveOneLineLRSpace, n.X.Pos())
 		t.appendSource(t.ctx.tgoAddtionalImportIdent)
 		t.appendSource(".DynamicWrite(")
 	} else {
