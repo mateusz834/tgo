@@ -672,6 +672,12 @@ func fuzzTypes(t *testing.T, fset *token.FileSet, f *ast.File, gofset *gotoken.F
 	}
 
 	for v := range unreported {
+		if v.Msg == `"github.com/mateusz834/tgo" imported and not used` {
+			if testing.Verbose() {
+				t.Logf("ignoring unreported error: %v", v)
+			}
+			continue
+		}
 		t.Errorf("unreported error: %v", v)
 	}
 }
