@@ -588,25 +588,6 @@ func fuzzTypes(t *testing.T, fset *token.FileSet, f *ast.File, gofset *gotoken.F
 		return false
 	}
 
-	tgoErrs := make(map[typeError]struct{})
-	cfg := types.Config{
-		Importer: &tgoimporter.TgoDefaultImporter{I: importer.Default().(types.ImporterFrom)},
-		Error: func(err error) {
-			e := err.(types.Error)
-			pos := fset.Position(e.Pos)
-			te := typeError{
-				Line: pos.Line,
-				Col:  pos.Column,
-				Msg:  e.Msg,
-				Soft: e.Soft,
-			}
-			if !ignoreErr("tgo", te) {
-				tgoErrs[te] = struct{}{}
-			}
-		},
-	}
-	cfg.Check("test", fset, []*ast.File{f}, nil)
-
 	goErrs := []typeError{}
 	gocfg := gotypes.Config{
 		Importer: &tgoimporter.TgoDefaultImporter2{I: goimporter.Default().(gotypes.ImporterFrom)},
@@ -625,6 +606,25 @@ func fuzzTypes(t *testing.T, fset *token.FileSet, f *ast.File, gofset *gotoken.F
 		},
 	}
 	gocfg.Check("test", gofset, []*goast.File{gof}, nil)
+
+	tgoErrs := make(map[typeError]struct{})
+	cfg := types.Config{
+		Importer: &tgoimporter.TgoDefaultImporter{I: importer.Default().(types.ImporterFrom)},
+		Error: func(err error) {
+			e := err.(types.Error)
+			pos := fset.Position(e.Pos)
+			te := typeError{
+				Line: pos.Line,
+				Col:  pos.Column,
+				Msg:  e.Msg,
+				Soft: e.Soft,
+			}
+			if !ignoreErr("tgo", te) {
+				tgoErrs[te] = struct{}{}
+			}
+		},
+	}
+	cfg.Check("test", fset, []*ast.File{f}, nil)
 
 	tgoCtxIdent := fileUniqueIdent(f, "__tgo_ctx")
 
