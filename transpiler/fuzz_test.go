@@ -647,6 +647,11 @@ func fuzzTypes(t *testing.T, fset *token.FileSet, f *ast.File, gofset *gotoken.F
 			v.Msg,
 			strings.ReplaceAll(v.Msg, "func("+tgoCtxIdent+" ", "func("),   // func(__tgo_ctx tgo.Ctx) -> func(tgo.Ctx)
 			strings.ReplaceAll(v.Msg, "func("+tgoCtxIdent+" ", "func(_ "), // func(__tgo_ctx tgo.Ctx) -> func(_ tgo.Ctx)
+			// func(__tgo_ctx tgo.Ctx, _ int) -> func(tgo.Ctx, int)
+			strings.ReplaceAll(
+				strings.ReplaceAll(v.Msg, "func("+tgoCtxIdent+" ", "func("),
+				", _ ", ", ",
+			),
 		}
 
 		for _, msg := range possibleMsgs {
