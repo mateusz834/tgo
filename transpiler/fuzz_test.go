@@ -567,18 +567,42 @@ func fuzzTypes(t *testing.T, fset *token.FileSet, f *ast.File, gofset *gotoken.F
 		Soft bool
 	}
 
+	prevInvalid := false
+	ignoreErr := func(n string, v typeError) bool {
+		if !strings.HasPrefix(v.Msg, "\t") && (strings.Contains(v.Msg, "initialization cycle") ||
+			strings.Contains(v.Msg, " refers to") || strings.Contains(v.Msg, " prevents reaching")) {
+			if testing.Verbose() {
+				t.Logf("(%v) ignoring err: %v", n, v)
+			}
+			prevInvalid = true
+			return true
+		}
+		if strings.HasPrefix(v.Msg, "\t") && prevInvalid {
+			if testing.Verbose() {
+				t.Logf("(%v) ignoring err: %v", n, v)
+			}
+			return true
+		}
+
+		prevInvalid = false
+		return false
+	}
+
 	tgoErrs := make(map[typeError]struct{})
 	cfg := types.Config{
 		Importer: &tgoimporter.TgoDefaultImporter{I: importer.Default().(types.ImporterFrom)},
 		Error: func(err error) {
 			e := err.(types.Error)
 			pos := fset.Position(e.Pos)
-			tgoErrs[typeError{
+			te := typeError{
 				Line: pos.Line,
 				Col:  pos.Column,
 				Msg:  e.Msg,
 				Soft: e.Soft,
-			}] = struct{}{}
+			}
+			if !ignoreErr("tgo", te) {
+				tgoErrs[te] = struct{}{}
+			}
 		},
 	}
 	cfg.Check("test", fset, []*ast.File{f}, nil)
@@ -589,12 +613,15 @@ func fuzzTypes(t *testing.T, fset *token.FileSet, f *ast.File, gofset *gotoken.F
 		Error: func(err error) {
 			e := err.(gotypes.Error)
 			pos := gofset.Position(e.Pos)
-			goErrs = append(goErrs, typeError{
+			te := typeError{
 				Line: pos.Line,
 				Col:  pos.Column,
 				Msg:  e.Msg,
 				Soft: e.Soft,
-			})
+			}
+			if !ignoreErr("go", te) {
+				goErrs = append(goErrs, te)
+			}
 		},
 	}
 	gocfg.Check("test", gofset, []*goast.File{gof}, nil)
@@ -603,12 +630,6 @@ func fuzzTypes(t *testing.T, fset *token.FileSet, f *ast.File, gofset *gotoken.F
 
 	unreported := maps.Clone(tgoErrs)
 	for _, v := range goErrs {
-		if strings.Contains(v.Msg, "initialization cycle") || strings.Contains(v.Msg, " refers to") || strings.Contains(v.Msg, " prevents reaching") {
-			if testing.Verbose() {
-				t.Logf("(ok) error: %v", v)
-			}
-			continue
-		}
 		possibleMsgs := []string{
 			v.Msg,
 			strings.ReplaceAll(v.Msg, "func("+tgoCtxIdent+" ", "func("),   // func(__tgo_ctx tgo.Ctx) -> func(tgo.Ctx)
@@ -633,12 +654,6 @@ func fuzzTypes(t *testing.T, fset *token.FileSet, f *ast.File, gofset *gotoken.F
 	}
 
 	for v := range unreported {
-		if strings.Contains(v.Msg, "initialization cycle") || strings.Contains(v.Msg, " refers to") || strings.Contains(v.Msg, " prevents reaching") {
-			if testing.Verbose() {
-				t.Logf("(ok) unreported error: %v", v)
-			}
-			continue
-		}
 		t.Errorf("unreported error: %v", v)
 	}
 }
