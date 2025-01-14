@@ -605,7 +605,19 @@ func fuzzTypes(t *testing.T, fset *token.FileSet, f *ast.File, gofset *gotoken.F
 			}
 		},
 	}
-	gocfg.Check("test", gofset, []*goast.File{gof}, nil)
+
+	panicked := false
+	func() {
+		defer func() {
+			if recover() != nil {
+				panicked = true
+			}
+		}()
+		gocfg.Check("test", gofset, []*goast.File{gof}, nil)
+	}()
+	if panicked {
+		return
+	}
 
 	tgoErrs := make(map[typeError]struct{})
 	cfg := types.Config{
@@ -624,6 +636,7 @@ func fuzzTypes(t *testing.T, fset *token.FileSet, f *ast.File, gofset *gotoken.F
 			}
 		},
 	}
+
 	cfg.Check("test", fset, []*ast.File{f}, nil)
 
 	tgoCtxIdent := fileUniqueIdent(f, "__tgo_ctx")
