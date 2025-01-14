@@ -982,6 +982,7 @@ func (t *transpiler) dynamicWriteIndent(x *ast.TemplateLiteralExpr, n *ast.Templ
 	t.indent()
 
 	t.appendSource("if err :=")
+	// TODO: document the need for line directive here.
 	t.writeLineDirective(lineDirectiveOneLineLRSpace, n.X.Pos())
 	if d, ok := t.ctx.info.UsableImportForTemplate[x]; ok {
 		if d.DotImport {
