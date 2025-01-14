@@ -86,18 +86,10 @@ import (
 //}
 //`
 
-const testSrc = `package A
-
-import "github.com/mateusz834/tgo"
-
-func A(tgo.Ctx)
-func A(tgo.Ctx) error {
-	<div>"\{A}"</div>
-}
-`
+const testSrc = "package A00000000\n\nimport . \"github.com/mateusz834/tgo\"\n\ntype Ctx struct{}\n\nfunc A000(A00) A0000 { 0 }\n"
 
 func TestTest(t *testing.T) {
-	fuzzSource(t, "/a", testSrc)
+	fuzzSource(t, "/kadjfa", testSrc)
 	return
 
 	fset := token.NewFileSet()

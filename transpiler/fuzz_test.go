@@ -590,10 +590,10 @@ func fuzzTypes(t *testing.T, fset *token.FileSet, f *ast.File, gofset *gotoken.F
 
 	goErrs := []typeError{}
 	gocfg := gotypes.Config{
-		Importer: &tgoimporter.TgoDefaultImporter2{I: goimporter.Default().(gotypes.ImporterFrom)},
+		Importer: &tgoimporter.TgoDefaultImporter2{I: goimporter.ForCompiler(gofset, runtime.Compiler, nil).(gotypes.ImporterFrom), Fset: gofset},
 		Error: func(err error) {
 			e := err.(gotypes.Error)
-			pos := gofset.Position(e.Pos)
+			pos := e.Fset.Position(e.Pos)
 			te := typeError{
 				Line: pos.Line,
 				Col:  pos.Column,
@@ -621,10 +621,10 @@ func fuzzTypes(t *testing.T, fset *token.FileSet, f *ast.File, gofset *gotoken.F
 
 	tgoErrs := make(map[typeError]struct{})
 	cfg := types.Config{
-		Importer: &tgoimporter.TgoDefaultImporter{I: importer.Default().(types.ImporterFrom)},
+		Importer: &tgoimporter.TgoDefaultImporter{I: importer.ForCompiler(fset, runtime.Compiler, nil).(types.ImporterFrom), Fset: fset},
 		Error: func(err error) {
 			e := err.(types.Error)
-			pos := fset.Position(e.Pos)
+			pos := e.Fset.Position(e.Pos)
 			te := typeError{
 				Line: pos.Line,
 				Col:  pos.Column,
