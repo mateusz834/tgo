@@ -604,6 +604,9 @@ func fuzzTypes(t *testing.T, fset *token.FileSet, f *ast.File, gofset *gotoken.F
 	unreported := maps.Clone(tgoErrs)
 	for _, v := range goErrs {
 		if strings.Contains(v.Msg, "initialization cycle") || strings.Contains(v.Msg, " refers to") || strings.Contains(v.Msg, " prevents reaching") {
+			if testing.Verbose() {
+				t.Logf("(ok) error: %v", v)
+			}
 			continue
 		}
 		possibleMsgs := []string{
@@ -631,9 +634,9 @@ func fuzzTypes(t *testing.T, fset *token.FileSet, f *ast.File, gofset *gotoken.F
 
 	for v := range unreported {
 		if strings.Contains(v.Msg, "initialization cycle") || strings.Contains(v.Msg, " refers to") || strings.Contains(v.Msg, " prevents reaching") {
-			continue
-		}
-		if strings.Contains(v.Msg, "initialization cycle") {
+			if testing.Verbose() {
+				t.Logf("(ok) unreported error: %v", v)
+			}
 			continue
 		}
 		t.Errorf("unreported error: %v", v)
