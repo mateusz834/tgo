@@ -86,7 +86,14 @@ import (
 //}
 //`
 
-const testSrc = "package A00000000\n\nimport . \"github.com/mateusz834/tgo\"\n\ntype Ctx struct{}\n\nfunc A000(A00) A0000 { 0 }\n"
+const testSrc = `package A
+
+import . "github.com/mateusz834/tgo"
+
+func A(Ctx) error {
+	"0\{Ctx}"
+}
+`
 
 func TestTest(t *testing.T) {
 	fuzzSource(t, "/kadjfa", testSrc)

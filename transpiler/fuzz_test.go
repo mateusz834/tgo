@@ -541,6 +541,8 @@ func fuzzSource(t *testing.T, name, src string) string {
 		)
 	}
 
+	// TODO: fuzz also when non formatted?
+	// Directly after we parse the transpiled output.
 	fuzzTypes(t, fset, f, fsetgo, fgo)
 
 	return ""
