@@ -1,6 +1,8 @@
 package tgoimporter
 
 import (
+	"runtime"
+
 	"github.com/tgo-lang/lang/ast"
 	"github.com/tgo-lang/lang/importer"
 	"github.com/tgo-lang/lang/parser"
@@ -208,28 +210,35 @@ func DynamicWrite[T DynamicWriteAllowed](ctx Ctx, val T) error {
 }
 `
 
-type TgoDefaultImporter struct {
-	I    types.ImporterFrom
-	Fset *token.FileSet
+type tgoImporter struct {
+	i    types.ImporterFrom
+	fset *token.FileSet
 	pkg  *types.Package
 }
 
-func (f *TgoDefaultImporter) Import(path string) (*types.Package, error) {
+func NewTgoImporter(fset *token.FileSet) types.Importer {
+	return &tgoImporter{
+		fset: fset,
+		i:    importer.ForCompiler(fset, runtime.Compiler, nil).(types.ImporterFrom),
+	}
+}
+
+func (f *tgoImporter) Import(path string) (*types.Package, error) {
 	if path == "github.com/mateusz834/tgo" {
 		return f.tgoPkg()
 	}
-	return f.I.Import(path)
+	return f.i.Import(path)
 }
 
-func (f *TgoDefaultImporter) ImportFrom(path, dir string, mode types.ImportMode) (*types.Package, error) {
+func (f *tgoImporter) ImportFrom(path, dir string, mode types.ImportMode) (*types.Package, error) {
 	if path == "github.com/mateusz834/tgo" {
 		return f.tgoPkg()
 	}
-	return f.I.ImportFrom(path, dir, mode)
+	return f.i.ImportFrom(path, dir, mode)
 }
 
-func (f *TgoDefaultImporter) tgoPkg() (*types.Package, error) {
-	pkg, err := parseTgo1(f.Fset)
+func (f *tgoImporter) tgoPkg() (*types.Package, error) {
+	pkg, err := parseTgoPacakgeAsTgo(f.fset)
 	if err != nil {
 		return nil, err
 	}
@@ -238,7 +247,7 @@ func (f *TgoDefaultImporter) tgoPkg() (*types.Package, error) {
 }
 
 // TODO: test that proves (only for CI) that this is the same as in the tgo repo.
-func parseTgo1(fset *token.FileSet) (*types.Package, error) {
+func parseTgoPacakgeAsTgo(fset *token.FileSet) (*types.Package, error) {
 	tgoModuleFile, err := parser.ParseFile(fset, "tgo.go", tgoModuleSrc, parser.SkipObjectResolution)
 	if err != nil {
 		return nil, err

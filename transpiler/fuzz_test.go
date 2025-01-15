@@ -15,7 +15,6 @@ import (
 	goast "go/ast"
 	"go/build/constraint"
 	goformat "go/format"
-	goimporter "go/importer"
 	goparser "go/parser"
 	goscanner "go/scanner"
 	gotoken "go/token"
@@ -25,7 +24,6 @@ import (
 	"github.com/mateusz834/tgo/internal/tgoimporter"
 	"github.com/tgo-lang/lang/ast"
 	"github.com/tgo-lang/lang/format"
-	"github.com/tgo-lang/lang/importer"
 	"github.com/tgo-lang/lang/parser"
 	"github.com/tgo-lang/lang/token"
 	"github.com/tgo-lang/lang/types"
@@ -590,7 +588,7 @@ func fuzzTypes(t *testing.T, fset *token.FileSet, f *ast.File, gofset *gotoken.F
 
 	goErrs := []typeError{}
 	gocfg := gotypes.Config{
-		Importer: &tgoimporter.TgoDefaultImporter2{I: goimporter.ForCompiler(gofset, runtime.Compiler, nil).(gotypes.ImporterFrom), Fset: gofset},
+		Importer: tgoimporter.NewGoImporter(gofset),
 		Error: func(err error) {
 			e := err.(gotypes.Error)
 			pos := e.Fset.Position(e.Pos)
@@ -621,7 +619,7 @@ func fuzzTypes(t *testing.T, fset *token.FileSet, f *ast.File, gofset *gotoken.F
 
 	tgoErrs := make(map[typeError]struct{})
 	cfg := types.Config{
-		Importer: &tgoimporter.TgoDefaultImporter{I: importer.ForCompiler(fset, runtime.Compiler, nil).(types.ImporterFrom), Fset: fset},
+		Importer: tgoimporter.NewTgoImporter(fset),
 		Error: func(err error) {
 			e := err.(types.Error)
 			pos := e.Fset.Position(e.Pos)

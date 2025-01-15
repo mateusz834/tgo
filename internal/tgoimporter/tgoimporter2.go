@@ -6,30 +6,38 @@ import (
 	"go/parser"
 	"go/token"
 	"go/types"
+	"runtime"
 )
 
-type TgoDefaultImporter2 struct {
+type goImporter struct {
 	I    types.ImporterFrom
 	Fset *token.FileSet
 	pkg  *types.Package
 }
 
-func (f *TgoDefaultImporter2) Import(path string) (*types.Package, error) {
+func NewGoImporter(fset *token.FileSet) types.Importer {
+	return &goImporter{
+		Fset: fset,
+		I:    importer.ForCompiler(fset, runtime.Compiler, nil).(types.ImporterFrom),
+	}
+}
+
+func (f *goImporter) Import(path string) (*types.Package, error) {
 	if path == "github.com/mateusz834/tgo" {
 		return f.tgoPkg()
 	}
 	return f.I.Import(path)
 }
 
-func (f *TgoDefaultImporter2) ImportFrom(path, dir string, mode types.ImportMode) (*types.Package, error) {
+func (f *goImporter) ImportFrom(path, dir string, mode types.ImportMode) (*types.Package, error) {
 	if path == "github.com/mateusz834/tgo" {
 		return f.tgoPkg()
 	}
 	return f.I.ImportFrom(path, dir, mode)
 }
 
-func (f *TgoDefaultImporter2) tgoPkg() (*types.Package, error) {
-	pkg, err := parseTgo(f.Fset)
+func (f *goImporter) tgoPkg() (*types.Package, error) {
+	pkg, err := parseTgoPackageAsGo(f.Fset)
 	if err != nil {
 		return nil, err
 	}
@@ -38,7 +46,7 @@ func (f *TgoDefaultImporter2) tgoPkg() (*types.Package, error) {
 }
 
 // TODO: test that proves (only for CI) that this is the same as in the tgo repo.
-func parseTgo(fset *token.FileSet) (*types.Package, error) {
+func parseTgoPackageAsGo(fset *token.FileSet) (*types.Package, error) {
 	tgoModuleFile, err := parser.ParseFile(fset, "tgo.go", tgoModuleSrc, parser.SkipObjectResolution)
 	if err != nil {
 		return nil, err
