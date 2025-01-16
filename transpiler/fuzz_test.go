@@ -652,6 +652,11 @@ func fuzzTypes(t *testing.T, fset *token.FileSet, f *ast.File, gofset *gotoken.F
 				strings.ReplaceAll(v.Msg, "func("+tgoCtxIdent+" ", "func("),
 				", _ ", ", ",
 			),
+
+			// cannot use math.MaxUint (untyped int constant 18446744073709551615) as int value in argument to tgo.DynamicWrite (overflows)
+			// into:
+			// cannot use math.MaxUint (untyped int constant 18446744073709551615) as int value in template literal part (overflows)
+			strings.ReplaceAll(v.Msg, "in argument to tgo.DynamicWrite", "in template literal part"),
 		}
 
 		for _, msg := range possibleMsgs {
