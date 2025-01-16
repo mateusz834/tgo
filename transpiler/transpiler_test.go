@@ -91,7 +91,7 @@ const testSrc = `package A
 import . "github.com/mateusz834/tgo"
 
 func A(Ctx) error {
-	"0\{Ctx}"
+	"0\{/*l*/ Ctx}"
 }
 `
 

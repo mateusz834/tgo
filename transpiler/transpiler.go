@@ -365,6 +365,8 @@ const (
 	lineDirectiveOneLineRSpace  // "/*line :line:col*/ "
 	lineDirectiveOneLineLRSpace // " /*line :line:col*/ "
 
+	lineDirectiveOneLineLRSpaceWithComma // " /*line :line:col*/, "
+
 )
 
 // writeLineDirective writes a line directive, in one of the format as provided
@@ -395,6 +397,10 @@ func (t *transpiler) writeLineDirective(ld lineDirective, pos token.Pos) {
 			p.Column = 1
 			ld = lineDirectiveOneLine
 		}
+	case lineDirectiveOneLineLRSpaceWithComma:
+		p = t.ctx.fs.Position(pos)
+		p.Column -= 2
+		assert(p.Column >= 1)
 	case lineDirectiveFullLine:
 		p = t.ctx.fs.Position(pos + 1)
 
@@ -411,7 +417,7 @@ func (t *transpiler) writeLineDirective(ld lineDirective, pos token.Pos) {
 	}
 
 	switch ld {
-	case lineDirectiveOneLineLSpace, lineDirectiveOneLineLRSpace:
+	case lineDirectiveOneLineLSpace, lineDirectiveOneLineLRSpace, lineDirectiveOneLineLRSpaceWithComma:
 		t.appendSource(" /*line :")
 	case lineDirectiveOneLineRSpace, lineDirectiveOneLine:
 		t.appendSource("/*line :")
@@ -426,6 +432,8 @@ func (t *transpiler) writeLineDirective(ld lineDirective, pos token.Pos) {
 	switch ld {
 	case lineDirectiveOneLineRSpace, lineDirectiveOneLineLRSpace:
 		t.appendSource("*/ ")
+	case lineDirectiveOneLineLRSpaceWithComma:
+		t.appendSource("*/, ")
 	case lineDirectiveOneLineLSpace, lineDirectiveOneLine:
 		t.appendSource("*/")
 	case lineDirectiveFullLineAdditonalLine:
@@ -983,6 +991,7 @@ func (t *transpiler) dynamicWriteIndent(x *ast.TemplateLiteralExpr, n *ast.Templ
 
 	t.appendSource("if err :=")
 	// TODO: document the need for line directive here.
+	// TODO: and document why n.X.Pos() (it ignores comments, that is fine).
 	t.writeLineDirective(lineDirectiveOneLineLRSpace, n.X.Pos())
 	if d, ok := t.ctx.info.UsableImportForTemplate[x]; ok {
 		if d.DotImport {
@@ -999,31 +1008,31 @@ func (t *transpiler) dynamicWriteIndent(x *ast.TemplateLiteralExpr, n *ast.Templ
 	}
 
 	t.appendSource(t.ctx.tgoIdent)
-	t.appendSource(", " +
-		// Wrap n in parentheses to create a *ast.ParenExpr, because the Go parser does
-		// not preserve the position of commas. Without the parentheses, comments get moved
-		// before the comma during formatting. See: https://go.dev/issue/13113
-		"(",
-	)
-
 	t.skipSourceUpTo(n.LBrace + 1)
-	lineDirectivePos := t.ctx.lastPosWritten
 
-	// TODO writeLineDirectiveSkipWhite?
-	// TODO: simplify
-	var prev iterWhiteResult
+	t.writeLineDirective(lineDirectiveOneLineLRSpaceWithComma, t.ctx.lastPosWritten)
+
+	needsParens := false
 	for v := range t.iterWhite(t.ctx.lastPosWritten, n.X.Pos()) {
-		if prev.whiteType != whiteInvalid {
-			if prev.whiteType == whiteWhite && prev.text == " " && v.whiteType == whiteComment {
-				// Comment prefixed with a space, skip it, so we
-				// don't end up with two spaces in a row.
-			}
+		if v.whiteType == whiteComment {
+			needsParens = true
 			break
 		}
-		prev = v
 	}
 
-	t.writeLineDirective(lineDirectiveOneLineLRSpace, lineDirectivePos)
+	ld := lineDirectiveOneLineLSpace
+	if !needsParens {
+		switch n.X.(type) {
+		case *ast.BinaryExpr:
+			ld = lineDirectiveOneLineLRSpace
+			needsParens = true
+		}
+	}
+
+	if needsParens {
+		t.appendSource("(")
+		t.writeLineDirective(ld, t.ctx.lastPosWritten)
+	}
 
 	// TODO: figure out whether t.ctx.lineDirectiveMangled behaves right with this.
 	// now we have a panic (assert) in appendFromSource, so it might be right.
@@ -1034,7 +1043,11 @@ func (t *transpiler) dynamicWriteIndent(x *ast.TemplateLiteralExpr, n *ast.Templ
 	t.lastIndentation = indent
 	t.appendFromSource(n.End() - 1)
 
-	t.appendSource(")); err != nil {")
+	if needsParens {
+		t.appendSource(")")
+	}
+
+	t.appendSource("); err != nil {")
 	t.indent()
 	t.appendSource("\treturn err")
 	t.indent()

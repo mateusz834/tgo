@@ -246,7 +246,7 @@ a:
 	if err := __tgo_ctx.WriteString(""); err != nil {
 		return err
 	}
-	if err := /*line :72:4*/ tgo.DynamicWrite(__tgo_ctx, ( /*line :72:4*/ "a")); err != nil {
+	if err := /*line :72:4*/ tgo.DynamicWrite(__tgo_ctx /*line :72:3*/, "a"); err != nil {
 		return err
 	}
 	if err := __tgo_ctx.WriteString(""); err != nil {
@@ -261,7 +261,7 @@ a:
 	if err := __tgo_ctx.WriteString(""); err != nil {
 		return err
 	}
-	if err := /*line :78:4*/ tgo.DynamicWrite(__tgo_ctx, ( /*line :78:4*/ "a")); err != nil {
+	if err := /*line :78:4*/ tgo.DynamicWrite(__tgo_ctx /*line :78:3*/, "a"); err != nil {
 		return err
 	}
 	if err := __tgo_ctx.WriteString(""); err != nil {
@@ -294,7 +294,7 @@ func test(__tgo_ctx /*line :88:10*/ tgo.Ctx) error {
 		if err := __tgo_ctx.WriteString(""); err != nil {
 			return err
 		}
-		if err := /*line :91:5*/ tgo.DynamicWrite(__tgo_ctx, ( /*line :91:5*/ "a")); err != nil {
+		if err := /*line :91:5*/ tgo.DynamicWrite(__tgo_ctx /*line :91:4*/, "a"); err != nil {
 			return err
 		}
 		if err := __tgo_ctx.WriteString("</div>"); err != nil {
@@ -330,7 +330,7 @@ func test(__tgo_ctx /*line :103:10*/ tgo.Ctx) error {
 		if err := __tgo_ctx.WriteString(""); err != nil {
 			return err
 		}
-		if err := /*line :107:5*/ tgo.DynamicWrite(__tgo_ctx, ( /*line :107:5*/ "a")); err != nil {
+		if err := /*line :107:5*/ tgo.DynamicWrite(__tgo_ctx /*line :107:4*/, "a"); err != nil {
 			return err
 		}
 		if err := __tgo_ctx.WriteString("</div>"); err != nil {
