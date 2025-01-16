@@ -546,8 +546,6 @@ func fuzzSource(t *testing.T, name, src string) string {
 	return ""
 }
 
-// TODO: error position of DynamicWrite (in case of an error, invalid type provided)
-
 func fuzzTypes(t *testing.T, fset *token.FileSet, f *ast.File, gofset *gotoken.FileSet, gof *goast.File) {
 	name := fset.File(f.FileStart).Name()
 	// https://go.dev/issue/69689
