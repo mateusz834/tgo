@@ -212,6 +212,8 @@ func fuzzSource(t *testing.T, name, src string) string {
 		t.Fatalf("goparser.ParseFile(Transpile(src)) = %v; want = <nil>", err)
 	}
 
+	fuzzTypes(t, fset, f, fsetgo, fgo)
+
 	expectedEmptyBlockStmtCount := 0
 	ast.Inspect(f, func(n ast.Node) bool {
 		switch n := n.(type) {
@@ -540,10 +542,6 @@ func fuzzSource(t *testing.T, name, src string) string {
 			diff,
 		)
 	}
-
-	// TODO: fuzz also when non formatted?
-	// Directly after we parse the transpiled output.
-	fuzzTypes(t, fset, f, fsetgo, fgo)
 
 	return ""
 }
