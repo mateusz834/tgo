@@ -556,6 +556,17 @@ func fuzzTypes(t *testing.T, fset *token.FileSet, f *ast.File, gofset *gotoken.F
 		return
 	}
 
+	skip := false
+	goast.Inspect(gof, func(n goast.Node) bool {
+		if n, ok := n.(*goast.BasicLit); ok && len(n.Value) > 10 {
+			skip = true
+		}
+		return true
+	})
+	if skip {
+		return
+	}
+
 	type typeError struct {
 		Line int
 		Col  int

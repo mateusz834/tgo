@@ -95,9 +95,10 @@ import (
 	"github.com/mateusz834/tgo"
 )
 
-func A(tgo.Ctx) error {
-	"\{0(0 % 0)}"
-}
+//func A(tgo.Ctx) error {
+//	var nil int
+//	"\{1}"
+//}
 `
 
 func TestTest(t *testing.T) {
