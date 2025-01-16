@@ -1022,10 +1022,17 @@ func (t *transpiler) dynamicWriteIndent(x *ast.TemplateLiteralExpr, n *ast.Templ
 
 	ld := lineDirectiveOneLineLSpace
 	if !needsParens {
-		switch n.X.(type) {
+		switch x := n.X.(type) {
 		case *ast.BinaryExpr:
 			ld = lineDirectiveOneLineLRSpace
 			needsParens = true
+		case *ast.CallExpr:
+			if len(x.Args) == 1 {
+				if _, ok := x.Args[0].(*ast.BinaryExpr); ok {
+					ld = lineDirectiveOneLineLRSpace
+					needsParens = true
+				}
+			}
 		}
 	}
 
