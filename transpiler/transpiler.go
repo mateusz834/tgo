@@ -1024,7 +1024,7 @@ func (t *transpiler) dynamicWriteIndent(x *ast.TemplateLiteralExpr, n *ast.Templ
 	if !needsParens {
 		nn := n.X
 		if v, ok := nn.(*ast.SelectorExpr); ok {
-			nn = v
+			nn = v.X
 		}
 		switch x := nn.(type) {
 		case *ast.BinaryExpr:
