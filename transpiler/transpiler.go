@@ -1024,6 +1024,13 @@ func (t *transpiler) dynamicWriteIndent(x *ast.TemplateLiteralExpr, n *ast.Templ
 	if !needsParens {
 		nn := n.X
 		for {
+			if v, ok := nn.(*ast.UnaryExpr); ok {
+				nn = v.X
+				continue
+			}
+			break
+		}
+		for {
 			if v, ok := nn.(*ast.SelectorExpr); ok {
 				nn = v.X
 				continue
