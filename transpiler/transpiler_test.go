@@ -86,20 +86,29 @@ import (
 //}
 //`
 
-// TODO: wtf is the \x1c, and it works??
-//const testSrc = "package test\n\nimport (\n\t\"github.com/mateusz834/tgo\"\n\t\"math\"\n)\n\nvar (\n\tstrVar        string         = \"str\"\n\tinteagerVar   int            = -100\n\tuInteagerVar  uint           = 100\n\tcharVar       rune           = 'r'\n\tunsafeHTMLVar tgo.UnsafeHTML = \"<div></div>\"\n)\n\nconst (\n\tstrTyped        string         = \"str\"\n\tinteagerTyped   int            = -100\n\tuInteagerTyped  uint = 100\n\tcharTyped       rune           = 'r'\n\tunsafeHTMLTyped tgo.UnsafeHTML = \"<div></div>\"\n)\n\nconst (\n\tstr       = \"str\"\n\tinteager  = -100\n\tuInteager = 100\n\tchar      = 'r'\n)\n\nfunc _(tgo.Ctx) error {\n\t\"\\{\"str\"} \\{100} \\{-100} \\{'r'} \\{tgo.UnsafeHTML(\"<div></div>\")}\"\n\t\"\\{strTyped} \\{inteagerTyped} \\{uInteagerTyped} \\{charTyped} \\{unsafeHTMLTyped}\"\n\t\"\\{strVar} \\{inteagerVar} \\{uInteagerVar} \\{charVar} \\{unsafeHTMLVar}\"\n\t\"\\{str} \\{inteager} \\{uInteager} \\{char}\"\n\treturn nil\n}\n\nfunc _(tgo.Ctx) error {\n\t<div\n\t\t@attr=\"\\{\"str\"} \\{100} \\{-100} \\{'r'} \\{tgo.UnsafeHTML(\"<div></div>\")}\"\n\t\t@attr=\"\\{strTyped} \\{inteagerTyped} \\{uInteagerTyped} \\{charTyped} \\{unsafeHTMLTyped}\"\n\t\t@attr=\"\\{strVar} \\{inteagerVar} \\{uInteagerVar} \\{charVar} \\{unsafeHTMLVar}\"\n\t\t@attr=\"\\{str} \\{inteager} \\{uInteager} \\{char}\"\n\t>\n\t</div>\n\treturn nil\n}\n\nfunc _(tgo.Ctx) error {\n\t\"\\{math.MaxUint} \\{math.MaxInt}\"\n\t\"\\{uint(math.MaxUint)} \\{int(math.MaxInt)}\"\n\treturn nil\n}\n\nfunc _[T tgo.DynamicWriteAllowed](_ tgo.Ctx, t T) error {\n\tvar zero T\n\t\"\\{zero} \\{*new(T)} \\{t}\"\n\t<div\n\t\t@attr=\"\\{zero} \\{*new(T)} \x1c{t}\"\n\t>\n\t</div>\n\treturn nil\n}\n\nfunc _[T intstring](_ tgo.Ctx, t T) error {\n\tvar zero T\n\t\"\\{zero} \\{*new(T)} \\{t}\"\n\t<div\n\t\t@attr=\"\\{zero} \\{*new(T)} \\{t}\"\n\t>\n\t</div>\n\treturn nil\n}\n\nfunc _(tgo.Ctx) error {\n\ttype strWrapperType string\n\t\"\\{strWrapperType /* ERROR \"strWrapperType does not satisfy tgo.DynamicWriteAllowed\" */ (\"test\")}\"\n\n\tvar a strWrapperType\n\t\"\\{a /* ERROR \"strWrapperType does not satisfy tgo.DynamicWriteAl\"\\{3.3 /* ERROR \"float64 does not satisfy tgo.DynamicWritto f3, cannot infer T\" */ ()}\"\n\treturn nil\n}\n"
-
-const testSrc = `package A
+const testSrc = `package test
 
 import (
 	"github.com/mateusz834/tgo"
 )
 
-//func A(tgo.Ctx) error {
-//	var nil int
-//	"\{1}"
-//}
+func t[T intstring](T tgo.Ctx) error {
+	"test"
+	return nil
+}
 `
+
+//const testSrc = `package A
+//
+//import (
+//	"github.com/mateusz834/tgo"
+//)
+//
+////func A(tgo.Ctx) error {
+////	var nil int
+////	"\{1}"
+////}
+//`
 
 func TestTest(t *testing.T) {
 	fuzzSource(t, "/kadjfa", testSrc)
