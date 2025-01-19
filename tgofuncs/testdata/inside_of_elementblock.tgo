@@ -1,0 +1,12 @@
+package templates // ERROR: col(1): "NeedsSpecialTgoImport"
+
+import (
+	"github.com/mateusz834/tgo"
+)
+
+func test() {
+	<div>
+		tgo := "test"
+		"\{"sth"}"
+	</div>
+}

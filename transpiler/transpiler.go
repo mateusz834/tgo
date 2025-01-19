@@ -3,13 +3,13 @@ package transpiler
 import (
 	"fmt"
 	"html"
-	"math"
 	"path/filepath"
 	"runtime"
 	"slices"
 	"strconv"
 	"strings"
 
+	"github.com/mateusz834/tgo/internal/astutil"
 	"github.com/mateusz834/tgo/tgofuncs"
 	"github.com/tgo-lang/lang/ast"
 	"github.com/tgo-lang/lang/token"
@@ -45,7 +45,7 @@ func Transpile(f *ast.File, fs *token.FileSet, src string) string {
 			src: src,
 
 			tgofuncs: tgofuncs,
-			tgoIdent: fileUniqueIdent(f, "__tgo_ctx"),
+			tgoIdent: astutil.FileUniqueIdent(f, "__tgo_ctx"),
 			info:     info,
 
 			out: slices.Grow([]byte{}, len(src)*2),
@@ -468,7 +468,7 @@ func (t *transpiler) transpile() {
 	t.ctx.lineDirectiveMangled = false
 
 	if t.ctx.info.NeedsSpecialTgoImport {
-		t.ctx.tgoAddtionalImportIdent = fileUniqueIdent(t.ctx.f, "__tgo")
+		t.ctx.tgoAddtionalImportIdent = astutil.FileUniqueIdent(t.ctx.f, "__tgo")
 
 		added := false
 		for _, v := range t.ctx.f.Decls {
@@ -1219,42 +1219,4 @@ func (t *transpiler) blockIndent(b *ast.BlockStmt) string {
 	//    functions containing tgo-nodes, such functions will alvays be multiline.
 
 	return t.lastIndentation + "\t"
-}
-
-// fileUniqueIdent return an identifier that is not used throughout the entire
-// file. Returns defaultIdent, if it is not used in the file, otherwise an identifier
-// based on defaultIdent is generated.
-func fileUniqueIdent(f *ast.File, defaultIdent string) string {
-	used := false
-	ast.Inspect(f, func(n ast.Node) bool {
-		switch n := n.(type) {
-		case *ast.Ident:
-			if n.Name == defaultIdent {
-				used = true
-				return false
-			}
-		}
-		return true
-	})
-	if !used {
-		return defaultIdent
-	}
-
-	usedIdents := make(map[string]struct{})
-	ast.Inspect(f, func(n ast.Node) bool {
-		switch n := n.(type) {
-		case *ast.Ident:
-			usedIdents[n.Name] = struct{}{}
-		}
-		return true
-	})
-
-	for i := range uint(math.MaxUint) {
-		ident := defaultIdent + strconv.FormatUint(uint64(i), 10)
-		if _, ok := usedIdents[ident]; !ok {
-			return ident
-		}
-	}
-
-	panic("unreachable")
 }

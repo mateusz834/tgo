@@ -1,3 +1,28 @@
+// tgofuncs package implements a really basic and primitive way of detecting tgo-funcs.
+// We don't use the types package directly in the transpiler for few reasons:
+//
+//   - Performance, we want to be fast, using the types package would also most likely mean
+//     that we would have to do some sort of caching to speed up the transpiler.
+//
+//   - We are a transpiler, meaning that we only really control changes in a single file (the transpiled one),
+//     users can transpile a .tgo file modify (other, non-transpiled) .go files, thus possibly invalidaing (or changing the behaviour of
+//     our transpiled file), nothing enforces them to run the transpiler again, after modifying .go files.
+//
+// Fortunetaly, each function declaration/literal always has to list all the types, that it uses, a tgo-func is a func that accepts
+// a [tgo.Ctx] as a first argument (can have more than one argument, but the first must be a [tgo.Ctx]) and returns
+// an [error]. To detect such functions we only need to check wheterh tgo package is imported and the "tgo" identifier is not shadowed,
+// (e.g. by variables, ...) thus [tgo.Ctx] is then the thing that we were looking for.
+//
+// Obviously, because we are not doing a full type-checking, this has some drawbacks:
+//
+// - No support for type aliases, such type:
+//
+//			type AliasedCtx = tgo.Ctx
+//
+//	  is not going to be allowed as a first parameter in a tgo-func. Function containing AliasedCtx, is not going to be treated
+//	  as a tgo-func, even though in the type checker these two types are identical.
+//	  But also keeping in mind the second point (of the list, above), we can't really support aliases, alias can be in a different
+//	  file and users can freely change .go files, without running the transpiler.
 package tgofuncs
 
 import (
@@ -5,8 +30,12 @@ import (
 	"maps"
 	"strconv"
 
+	"github.com/mateusz834/tgo/internal/astutil"
 	"github.com/tgo-lang/lang/ast"
 )
+
+// TODO: describe issues and why they are fine:
+// - we don't know the ident of a import stmt.
 
 const (
 	tgoModule      = "github.com/mateusz834/tgo"
@@ -19,10 +48,22 @@ type ImportDetails struct {
 }
 
 type Info struct {
-	TgoFuncs                []ast.Node // *ast.FuncDecl or *ast.FuncLit.
-	NeedsSpecialTgoImport   bool
+	TgoFuncs map[*ast.FuncType]struct{} // all tgo funcs
+
+	// When != "", then the transpiler must add an additional import
+	// with following identifier.
+	SpecialTgoImportIdent string
+
+	// UsableImportForTemplate contains every TemplateLiteralExpr found in a file with
+	// a corresponding (non-shadowed) import to use.
 	UsableImportForTemplate map[*ast.TemplateLiteralExpr]ImportDetails
-	UsableGlobalImport      string
+
+	// UsableImportForTemplate contains every tgo-node found in a file, that
+	// has the nil builtin shadowed, thus the transpiled code needs to use different
+	// form of err != nil check.
+	NeedsSpecialNilErrorCheck map[ast.Node]ImportDetails
+
+	UsableGlobalImport string
 }
 
 func Check(f *ast.File) Info {
@@ -30,10 +71,11 @@ func Check(f *ast.File) Info {
 		tgoImports   []string
 		hasDotImport bool
 	)
+
 	for _, v := range f.Imports {
 		path, err := strconv.Unquote(v.Path.Value)
 		if err != nil {
-			panic(err)
+			panic(err) // unreachable, AST is valid
 		}
 		if path == tgoModule {
 			ident := tgoPackageName
@@ -88,32 +130,37 @@ func Check(f *ast.File) Info {
 		}
 	}
 
-	// TODO: we are only "type-checking" one file, describe
-	// why it is safe to do, and why we went this way,
-	// not depending on go/types, go/packages, perf
-	// document that we do not support type aliases.
-	// But we can fuzz agaisnt go/types :).
-
 	ast.Walk(c, f)
 	usableGlobalImport := ""
 	if len(tgoImports) != 0 {
+		// TODO: can be shadowed, it might not matter.
 		usableGlobalImport = tgoImports[0]
 	}
 	return Info{
 		TgoFuncs:                c.ctx.tgoFuncs,
-		NeedsSpecialTgoImport:   c.ctx.needsSpecialTgoImport,
+		SpecialTgoImportIdent:   c.ctx.specialTgoImport,
 		UsableImportForTemplate: c.ctx.usableImportForTemplate,
 		UsableGlobalImport:      usableGlobalImport,
 	}
 }
 
 type contextAnalyzerContext struct {
-	tgoFuncs                []ast.Node
-	needsSpecialTgoImport   bool
+	f *ast.File
+
+	tgoFuncs                map[*ast.FuncType]struct{}
 	usableImportForTemplate map[*ast.TemplateLiteralExpr]ImportDetails
 
 	tgoImports   []string
 	hasDotImport bool
+
+	specialTgoImport string
+}
+
+func (c *contextAnalyzerContext) specialImportIdent() string {
+	if c.specialTgoImport == "" {
+		c.specialTgoImport = astutil.FileUniqueIdent(c.f, "__tgo")
+	}
+	return c.specialTgoImport
 }
 
 type contextAnalyzer struct {

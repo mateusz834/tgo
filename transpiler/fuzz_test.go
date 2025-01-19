@@ -21,6 +21,7 @@ import (
 	gotypes "go/types"
 
 	"github.com/mateusz834/tgo/analyzer"
+	"github.com/mateusz834/tgo/internal/astutil"
 	"github.com/mateusz834/tgo/internal/tgoimporter"
 	"github.com/tgo-lang/lang/ast"
 	"github.com/tgo-lang/lang/format"
@@ -676,7 +677,7 @@ func fuzzTypes(t *testing.T, fset *token.FileSet, f *ast.File, gofset *gotoken.F
 		}
 	}
 
-	tgoCtxIdent := fileUniqueIdent(f, "__tgo_ctx")
+	tgoCtxIdent := astutil.FileUniqueIdent(f, "__tgo_ctx")
 
 	for _, goErr := range goErrs {
 		if strings.Contains(goErr.Msg, "is not an expression") {
