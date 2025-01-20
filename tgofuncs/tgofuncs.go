@@ -96,9 +96,10 @@ func Check(f *ast.File) Info {
 
 	c := &contextAnalyzer{
 		ctx: &contextAnalyzerContext{
-			tgoImports:              tgoImports,
-			usableImportForTemplate: make(map[*ast.TemplateLiteralExpr]ImportDetails),
-			hasDotImport:            hasDotImport,
+			tgoImports:                tgoImports,
+			usableImportForTemplate:   make(map[*ast.TemplateLiteralExpr]ImportDetails),
+			needsSpecialNilErrorCheck: make(map[ast.Node]ImportDetails),
+			hasDotImport:              hasDotImport,
 		},
 	}
 
@@ -139,18 +140,20 @@ func Check(f *ast.File) Info {
 		usableGlobalImport = tgoImports[0]
 	}
 	return Info{
-		TgoFuncs:                c.ctx.tgoFuncs,
-		SpecialTgoImportIdent:   c.ctx.specialTgoImport,
-		UsableImportForTemplate: c.ctx.usableImportForTemplate,
-		UsableGlobalImport:      usableGlobalImport,
+		TgoFuncs:                  c.ctx.tgoFuncs,
+		SpecialTgoImportIdent:     c.ctx.specialTgoImport,
+		UsableImportForTemplate:   c.ctx.usableImportForTemplate,
+		NeedsSpecialNilErrorCheck: c.ctx.needsSpecialNilErrorCheck,
+		UsableGlobalImport:        usableGlobalImport,
 	}
 }
 
 type contextAnalyzerContext struct {
 	f *ast.File
 
-	tgoFuncs                map[*ast.FuncType]struct{}
-	usableImportForTemplate map[*ast.TemplateLiteralExpr]ImportDetails
+	tgoFuncs                  map[*ast.FuncType]struct{}
+	usableImportForTemplate   map[*ast.TemplateLiteralExpr]ImportDetails
+	needsSpecialNilErrorCheck map[ast.Node]ImportDetails
 
 	tgoImports   []string
 	hasDotImport bool
