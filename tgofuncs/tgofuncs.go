@@ -15,14 +15,14 @@
 //
 // Obviously, because we are not doing a full type-checking, this has some drawbacks:
 //
-// - No support for type aliases, such type:
+//   - No support for type aliases, such type:
 //
-//			type AliasedCtx = tgo.Ctx
+//     type AliasedCtx = tgo.Ctx
 //
-//	  is not going to be allowed as a first parameter in a tgo-func. Function containing AliasedCtx, is not going to be treated
-//	  as a tgo-func, even though in the type checker these two types are identical.
-//	  But also keeping in mind the second point (of the list, above), we can't really support aliases, alias can be in a different
-//	  file and users can freely change .go files, without running the transpiler.
+//     is not going to be allowed as a first parameter in a tgo-func. Function containing AliasedCtx, is not going to be treated
+//     as a tgo-func, even though in the type checker these two types are identical.
+//     But also keeping in mind the second point (of the list, above), we can't really support aliases, alias can be in a different
+//     file and users can freely change .go files, without running the transpiler.
 package tgofuncs
 
 import (
