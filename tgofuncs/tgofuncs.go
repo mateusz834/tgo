@@ -96,7 +96,9 @@ func Check(f *ast.File) Info {
 
 	c := &contextAnalyzer{
 		ctx: &contextAnalyzerContext{
+			f:                         f,
 			tgoImports:                tgoImports,
+			tgoFuncs:                  map[*ast.FuncType]struct{}{},
 			usableImportForTemplate:   make(map[*ast.TemplateLiteralExpr]ImportDetails),
 			needsSpecialNilErrorCheck: make(map[ast.Node]ImportDetails),
 			hasDotImport:              hasDotImport,
@@ -171,6 +173,20 @@ func (c *contextAnalyzerContext) specialImportIdent() string {
 type contextAnalyzer struct {
 	ctx             *contextAnalyzerContext
 	shadowedImports bitField
+}
+
+func (f *contextAnalyzer) setNilUsableness(n ast.Node) {
+	if f.shadowedImports.isSetBit(bitBuiltinNil) {
+		for i, v := range f.ctx.tgoImports {
+			if !f.shadowedImports.isSetImport(i) {
+				f.ctx.needsSpecialNilErrorCheck[n] = ImportDetails{ImportIdent: v}
+				break
+			}
+		}
+		if _, ok := f.ctx.needsSpecialNilErrorCheck[n]; !ok {
+			f.ctx.needsSpecialNilErrorCheck[n] = ImportDetails{ImportIdent: f.ctx.specialImportIdent()}
+		}
+	}
 }
 
 func (f *contextAnalyzer) simpleStmt(v ast.Stmt) (s bitField) {
@@ -353,13 +369,21 @@ func (f *contextAnalyzer) checkFuncType(shadowedImports bitField, ft *ast.FuncTy
 
 func (f *contextAnalyzer) Visit(list ast.Node) ast.Visitor {
 	switch n := list.(type) {
-	case *ast.BlockStmt:
-		f.analyzeStmts(n.List)
-		return nil
 	case *ast.ElementBlockStmt:
+		f.setNilUsableness(n)
 		ast.Walk(f, n.OpenTag)
 		f.analyzeStmts(n.Body)
 		ast.Walk(f, n.EndTag)
+		return nil
+	case *ast.OpenTag:
+		f.setNilUsableness(n)
+		f.analyzeStmts(n.Body)
+		return nil
+	case *ast.EndTag, *ast.AttributeStmt:
+		f.setNilUsableness(n)
+		return f
+	case *ast.BlockStmt:
+		f.analyzeStmts(n.List)
 		return nil
 	case *ast.CaseClause:
 		for _, v := range n.List {
@@ -368,9 +392,6 @@ func (f *contextAnalyzer) Visit(list ast.Node) ast.Visitor {
 				shadowedImports: f.shadowedImports.clone(),
 			}, v)
 		}
-		f.analyzeStmts(n.Body)
-		return nil
-	case *ast.OpenTag:
 		f.analyzeStmts(n.Body)
 		return nil
 	case *ast.CommClause:
@@ -396,6 +417,8 @@ func (f *contextAnalyzer) Visit(list ast.Node) ast.Visitor {
 			shadowedImports: shadowed,
 		}
 	case *ast.TemplateLiteralExpr:
+		f.setNilUsableness(n)
+
 		if f.ctx.hasDotImport && !f.shadowedImports.isSetBit(bitTgoDynamicWrite) {
 			f.ctx.usableImportForTemplate[n] = ImportDetails{DotImport: true}
 		}
@@ -408,6 +431,7 @@ func (f *contextAnalyzer) Visit(list ast.Node) ast.Visitor {
 		if _, ok := f.ctx.usableImportForTemplate[n]; !ok {
 			f.ctx.usableImportForTemplate[n] = ImportDetails{ImportIdent: f.ctx.specialImportIdent()}
 		}
+
 		return &contextAnalyzer{
 			ctx:             f.ctx,
 			shadowedImports: f.shadowedImports.clone(),
@@ -474,7 +498,7 @@ func (b bitField) isSetImport(n int) bool {
 	return ok
 }
 
-func (b bitField) setBit(bit uint) {
+func (b *bitField) setBit(bit uint) {
 	b.bitField |= 1 << bit
 }
 

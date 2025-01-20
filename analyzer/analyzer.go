@@ -78,19 +78,16 @@ func checkContext(ctx *analyzerContext, f *ast.File) {
 	c := &contextAnalyzer{
 		ctx: &contextAnalyzerContext{
 			ctx:      ctx,
-			tgoFuncs: make(map[ast.Node]struct{}, len(info.TgoFuncs)),
+			tgoFuncs: info.TgoFuncs,
 		},
 		context: contextNotTgo,
-	}
-	for _, v := range info.TgoFuncs {
-		c.ctx.tgoFuncs[v] = struct{}{}
 	}
 	ast.Walk(c, f)
 }
 
 type contextAnalyzerContext struct {
 	ctx      *analyzerContext
-	tgoFuncs map[ast.Node]struct{}
+	tgoFuncs map[*ast.FuncType]struct{}
 }
 
 type context uint8
@@ -108,12 +105,21 @@ type contextAnalyzer struct {
 
 func (f *contextAnalyzer) Visit(list ast.Node) ast.Visitor {
 	switch n := list.(type) {
-	case *ast.FuncDecl, *ast.FuncLit:
+	case *ast.FuncDecl:
 		c := &contextAnalyzer{
 			ctx:     f.ctx,
 			context: contextNotTgo,
 		}
-		if _, ok := f.ctx.tgoFuncs[n]; ok {
+		if _, ok := f.ctx.tgoFuncs[n.Type]; ok {
+			c.context = contextTgoBody
+		}
+		return c
+	case *ast.FuncLit:
+		c := &contextAnalyzer{
+			ctx:     f.ctx,
+			context: contextNotTgo,
+		}
+		if _, ok := f.ctx.tgoFuncs[n.Type]; ok {
 			c.context = contextTgoBody
 		}
 		return c

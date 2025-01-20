@@ -1,4 +1,4 @@
-package templates // ERROR: col(1): "NeedsSpecialTgoImport"
+package templates // ERROR: col(1): "NeedsSpecialTgoImport \"__tgo\""
 
 import (
 	"github.com/mateusz834/tgo"
@@ -7,6 +7,6 @@ import (
 func test() {
 	<div>
 		tgo := "test"
-		"\{"sth"}"
+		"\{"sth"}" // ERROR: col(3): "ImportIdent: \"__tgo\""
 	</div>
 }

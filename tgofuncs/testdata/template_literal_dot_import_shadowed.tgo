@@ -1,4 +1,4 @@
-package templates // ERROR: col(1): "NeedsSpecialTgoImport"
+package templates // ERROR: col(1): "NeedsSpecialTgoImport \"__tgo\""
 
 import (
 	. "github.com/mateusz834/tgo"
@@ -8,6 +8,6 @@ func test(Ctx) error { // ERROR: col(1): "tgofunc"
 	"\{"test"}"           // ERROR: col(2): "DotImport"
 	_ = func(Ctx) error { // ERROR: col(6): "tgofunc"
 		DynamicWrite := "test"
-		"\{"test"}"
+		"\{"test"}" // ERROR: col(3): "ImportIdent: \"__tgo\""
 	}
 }

@@ -92,11 +92,23 @@ import (
 	"github.com/mateusz834/tgo"
 )
 
-func t[T intstring](T tgo.Ctx) error {
-	"test"
+func t[T int|string](_ tgo.Ctx, _ T) error {
+	"\{t}"
 	return nil
 }
 `
+
+//const testSrc = `package test
+//
+//import (
+//	"github.com/mateusz834/tgo"
+//)
+//
+//func t[T intstring](T tgo.Ctx) error {
+//	"test"
+//	return nil
+//}
+//`
 
 //const testSrc = `package A
 //

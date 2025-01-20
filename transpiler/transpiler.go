@@ -33,18 +33,12 @@ func assert(b bool) {
 func Transpile(f *ast.File, fs *token.FileSet, src string) string {
 	info := tgofuncs.Check(f)
 
-	tgofuncs := make(map[ast.Node]struct{})
-	for _, v := range info.TgoFuncs {
-		tgofuncs[v] = struct{}{}
-	}
-
 	t := transpiler{
 		ctx: &transpilerCtx{
 			f:   f,
 			fs:  fs,
 			src: src,
 
-			tgofuncs: tgofuncs,
 			tgoIdent: astutil.FileUniqueIdent(f, "__tgo_ctx"),
 			info:     info,
 
@@ -65,10 +59,8 @@ type transpilerCtx struct {
 	out []byte
 	tmp []byte
 
-	tgofuncs                map[ast.Node]struct{}
-	info                    tgofuncs.Info
-	tgoIdent                string
-	tgoAddtionalImportIdent string
+	info     tgofuncs.Info
+	tgoIdent string
 
 	lastPosWritten token.Pos // last position processed by the transpiler of the src.
 
@@ -467,9 +459,7 @@ func (t *transpiler) transpile() {
 	t.appendSource(":1:1\n")
 	t.ctx.lineDirectiveMangled = false
 
-	if t.ctx.info.NeedsSpecialTgoImport {
-		t.ctx.tgoAddtionalImportIdent = astutil.FileUniqueIdent(t.ctx.f, "__tgo")
-
+	if t.ctx.info.SpecialTgoImportIdent != "" {
 		added := false
 		for _, v := range t.ctx.f.Decls {
 			if v, ok := v.(*ast.GenDecl); ok && v.Tok == token.IMPORT {
@@ -502,7 +492,7 @@ func (t *transpiler) transpile() {
 					t.appendFromSource(lastIndent)
 
 					t.appendSource("\n\t")
-					t.appendSource(t.ctx.tgoAddtionalImportIdent)
+					t.appendSource(t.ctx.info.SpecialTgoImportIdent)
 					t.appendSource(` "github.com/mateusz834/tgo"`)
 
 					ld := lineDirectiveFullLine
@@ -538,7 +528,7 @@ func (t *transpiler) transpile() {
 			t.appendFromSource(lastIndent)
 
 			t.appendSource("\nimport ")
-			t.appendSource(t.ctx.tgoAddtionalImportIdent)
+			t.appendSource(t.ctx.info.SpecialTgoImportIdent)
 			t.appendSource(" \"github.com/mateusz834/tgo\"\n")
 
 			ld := lineDirectiveFullLineAdditonalLine
@@ -554,18 +544,10 @@ func (t *transpiler) transpile() {
 	t.appendFromSource(t.ctx.f.FileEnd)
 
 	needsErrorAssert := false
-	for v := range t.ctx.tgofuncs {
-		switch v := v.(type) {
-		case *ast.FuncLit:
-			if v, ok := v.Type.Results.List[0].Type.(*ast.Ident); ok && v.Name == "error" {
-				needsErrorAssert = true
-				break
-			}
-		case *ast.FuncDecl:
-			if v, ok := v.Type.Results.List[0].Type.(*ast.Ident); ok && v.Name == "error" {
-				needsErrorAssert = true
-				break
-			}
+	for v := range t.ctx.info.TgoFuncs {
+		if v, ok := v.Results.List[0].Type.(*ast.Ident); ok && v.Name == "error" {
+			needsErrorAssert = true
+			break
 		}
 	}
 
@@ -580,21 +562,21 @@ func (t *transpiler) transpile() {
 	}
 }
 
-func (t *transpiler) tgoFunc(n ast.Node, funcType *ast.FuncType, body *ast.BlockStmt) {
+func (t *transpiler) tgoFunc(funcType *ast.FuncType, body *ast.BlockStmt) {
 	if body == nil {
 		return
 	}
 
 	indentation := t.blockIndent(body)
 
-	if _, ok := t.ctx.tgofuncs[n]; ok {
+	if _, ok := t.ctx.info.TgoFuncs[funcType]; ok {
 		needsCtx := false
-		ast.Inspect(n, func(x ast.Node) bool {
+		ast.Inspect(body, func(x ast.Node) bool {
 			if isTgo(x, true) {
 				needsCtx = true
 				return false
 			}
-			if _, ok := x.(*ast.FuncLit); ok && n != x {
+			if _, ok := x.(*ast.FuncLit); ok {
 				return false
 			}
 			return true
@@ -689,10 +671,10 @@ func (t *transpiler) tgoFunc(n ast.Node, funcType *ast.FuncType, body *ast.Block
 func (t *transpiler) Visit(n ast.Node) ast.Visitor {
 	switch n := n.(type) {
 	case *ast.FuncDecl:
-		t.tgoFunc(n, n.Type, n.Body)
+		t.tgoFunc(n.Type, n.Body)
 		return nil
 	case *ast.FuncLit:
-		t.tgoFunc(n, n.Type, n.Body)
+		t.tgoFunc(n.Type, n.Body)
 		return nil
 	case *ast.BlockStmt:
 		// TODO: line directive before this and what about *ast.SwitchStmt and TypeSwitchStmt.ctx.
@@ -993,18 +975,13 @@ func (t *transpiler) dynamicWriteIndent(x *ast.TemplateLiteralExpr, n *ast.Templ
 	// TODO: document the need for line directive here.
 	// TODO: and document why n.X.Pos() (it ignores comments, that is fine).
 	t.writeLineDirective(lineDirectiveOneLineLRSpace, n.X.Pos())
-	if d, ok := t.ctx.info.UsableImportForTemplate[x]; ok {
-		if d.DotImport {
-			t.appendSource("DynamicWrite(")
-		} else {
-			t.appendSource(d.ImportIdent)
-			t.appendSource(".DynamicWrite(")
-		}
-	} else if t.ctx.info.NeedsSpecialTgoImport {
-		t.appendSource(t.ctx.tgoAddtionalImportIdent)
-		t.appendSource(".DynamicWrite(")
+
+	importDetails := t.ctx.info.UsableImportForTemplate[x]
+	if importDetails.DotImport {
+		t.appendSource("DynamicWrite(")
 	} else {
-		panic("unreachable")
+		t.appendSource(importDetails.ImportIdent)
+		t.appendSource(".DynamicWrite(")
 	}
 
 	t.appendSource(t.ctx.tgoIdent)
@@ -1022,33 +999,35 @@ func (t *transpiler) dynamicWriteIndent(x *ast.TemplateLiteralExpr, n *ast.Templ
 
 	ld := lineDirectiveOneLineLSpace
 	if !needsParens {
-		nn := n.X
-		for {
-			if v, ok := nn.(*ast.UnaryExpr); ok {
-				nn = v.X
-				continue
-			}
-			break
-		}
-		for {
-			if v, ok := nn.(*ast.SelectorExpr); ok {
-				nn = v.X
-				continue
-			}
-			break
-		}
-		switch x := nn.(type) {
-		case *ast.BinaryExpr:
-			ld = lineDirectiveOneLineLRSpace
-			needsParens = true
-		case *ast.CallExpr:
-			if len(x.Args) == 1 {
-				if _, ok := x.Args[0].(*ast.BinaryExpr); ok {
-					ld = lineDirectiveOneLineLRSpace
-					needsParens = true
-				}
-			}
-		}
+		ld = lineDirectiveOneLineLRSpace
+		needsParens = true
+		//nn := n.X
+		//for {
+		//	if v, ok := nn.(*ast.UnaryExpr); ok {
+		//		nn = v.X
+		//		continue
+		//	}
+		//	break
+		//}
+		//for {
+		//	if v, ok := nn.(*ast.SelectorExpr); ok {
+		//		nn = v.X
+		//		continue
+		//	}
+		//	break
+		//}
+		//switch x := nn.(type) {
+		//case *ast.BinaryExpr:
+		//	ld = lineDirectiveOneLineLRSpace
+		//	needsParens = true
+		//case *ast.CallExpr:
+		//	if len(x.Args) == 1 {
+		//		if _, ok := x.Args[0].(*ast.BinaryExpr); ok {
+		//			ld = lineDirectiveOneLineLRSpace
+		//			needsParens = true
+		//		}
+		//	}
+		//}
 	}
 
 	if needsParens {

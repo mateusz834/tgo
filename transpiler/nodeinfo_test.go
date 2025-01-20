@@ -102,14 +102,10 @@ func genNodeInfo[TOK fmt.Stringer, POS interface{ IsValid() bool }](
 
 func tgoExpectedNodeInfos(f *ast.File, fset *token.FileSet) map[nodeInfo]struct{} {
 	info := tgofuncs.Check(f)
-	tgoFuncs := make(map[ast.Node]struct{})
-	for _, v := range info.TgoFuncs {
-		tgoFuncs[v] = struct{}{}
-	}
 
 	ctx := &nodeInfoAnalyzerContext{
 		fset:     fset,
-		tgoFunc:  tgoFuncs,
+		tgoFunc:  info.TgoFuncs,
 		nodeInfo: make(map[nodeInfo]struct{}),
 	}
 
@@ -120,7 +116,7 @@ func tgoExpectedNodeInfos(f *ast.File, fset *token.FileSet) map[nodeInfo]struct{
 type nodeInfoAnalyzerContext struct {
 	fset     *token.FileSet
 	nodeInfo map[nodeInfo]struct{}
-	tgoFunc  map[ast.Node]struct{}
+	tgoFunc  map[*ast.FuncType]struct{}
 }
 
 type nodeInfoAnalyzer struct {
@@ -130,9 +126,9 @@ type nodeInfoAnalyzer struct {
 }
 
 func (a *nodeInfoAnalyzer) Visit(n ast.Node) ast.Visitor {
-	funcHandler := func(n ast.Node, ft *ast.FuncType) *nodeInfoAnalyzer {
+	funcHandler := func(ft *ast.FuncType) *nodeInfoAnalyzer {
 		var tgoFuncBlankCtxIdent *ast.Ident
-		_, isTgo := a.ctx.tgoFunc[n]
+		_, isTgo := a.ctx.tgoFunc[ft]
 		if isTgo {
 			names := ft.Params.List[0].Names
 			if names != nil && names[0].Name == "_" {
@@ -149,9 +145,9 @@ func (a *nodeInfoAnalyzer) Visit(n ast.Node) ast.Visitor {
 
 	switch n := n.(type) {
 	case *ast.FuncDecl:
-		return funcHandler(n, n.Type)
+		return funcHandler(n.Type)
 	case *ast.FuncLit:
-		return funcHandler(n, n.Type)
+		return funcHandler(n.Type)
 	case *ast.AttributeStmt:
 		if _, ok := n.Value.(*ast.TemplateLiteralExpr); ok {
 			ast.Walk(a, n.Value)

@@ -1,4 +1,4 @@
-package templates // ERROR: col(1): "NeedsSpecialTgoImport"
+package templates // ERROR: col(1): "NeedsSpecialTgoImport \"__tgo\""
 
 import (
 	"github.com/mateusz834/tgo"
@@ -10,12 +10,12 @@ func test(tgo.Ctx) error { // ERROR: col(1): "tgofunc"
 
 func test(tgo.Ctx) error { // ERROR: col(1): "tgofunc"
 	tgo := "test"
-	"\{"test"}"
+	"\{"test"}" // ERROR: col(2): "ImportIdent: \"__tgo\""
 }
 
 func test() {
 	_ = func(tgo.Ctx) error { // ERROR: col(6): "tgofunc"
 		type tgo struct{}
-		"\{"test"}"
+		"\{"test"}" // ERROR: col(3): "ImportIdent: \"__tgo\""
 	}
 }

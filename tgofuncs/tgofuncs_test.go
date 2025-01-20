@@ -3,6 +3,7 @@ package tgofuncs
 import (
 	"errors"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -35,7 +36,7 @@ func TestTgoFuncs(t *testing.T) {
 			tgotest.Test(t, fileName, func(fset *token.FileSet, f *ast.File) []tgotest.Error {
 				info := Check(f)
 				errs := []tgotest.Error{}
-				for _, v := range info.TgoFuncs {
+				for v := range info.TgoFuncs {
 					errs = append(errs, tgotest.Error{
 						Msg:    "tgofunc",
 						Line:   fset.Position(v.Pos()).Line,
@@ -56,9 +57,9 @@ func TestTgoFuncs(t *testing.T) {
 						Column: fset.Position(k.Pos()).Column,
 					})
 				}
-				if info.NeedsSpecialTgoImport {
+				if info.SpecialTgoImportIdent != "" {
 					errs = append(errs, tgotest.Error{
-						Msg:    "NeedsSpecialTgoImport",
+						Msg:    fmt.Sprintf("NeedsSpecialTgoImport %q", info.SpecialTgoImportIdent),
 						Line:   fset.Position(f.Package).Line,
 						Column: fset.Position(f.Package).Column,
 					})
@@ -173,7 +174,7 @@ func test() {
 			return
 		}
 
-		want := []goast.Node{}
+		want := []*goast.FuncType{}
 		checkFuncType := func(ft *goast.FuncType) bool {
 			if len(ft.Params.List) == 0 || ft.Results == nil || len(ft.Results.List) != 1 {
 				return false
@@ -193,17 +194,18 @@ func test() {
 			switch n := n.(type) {
 			case *goast.FuncDecl:
 				if checkFuncType(n.Type) {
-					want = append(want, n)
+					want = append(want, n.Type)
 				}
 			case *goast.FuncLit:
 				if checkFuncType(n.Type) {
-					want = append(want, n)
+					want = append(want, n.Type)
 				}
 			}
 			return true
 		})
 
-		if !slices.EqualFunc(got.TgoFuncs, want, func(x ast.Node, y goast.Node) bool {
+		tgofuncs := slices.Collect(maps.Keys(got.TgoFuncs))
+		if !slices.EqualFunc(tgofuncs, want, func(x *ast.FuncType, y *goast.FuncType) bool {
 			return tgofset.PositionFor(x.Pos(), false).Offset == gofset.PositionFor(y.Pos(), false).Offset
 		}) {
 			t.Logf("source:\n%v", src)

@@ -557,6 +557,16 @@ func fuzzTypes(t *testing.T, fset *token.FileSet, f *ast.File, gofset *gotoken.F
 		return
 	}
 
+	// Do not typecheck huge files.
+	cnt := 0
+	ast.Inspect(f, func(n ast.Node) bool {
+		cnt++
+		return cnt <= 2000
+	})
+	if cnt > 2000 {
+		return
+	}
+
 	skip := false
 	goast.Inspect(gof, func(n goast.Node) bool {
 		if n, ok := n.(*goast.BasicLit); ok && n.Kind != gotoken.STRING && len(n.Value) > 8 {
