@@ -687,6 +687,32 @@ func fuzzTypes(t *testing.T, fset *token.FileSet, f *ast.File, gofset *gotoken.F
 		}
 	}
 
+	// Treat both of these errors as the same:
+	//
+	// Go error: "in call to tgo.DynamicWrite, cannot infer T (file:187:19)"
+	// Tgo error: "cannot infer T (file:8:5)"
+	//
+	//	func _(tgo.Ctx) error {
+	//		"\{nil}"
+	//		return nil
+	//	}
+	for tgoErr := range tgoErrs {
+		if strings.Contains(tgoErr.Msg, "cannot infer T (") && strings.Contains(tgoErr.Msg, ")") {
+			for i, goErr := range goErrs {
+				if goErr.Line == tgoErr.Line && goErr.Col == tgoErr.Col &&
+					strings.Contains(goErr.Msg, "in call to") && strings.Contains(goErr.Msg, "cannot infer") {
+					goErrs = slices.Delete(goErrs, i, i+1)
+					delete(tgoErrs, tgoErr)
+					if testing.Verbose() {
+						t.Logf("(go) ignoring err: %v", goErr)
+						t.Logf("(tgo) ignoring err: %v", tgoErr)
+					}
+					break
+				}
+			}
+		}
+	}
+
 	tgoCtxIdent := astutil.FileUniqueIdent(f, "__tgo_ctx")
 
 	for _, goErr := range goErrs {

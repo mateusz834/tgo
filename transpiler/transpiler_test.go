@@ -86,18 +86,6 @@ import (
 //}
 //`
 
-const testSrc = `package test
-
-import (
-	"github.com/mateusz834/tgo"
-)
-
-func t[T int|string](_ tgo.Ctx, _ T) error {
-	"\{t}"
-	return nil
-}
-`
-
 //const testSrc = `package test
 //
 //import (
@@ -121,6 +109,30 @@ func t[T int|string](_ tgo.Ctx, _ T) error {
 ////	"\{1}"
 ////}
 //`
+
+//const testSrc = `package test
+//
+//import (
+//	"github.com/mateusz834/tgo"
+//)
+//
+//func t[T int|string](_ tgo.Ctx, _ T) error {
+//	"\{t}"
+//	return nil
+//}
+//`
+
+const testSrc = `package test
+
+import (
+	"github.com/mateusz834/tgo"
+)
+
+func _[T intstring](_ tgo.Ctx, t T) error {
+	"\{nil}"
+	return nil
+}
+`
 
 func TestTest(t *testing.T) {
 	fuzzSource(t, "/kadjfa", testSrc)
