@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/mateusz834/tgo"
 	"github.com/mateusz834/tgo/internal/astutil"
 	"github.com/mateusz834/tgo/tgofuncs"
 	"github.com/tgo-lang/lang/ast"
@@ -554,6 +555,8 @@ func (t *transpiler) transpile() {
 	if needsErrorAssert {
 		t.appendSource("\n// Assert that no other file in this package overrides the error builtin interface.\n")
 		t.appendSource("var _ = (error)(")
+
+		// TODO: what if dot import?
 		if t.ctx.info.UsableGlobalImport != "" {
 			t.appendSource(t.ctx.info.UsableGlobalImport)
 			t.appendSource(".")
@@ -562,6 +565,8 @@ func (t *transpiler) transpile() {
 		t.appendSource("NilError())\n")
 	}
 }
+
+var _ = (error)(tgo.NilError())
 
 func (t *transpiler) tgoFunc(funcType *ast.FuncType, body *ast.BlockStmt) {
 	if body == nil {
