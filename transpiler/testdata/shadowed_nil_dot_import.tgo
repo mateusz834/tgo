@@ -54,7 +54,7 @@ func _(__tgo_ctx /*line :5:7*/ Ctx) error {
 
 func _(__tgo_ctx /*line :10:7*/ Ctx) error {
 	nil := 1
-	if err := __tgo_ctx.WriteString("test"); err != nil {
+	if err := __tgo_ctx.WriteString("test"); IsNotNil(err) {
 		return err
 	}
 //line :13:1
