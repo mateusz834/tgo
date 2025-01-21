@@ -1,0 +1,11 @@
+package templates // ERROR: col(1): "NeedsSpecialTgoImport \"__tgo\""
+
+import . "github.com/mateusz834/tgo"
+
+func _(tgo.Ctx) error {
+	nil := false
+	IsNotNil := func(e error) bool {
+		return e == nil
+	}
+	"\{1}" // ERROR: col(2): "DotImport" ERROR: col(2): "SpecialNilCheck: ImportIdent: \"__tgo\""
+}

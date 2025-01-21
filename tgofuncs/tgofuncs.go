@@ -177,7 +177,9 @@ type contextAnalyzer struct {
 
 func (f *contextAnalyzer) setNilUsableness(n ast.Node) {
 	if f.shadowedImports.isSetBit(bitBuiltinNil) {
-		// TODO: nothing sets DotImport.
+		if f.ctx.hasDotImport && !f.shadowedImports.isSetBit(bitTgoIsNotNil) {
+			f.ctx.needsSpecialNilErrorCheck[n] = ImportDetails{DotImport: true}
+		}
 		for i, v := range f.ctx.tgoImports {
 			if !f.shadowedImports.isSetImport(i) {
 				f.ctx.needsSpecialNilErrorCheck[n] = ImportDetails{ImportIdent: v}
