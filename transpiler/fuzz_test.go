@@ -657,6 +657,8 @@ func fuzzTypes(t *testing.T, fset *token.FileSet, f *ast.File, gofset *gotoken.F
 
 	cfg.Check("test", fset, []*ast.File{f}, nil)
 
+	unreported := maps.Clone(tgoErrs)
+
 	// Treat:
 	//
 	// Go error: "in call to tgo.DynamicWrite, cannot infer T (tgo.go:183:19)"
@@ -676,7 +678,7 @@ func fuzzTypes(t *testing.T, fset *token.FileSet, f *ast.File, gofset *gotoken.F
 				if goErr.Line == tgoErr.Line && goErr.Col == tgoErr.Col &&
 					strings.Contains(goErr.Msg, "in call to") && strings.Contains(goErr.Msg, "cannot infer") {
 					goErrs = slices.Delete(goErrs, i, i+1)
-					delete(tgoErrs, tgoErr)
+					delete(unreported, tgoErr)
 					if testing.Verbose() {
 						t.Logf("(go) ignoring err: %v", goErr)
 						t.Logf("(tgo) ignoring err: %v", tgoErr)
@@ -697,17 +699,16 @@ func fuzzTypes(t *testing.T, fset *token.FileSet, f *ast.File, gofset *gotoken.F
 	//		return nil
 	//	}
 	for tgoErr := range tgoErrs {
-		if strings.Contains(tgoErr.Msg, "cannot infer T (") && strings.Contains(tgoErr.Msg, ")") {
+		if strings.Contains(tgoErr.Msg, "cannot infer T (") && strings.Contains(tgoErr.Msg, ")") && !strings.Contains(tgoErr.Msg, "in call to") {
 			for i, goErr := range goErrs {
 				if goErr.Line == tgoErr.Line && goErr.Col == tgoErr.Col &&
 					strings.Contains(goErr.Msg, "in call to") && strings.Contains(goErr.Msg, "cannot infer") {
 					goErrs = slices.Delete(goErrs, i, i+1)
-					delete(tgoErrs, tgoErr)
+					delete(unreported, tgoErr)
 					if testing.Verbose() {
 						t.Logf("(go) ignoring err: %v", goErr)
 						t.Logf("(tgo) ignoring err: %v", tgoErr)
 					}
-					break
 				}
 			}
 		}
@@ -740,7 +741,6 @@ func fuzzTypes(t *testing.T, fset *token.FileSet, f *ast.File, gofset *gotoken.F
 		}
 	}
 
-	unreported := maps.Clone(tgoErrs)
 	for _, v := range goErrs {
 		possibleMsgs := []string{
 			v.Msg,

@@ -122,17 +122,8 @@ import (
 //}
 //`
 
-const testSrc = `package test
-
-import (
-	"github.com/mateusz834/tgo"
-)
-
-func _[T intstring](_ tgo.Ctx, t T) error {
-	"\{nil}"
-	return nil
-}
-`
+const testSrc = `package A
+func A[T A]()[0[A(A()[0])]]A`
 
 func TestTest(t *testing.T) {
 	fuzzSource(t, "/kadjfa", testSrc)
