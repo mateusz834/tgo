@@ -57,6 +57,20 @@ func TestTgoFuncs(t *testing.T) {
 						Column: fset.Position(k.Pos()).Column,
 					})
 				}
+				for k, v := range info.NeedsSpecialNilErrorCheck {
+					msg := fmt.Sprintf("SpecialNilCheck: ImportIdent: %q", v.ImportIdent)
+					if v.DotImport {
+						if v.ImportIdent != "" {
+							t.Errorf("v.DotImport == true && v.ImportIdent != \"\", but %q", v.ImportIdent)
+						}
+						msg = "SpecialNilCheck: DotImport"
+					}
+					errs = append(errs, tgotest.Error{
+						Msg:    msg,
+						Line:   fset.Position(k.Pos()).Line,
+						Column: fset.Position(k.Pos()).Column,
+					})
+				}
 				if info.SpecialTgoImportIdent != "" {
 					errs = append(errs, tgotest.Error{
 						Msg:    fmt.Sprintf("NeedsSpecialTgoImport %q", info.SpecialTgoImportIdent),

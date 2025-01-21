@@ -1,0 +1,37 @@
+package templates // ERROR: col(1): "NeedsSpecialTgoImport \"__tgo\""
+
+import (
+	"github.com/mateusz834/tgo"
+)
+
+func _(tgo.Ctx) error { // ERROR: col(1): "tgofunc"
+	nil := false
+	"\{1}" // ERROR: col(2): "ImportIdent: \"tgo\"" ERROR: col(2): "SpecialNilCheck: ImportIdent: \"tgo\""
+}
+
+func _(tgo.Ctx) error { // ERROR: col(1): "tgofunc"
+	nil := false
+	tgo := "a"
+	"\{tgo}" // ERROR: col(2): "ImportIdent: \"__tgo\"" ERROR: col(2): "SpecialNilCheck: ImportIdent: \"__tgo\""
+}
+
+func _() {
+	_ = func(tgo.Ctx) error { // ERROR: col(6): "tgofunc"
+		nil := false
+		"\{1}" // ERROR: col(3): "ImportIdent: \"tgo\"" ERROR: col(3): "SpecialNilCheck: ImportIdent: \"tgo\""
+	}
+	nil := false
+	"\{1}" // ERROR: col(2): "ImportIdent: \"tgo\"" ERROR: col(2): "SpecialNilCheck: ImportIdent: \"tgo\""
+}
+
+func _() {
+	_ = func(tgo.Ctx) error { // ERROR: col(6): "tgofunc"
+		nil := false
+		"\{1}" // ERROR: col(3): "ImportIdent: \"tgo\"" ERROR: col(3): "SpecialNilCheck: ImportIdent: \"tgo\""
+	}
+	_ = func(tgo.Ctx) error { // ERROR: col(6): "tgofunc"
+		nil := false
+		tgo := "a"
+		"\{tgo}" // ERROR: col(3): "ImportIdent: \"__tgo\"" ERROR: col(3): "SpecialNilCheck: ImportIdent: \"__tgo\""
+	}
+}
