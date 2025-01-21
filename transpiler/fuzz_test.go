@@ -689,10 +689,12 @@ func fuzzTypes(t *testing.T, fset *token.FileSet, f *ast.File, gofset *gotoken.F
 		}
 	}
 
-	// Treat both of these errors as the same:
+	// Treat:
 	//
 	// Go error: "in call to tgo.DynamicWrite, cannot infer T (file:187:19)"
 	// Tgo error: "cannot infer T (file:8:5)"
+	//
+	// as the same error. This happens in following case:
 	//
 	//	func _(tgo.Ctx) error {
 	//		"\{nil}"
