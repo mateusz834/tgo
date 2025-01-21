@@ -4,8 +4,8 @@ import . "github.com/mateusz834/tgo"
 
 func _(tgo.Ctx) error {
 	nil := false
-	IsNotNil := func(e error) bool {
-		return e == nil
+	NilError := func() error {
+		panic(1)
 	}
 	"\{1}" // ERROR: col(2): "DotImport" ERROR: col(2): "SpecialNilCheck: ImportIdent: \"__tgo\""
 }

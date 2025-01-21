@@ -118,4 +118,4 @@ func test(  __tgo_ctx /*line :30:14*/ tgo.Ctx) error {
 }
 
 // Assert that no other file in this package overrides the error builtin interface.
-var _ = (*tgo.Error)((*error)(nil))
+var _ = (error)(tgo.NilError())

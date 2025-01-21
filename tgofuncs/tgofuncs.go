@@ -178,7 +178,7 @@ type contextAnalyzer struct {
 
 func (f *contextAnalyzer) setNilUsableness(n ast.Node) {
 	if f.shadowedImports.isSetBit(bitBuiltinNil) {
-		if f.ctx.hasDotImport && !f.shadowedImports.isSetBit(bitTgoIsNotNil) {
+		if f.ctx.hasDotImport && !f.shadowedImports.isSetBit(bitTgoNilError) {
 			f.ctx.needsSpecialNilErrorCheck[n] = ImportDetails{DotImport: true}
 		}
 		for i, v := range f.ctx.tgoImports {
@@ -456,7 +456,7 @@ func (f *contextAnalyzer) Visit(list ast.Node) ast.Visitor {
 const (
 	bitTgoCtx = 63 - iota
 	bitTgoError
-	bitTgoIsNotNil
+	bitTgoNilError
 	bitTgoDynamicWrite
 	bitBuiltinError
 	bitBuiltinNil
@@ -528,8 +528,8 @@ func (b *bitField) setShadowed(c *contextAnalyzer, n string) {
 		b.setBit(bitTgoError)
 	case "DynamicWrite":
 		b.setBit(bitTgoDynamicWrite)
-	case "IsNotNil":
-		b.setBit(bitTgoIsNotNil)
+	case "NilError":
+		b.setBit(bitTgoNilError)
 	case "Ctx":
 		b.setBit(bitTgoCtx)
 	case "error":

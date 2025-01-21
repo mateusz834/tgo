@@ -180,8 +180,8 @@ func (c *Ctx) writeRuneEscaped(r rune) error {
 
 type Error = error
 
-func IsNotNil(e error) bool {
-	return e != nil
+func NilError() error {
+	return nil
 }
 
 type UnsafeHTML string

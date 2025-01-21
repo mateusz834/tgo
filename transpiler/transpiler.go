@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/mateusz834/tgo"
 	"github.com/mateusz834/tgo/internal/astutil"
 	"github.com/mateusz834/tgo/tgofuncs"
 	"github.com/tgo-lang/lang/ast"
@@ -553,14 +554,17 @@ func (t *transpiler) transpile() {
 
 	if needsErrorAssert {
 		t.appendSource("\n// Assert that no other file in this package overrides the error builtin interface.\n")
-		t.appendSource("var _ = (*")
+		t.appendSource("var _ = (error)(")
 		if t.ctx.info.UsableGlobalImport != "" {
 			t.appendSource(t.ctx.info.UsableGlobalImport)
 			t.appendSource(".")
 		}
-		t.appendSource("Error)((*error)(nil))\n")
+		// TODO: nil can be shadowed XD.
+		t.appendSource("NilError())\n")
 	}
 }
+
+var _ = (error)(tgo.NilError())
 
 func (t *transpiler) tgoFunc(funcType *ast.FuncType, body *ast.BlockStmt) {
 	if body == nil {
@@ -1050,12 +1054,12 @@ func (t *transpiler) dynamicWriteIndent(x *ast.TemplateLiteralExpr, n *ast.Templ
 
 	if id, ok := t.ctx.info.NeedsSpecialNilErrorCheck[x]; ok {
 		// TODO: new can also be .....
-		t.appendSource("); ")
+		t.appendSource("); err != ")
 		if !id.DotImport {
 			t.appendSource(id.ImportIdent)
 			t.appendSource(".")
 		}
-		t.appendSource("IsNotNil(err) {")
+		t.appendSource("NilError() {")
 	} else {
 		t.appendSource("); err != nil {")
 	}
@@ -1096,12 +1100,12 @@ func (t *transpiler) staticWriteIndent(n ast.Node, s string) {
 	// TODO: we can always also new(error) if not shadowed. Looks better.
 	if id, ok := t.ctx.info.NeedsSpecialNilErrorCheck[n]; ok {
 		// TODO: new can also be .....
-		t.tmpAppendSource("\"); ")
+		t.tmpAppendSource("\"); err != ")
 		if !id.DotImport {
 			t.tmpAppendSource(id.ImportIdent)
 			t.tmpAppendSource(".")
 		}
-		t.tmpAppendSource("IsNotNil(err) {")
+		t.tmpAppendSource("NilError() {")
 	} else {
 		t.tmpAppendSource("\"); err != nil {")
 	}

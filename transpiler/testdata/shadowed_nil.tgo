@@ -46,7 +46,7 @@ import "github.com/mateusz834/tgo"
 
 func _(__tgo_ctx /*line :5:7*/ tgo.Ctx) error {
 	nil := 1
-	if err := __tgo_ctx.WriteString("<div></div>"); tgo.IsNotNil(err) {
+	if err := __tgo_ctx.WriteString("<div></div>"); err != tgo.NilError() {
 		return err
 	}
 //line :8:1
@@ -54,7 +54,7 @@ func _(__tgo_ctx /*line :5:7*/ tgo.Ctx) error {
 
 func _(__tgo_ctx /*line :10:7*/ tgo.Ctx) error {
 	nil := 1
-	if err := __tgo_ctx.WriteString("test"); tgo.IsNotNil(err) {
+	if err := __tgo_ctx.WriteString("test"); err != tgo.NilError() {
 		return err
 	}
 //line :13:1
@@ -62,13 +62,13 @@ func _(__tgo_ctx /*line :10:7*/ tgo.Ctx) error {
 
 func _(__tgo_ctx /*line :15:7*/ tgo.Ctx) error {
 	nil := 1
-	if err := __tgo_ctx.WriteString(""); tgo.IsNotNil(err) {
+	if err := __tgo_ctx.WriteString(""); err != tgo.NilError() {
 		return err
 	}
-	if err := /*line :17:4*/ tgo.DynamicWrite(__tgo_ctx /*line :17:3*/, nil); tgo.IsNotNil(err) {
+	if err := /*line :17:4*/ tgo.DynamicWrite(__tgo_ctx /*line :17:3*/, nil); err != tgo.NilError() {
 		return err
 	}
-	if err := __tgo_ctx.WriteString(""); tgo.IsNotNil(err) {
+	if err := __tgo_ctx.WriteString(""); err != tgo.NilError() {
 		return err
 	}
 //line :18:1
@@ -81,27 +81,27 @@ func _(__tgo_ctx /*line :20:7*/ tgo.Ctx) error {
 	{
 //line :22:1
 		nil := 1
-		if err := __tgo_ctx.WriteString(" attr></div><div"); tgo.IsNotNil(err) {
+		if err := __tgo_ctx.WriteString(" attr></div><div"); err != tgo.NilError() {
 			return err
 		}
 	}
 	{
 //line :28:1
 		nil := 1
-		if err := __tgo_ctx.WriteString(" attr=val></div><div"); tgo.IsNotNil(err) {
+		if err := __tgo_ctx.WriteString(" attr=val></div><div"); err != tgo.NilError() {
 			return err
 		}
 	}
 	{
 //line :34:1
 		nil := 1
-		if err := __tgo_ctx.WriteString(" attr="); tgo.IsNotNil(err) {
+		if err := __tgo_ctx.WriteString(" attr="); err != tgo.NilError() {
 			return err
 		}
-		if err := /*line :35:11*/ tgo.DynamicWrite(__tgo_ctx /*line :35:10*/, nil); tgo.IsNotNil(err) {
+		if err := /*line :35:11*/ tgo.DynamicWrite(__tgo_ctx /*line :35:10*/, nil); err != tgo.NilError() {
 			return err
 		}
-		if err := __tgo_ctx.WriteString("></div>"); tgo.IsNotNil(err) {
+		if err := __tgo_ctx.WriteString("></div>"); err != tgo.NilError() {
 			return err
 		}
 	}
@@ -109,4 +109,4 @@ func _(__tgo_ctx /*line :20:7*/ tgo.Ctx) error {
 }
 
 // Assert that no other file in this package overrides the error builtin interface.
-var _ = (*tgo.Error)((*error)(nil))
+var _ = (error)(tgo.NilError())
