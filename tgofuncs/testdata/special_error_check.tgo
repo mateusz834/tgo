@@ -35,3 +35,14 @@ func _() {
 		"\{tgo}" // ERROR: col(3): "ImportIdent: \"__tgo\"" ERROR: col(3): "SpecialNilCheck: ImportIdent: \"__tgo\""
 	}
 }
+
+func _(tgo.Ctx) error { // ERROR: col(1): "tgofunc"
+	nil := false
+	"test"      // ERROR: col(2): "SpecialNilCheck: ImportIdent: \"tgo\""
+	"\{nil}"    // ERROR: col(2): "ImportIdent: \"tgo\"" ERROR: col(2): "SpecialNilCheck: ImportIdent: \"tgo\""
+	<div></div> // ERROR: col(2): "SpecialNilCheck: ImportIdent: \"tgo\"" ERROR: col(2): "SpecialNilCheck: ImportIdent: \"tgo\"" ERROR: col(7): "SpecialNilCheck: ImportIdent: \"tgo\""
+	<div        // ERROR: col(2): "SpecialNilCheck: ImportIdent: \"tgo\"" ERROR: col(2): "SpecialNilCheck: ImportIdent: \"tgo\""
+		@attr="value" // ERROR: col(3): "SpecialNilCheck: ImportIdent: \"tgo\""
+	>
+	</div> // ERROR: col(2): "SpecialNilCheck: ImportIdent: \"tgo\""
+}

@@ -926,7 +926,7 @@ func (t *transpiler) transpileStmt(ld lineDirective, n ast.Stmt) {
 	case *ast.ExprStmt:
 		if x, ok := n.X.(*ast.BasicLit); ok && x.Kind == token.STRING {
 			if t.inTgoFunc {
-				t.staticWriteIndentGoString(n, x.Value)
+				t.staticWriteIndentGoString(x, x.Value)
 				t.skipSourceUpTo(n.End())
 			} else {
 				t.appendFromSource(n.End())

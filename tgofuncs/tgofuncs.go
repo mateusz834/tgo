@@ -32,6 +32,7 @@ import (
 
 	"github.com/mateusz834/tgo/internal/astutil"
 	"github.com/tgo-lang/lang/ast"
+	"github.com/tgo-lang/lang/token"
 )
 
 // TODO: describe issues and why they are fine:
@@ -384,6 +385,11 @@ func (f *contextAnalyzer) Visit(list ast.Node) ast.Visitor {
 		return nil
 	case *ast.EndTag, *ast.AttributeStmt:
 		f.setNilUsableness(n)
+		return f
+	case *ast.ExprStmt:
+		if n, ok := n.X.(*ast.BasicLit); ok && n.Kind == token.STRING {
+			f.setNilUsableness(n)
+		}
 		return f
 	case *ast.BlockStmt:
 		f.analyzeStmts(n.List)
