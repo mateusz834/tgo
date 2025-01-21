@@ -862,8 +862,8 @@ func (t *transpiler) transpileStmt(ld lineDirective, n ast.Stmt) {
 
 	switch n := n.(type) {
 	case *ast.ElementBlockStmt:
-		t.staticWriteIndent("<")
-		t.staticWriteIndent(n.OpenTag.Name.Name)
+		t.staticWriteIndent(n, "<")
+		t.staticWriteIndent(n, n.OpenTag.Name.Name)
 
 		tagScope := t.scopeStart()
 		t.skipSourceUpTo(n.OpenTag.Name.End())
@@ -874,7 +874,7 @@ func (t *transpiler) transpileStmt(ld lineDirective, n ast.Stmt) {
 
 		t.scopeEnd(tagScope)
 
-		t.staticWriteIndent(">")
+		t.staticWriteIndent(n, ">")
 		t.skipSourceUpTo(n.OpenTag.End())
 
 		bodyScope := t.scopeStart()
@@ -883,13 +883,13 @@ func (t *transpiler) transpileStmt(ld lineDirective, n ast.Stmt) {
 		t.additionalIndent--
 		t.scopeEnd(bodyScope)
 
-		t.staticWriteIndent("</")
-		t.staticWriteIndent(n.EndTag.Name.Name)
-		t.staticWriteIndent(">")
+		t.staticWriteIndent(n, "</")
+		t.staticWriteIndent(n, n.EndTag.Name.Name)
+		t.staticWriteIndent(n, ">")
 		t.skipSourceUpTo(n.End())
 	case *ast.OpenTag:
-		t.staticWriteIndent("<")
-		t.staticWriteIndent(n.Name.Name)
+		t.staticWriteIndent(n, "<")
+		t.staticWriteIndent(n, n.Name.Name)
 
 		tagScope := t.scopeStart()
 		t.skipSourceUpTo(n.Name.End())
@@ -900,7 +900,7 @@ func (t *transpiler) transpileStmt(ld lineDirective, n ast.Stmt) {
 
 		t.scopeEnd(tagScope)
 
-		t.staticWriteIndent(">")
+		t.staticWriteIndent(n, ">")
 		t.skipSourceUpTo(n.End())
 	case *ast.EndTag:
 		panic("unreachable")
@@ -908,25 +908,25 @@ func (t *transpiler) transpileStmt(ld lineDirective, n ast.Stmt) {
 		if n.Value != nil {
 			switch x := n.Value.(type) {
 			case *ast.BasicLit:
-				t.staticWriteIndent(" ")
-				t.staticWriteIndent(n.AttrName.(*ast.Ident).Name)
-				t.staticWriteIndent("=")
+				t.staticWriteIndent(n, " ")
+				t.staticWriteIndent(n, n.AttrName.(*ast.Ident).Name)
+				t.staticWriteIndent(n, "=")
 				if x.Kind == token.STRING {
-					t.staticWriteIndentGoString(x.Value)
+					t.staticWriteIndentGoString(n, x.Value)
 				}
 			case *ast.TemplateLiteralExpr:
-				t.staticWriteIndent(" " + n.AttrName.(*ast.Ident).Name + "=")
+				t.staticWriteIndent(n, " "+n.AttrName.(*ast.Ident).Name+"=")
 				t.transpileTemplateLiteral(x)
 			}
 		} else {
-			t.staticWriteIndent(" ")
-			t.staticWriteIndent(n.AttrName.(*ast.Ident).Name)
+			t.staticWriteIndent(n, " ")
+			t.staticWriteIndent(n, n.AttrName.(*ast.Ident).Name)
 		}
 		t.skipSourceUpTo(n.End())
 	case *ast.ExprStmt:
 		if x, ok := n.X.(*ast.BasicLit); ok && x.Kind == token.STRING {
 			if t.inTgoFunc {
-				t.staticWriteIndentGoString(x.Value)
+				t.staticWriteIndentGoString(n, x.Value)
 				t.skipSourceUpTo(n.End())
 			} else {
 				t.appendFromSource(n.End())
@@ -958,13 +958,13 @@ func (t *transpiler) transpileStmt(ld lineDirective, n ast.Stmt) {
 func (t *transpiler) transpileTemplateLiteral(x *ast.TemplateLiteralExpr) {
 	for i := range x.Parts {
 		if i == 0 {
-			t.staticWriteIndentGoString(x.Strings[i] + "\"")
+			t.staticWriteIndentGoString(x, x.Strings[i]+"\"")
 		} else {
-			t.staticWriteIndentGoString("\"" + x.Strings[i] + "\"")
+			t.staticWriteIndentGoString(x, "\""+x.Strings[i]+"\"")
 		}
 		t.dynamicWriteIndent(x, x.Parts[i])
 	}
-	t.staticWriteIndentGoString("\"" + x.Strings[len(x.Strings)-1])
+	t.staticWriteIndentGoString(x, "\""+x.Strings[len(x.Strings)-1])
 	t.skipSourceUpTo(x.End())
 }
 
@@ -1048,23 +1048,33 @@ func (t *transpiler) dynamicWriteIndent(x *ast.TemplateLiteralExpr, n *ast.Templ
 		t.appendSource(")")
 	}
 
-	t.appendSource("); err != nil {")
+	if id, ok := t.ctx.info.NeedsSpecialNilErrorCheck[x]; ok {
+		// TODO: new can also be .....
+		t.appendSource("); ")
+		if !id.DotImport {
+			t.appendSource(id.ImportIdent)
+			t.appendSource(".")
+		}
+		t.appendSource("IsNotNil(err) {")
+	} else {
+		t.appendSource("); err != nil {")
+	}
 	t.indent()
 	t.appendSource("\treturn err")
 	t.indent()
 	t.appendSource("}")
 }
 
-func (t *transpiler) staticWriteIndentGoString(s string) {
+func (t *transpiler) staticWriteIndentGoString(n ast.Node, s string) {
 	s, err := strconv.Unquote(s)
 	if err != nil {
 		panic(err) // unreachable, AST is valid
 	}
 	s = strconv.Quote(html.EscapeString(s))
-	t.staticWriteIndent(s[1 : len(s)-1])
+	t.staticWriteIndent(n, s[1:len(s)-1])
 }
 
-func (t *transpiler) staticWriteIndent(s string) {
+func (t *transpiler) staticWriteIndent(n ast.Node, s string) {
 	if verbose {
 		debugPrintf("staticWriteIndent(%q); t.ctx.inStaticWrite = %v", s, t.ctx.inStaticWrite)
 	}
@@ -1083,7 +1093,18 @@ func (t *transpiler) staticWriteIndent(s string) {
 	assert(t.ctx.lineDirectiveMangled)
 
 	// TODO: describe why to tmp.
-	t.tmpAppendSource("\"); err != nil {")
+	// TODO: we can always also new(error) if not shadowed. Looks better.
+	if id, ok := t.ctx.info.NeedsSpecialNilErrorCheck[n]; ok {
+		// TODO: new can also be .....
+		t.tmpAppendSource("\"); ")
+		if !id.DotImport {
+			t.tmpAppendSource(id.ImportIdent)
+			t.tmpAppendSource(".")
+		}
+		t.tmpAppendSource("IsNotNil(err) {")
+	} else {
+		t.tmpAppendSource("\"); err != nil {")
+	}
 	t.tmpIndent()
 	t.tmpAppendSource("\treturn err")
 	t.tmpIndent()

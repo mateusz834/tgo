@@ -180,6 +180,10 @@ func (c *Ctx) writeRuneEscaped(r rune) error {
 
 type Error = error
 
+func IsNotNil(e error) bool {
+	return e != nil
+}
+
 type UnsafeHTML string
 
 // TODO: change name to TemplateLiteralPart?
