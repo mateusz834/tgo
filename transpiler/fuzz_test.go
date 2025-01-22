@@ -723,6 +723,9 @@ func fuzzTypes(t *testing.T, fset *token.FileSet, f *ast.File, gofset *gotoken.F
 	//
 	// as the same error. This happens in following case:
 	//
+	//	func _(tgo.Ctx) error {
+	//		"\{math.MaxUint - 100}"
+	//	}
 	for tgoErr := range tgoErrs {
 		if strings.Contains(tgoErr.Msg, "cannot use ") && strings.Contains(tgoErr.Msg, "in template literal part") &&
 			!strings.Contains(tgoErr.Msg, "cannot use (") {
