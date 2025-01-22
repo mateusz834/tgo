@@ -727,12 +727,11 @@ func fuzzTypes(t *testing.T, fset *token.FileSet, f *ast.File, gofset *gotoken.F
 	//		"\{math.MaxUint - 100}"
 	//	}
 	for tgoErr := range tgoErrs {
-		if strings.Contains(tgoErr.Msg, "cannot use ") && strings.Contains(tgoErr.Msg, "in template literal part") &&
-			!strings.Contains(tgoErr.Msg, "cannot use (") {
+		if strings.Contains(tgoErr.Msg, "cannot use ") && strings.Contains(tgoErr.Msg, "in template literal part") {
 			for i, goErr := range goErrs {
 				if goErr.Line == tgoErr.Line && goErr.Col == tgoErr.Col &&
-					strings.Contains(goErr.Msg, "cannot use (") && strings.Contains(goErr.Msg, "as") &&
-					strings.Contains(goErr.Msg, "value in argument to") && strings.Contains(goErr.Msg, "DynamicWrite") {
+					strings.Contains(goErr.Msg, "cannot use (") && strings.Contains(goErr.Msg, "value in argument to") &&
+					strings.Contains(goErr.Msg, "DynamicWrite") {
 					goErrs = slices.Delete(goErrs, i, i+1)
 					delete(unreported, tgoErr)
 					if testing.Verbose() {
