@@ -716,6 +716,31 @@ func fuzzTypes(t *testing.T, fset *token.FileSet, f *ast.File, gofset *gotoken.F
 		}
 	}
 
+	// Treat:
+	//
+	// Go error: "cannot use (math.MaxUint - 100) (untyped int constant 18446744073709551515) as int value in argument to tgo.DynamicWrite (overflows)"
+	// Tgo error: "cannot use math.MaxUint - 100 (untyped int constant 18446744073709551515) as int value in template literal part (overflows)"
+	//
+	// as the same error. This happens in following case:
+	//
+	for tgoErr := range tgoErrs {
+		if strings.Contains(tgoErr.Msg, "cannot use ") && strings.Contains(tgoErr.Msg, "in template literal part") &&
+			!strings.Contains(tgoErr.Msg, "cannot use (") {
+			for i, goErr := range goErrs {
+				if goErr.Line == tgoErr.Line && goErr.Col == tgoErr.Col &&
+					strings.Contains(goErr.Msg, "cannot use (") && strings.Contains(goErr.Msg, "as") &&
+					strings.Contains(goErr.Msg, "value in argument to") && strings.Contains(goErr.Msg, "DynamicWrite") {
+					goErrs = slices.Delete(goErrs, i, i+1)
+					delete(unreported, tgoErr)
+					if testing.Verbose() {
+						t.Logf("(go) ignoring err: %v", goErr)
+						t.Logf("(tgo) ignoring err: %v", tgoErr)
+					}
+				}
+			}
+		}
+	}
+
 	tgoCtxIdent := astutil.FileUniqueIdent(f, "__tgo_ctx")
 
 	for _, goErr := range goErrs {

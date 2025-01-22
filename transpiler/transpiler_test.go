@@ -123,7 +123,16 @@ import (
 //`
 
 const testSrc = `package A
-func A[T A]()[0[A(A()[0])]]A`
+
+import (
+	"github.com/mateusz834/tgo"
+	"math"
+)
+
+func _(tgo.Ctx) error {
+	"\{math.MaxUint - 100}"
+}
+`
 
 func TestTest(t *testing.T) {
 	fuzzSource(t, "/kadjfa", testSrc)
