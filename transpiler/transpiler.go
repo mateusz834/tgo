@@ -1014,8 +1014,11 @@ func (t *transpiler) dynamicWriteIndent(x *ast.TemplateLiteralExpr, n *ast.Templ
 				nn = v.X
 				continue
 			}
-			if v, ok := nn.(*ast.CallExpr); ok && len(v.Args) == 1 {
-				nn = v.Args[0]
+			if v, ok := nn.(*ast.CallExpr); ok {
+				nn = v.Fun
+				if len(v.Args) == 1 {
+					nn = v.Args[0]
+				}
 				continue
 			}
 			break
