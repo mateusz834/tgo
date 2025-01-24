@@ -1010,26 +1010,20 @@ func (t *transpiler) dynamicWriteIndent(x *ast.TemplateLiteralExpr, n *ast.Templ
 				nn = v.X
 				continue
 			}
-			break
-		}
-		for {
 			if v, ok := nn.(*ast.SelectorExpr); ok {
 				nn = v.X
 				continue
 			}
+			if v, ok := nn.(*ast.CallExpr); ok && len(v.Args) == 1 {
+				nn = v.Args[0]
+				continue
+			}
 			break
 		}
-		switch x := nn.(type) {
+		switch nn.(type) {
 		case *ast.BinaryExpr:
 			ld = lineDirectiveOneLineLRSpace
 			needsParens = true
-		case *ast.CallExpr:
-			if len(x.Args) == 1 {
-				if _, ok := x.Args[0].(*ast.BinaryExpr); ok {
-					ld = lineDirectiveOneLineLRSpace
-					needsParens = true
-				}
-			}
 		}
 	}
 

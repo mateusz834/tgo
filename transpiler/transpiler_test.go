@@ -130,13 +130,13 @@ import (
 )
 
 func _(tgo.Ctx) error {
-	"\{math.MaxUint - 100}"
+	"\{0(0 % 0)()}"
 }
 `
 
 func TestTest(t *testing.T) {
-	fuzzSource(t, "/kadjfa", testSrc)
-	return
+	//fuzzSource(t, "/kadjfa", testSrc)
+	//return
 
 	fset := token.NewFileSet()
 	f, err := parser.ParseFile(fset, "0", testSrc, parser.SkipObjectResolution|parser.ParseComments)
