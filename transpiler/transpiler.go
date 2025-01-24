@@ -1002,8 +1002,6 @@ func (t *transpiler) dynamicWriteIndent(x *ast.TemplateLiteralExpr, n *ast.Templ
 
 	ld := lineDirectiveOneLineLSpace
 	if !needsParens {
-		//ld = lineDirectiveOneLineLRSpace
-		//needsParens = true
 		var checkNode func(n ast.Node)
 		checkNode = func(n ast.Node) {
 			switch n := n.(type) {
@@ -1016,6 +1014,10 @@ func (t *transpiler) dynamicWriteIndent(x *ast.TemplateLiteralExpr, n *ast.Templ
 				if len(n.Args) == 1 {
 					checkNode(n.Args[0])
 				}
+			case *ast.SliceExpr:
+				checkNode(n.Low)
+				checkNode(n.High)
+				checkNode(n.Max)
 			case *ast.BinaryExpr:
 				ld = lineDirectiveOneLineLRSpace
 				needsParens = true
