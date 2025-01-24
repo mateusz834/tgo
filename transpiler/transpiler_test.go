@@ -130,13 +130,13 @@ import (
 )
 
 func _(tgo.Ctx) error {
-	"\{0()(0 & 1)}"
+	"\{0(0 & 1)(3)}"
 }
 `
 
 func TestTest(t *testing.T) {
-	//fuzzSource(t, "/kadjfa", testSrc)
-	//return
+	fuzzSource(t, "/kadjfa", testSrc)
+	return
 
 	fset := token.NewFileSet()
 	f, err := parser.ParseFile(fset, "0", testSrc, parser.SkipObjectResolution|parser.ParseComments)

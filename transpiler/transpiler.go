@@ -1004,30 +1004,24 @@ func (t *transpiler) dynamicWriteIndent(x *ast.TemplateLiteralExpr, n *ast.Templ
 	if !needsParens {
 		//ld = lineDirectiveOneLineLRSpace
 		//needsParens = true
-		nn := n.X
-		for {
-			if v, ok := nn.(*ast.UnaryExpr); ok {
-				nn = v.X
-				continue
-			}
-			if v, ok := nn.(*ast.SelectorExpr); ok {
-				nn = v.X
-				continue
-			}
-			if v, ok := nn.(*ast.CallExpr); ok {
-				nn = v.Fun
-				if len(v.Args) == 1 {
-					nn = v.Args[0]
+		var checkNode func(n ast.Node)
+		checkNode = func(n ast.Node) {
+			switch n := n.(type) {
+			case *ast.UnaryExpr:
+				checkNode(n.X)
+			case *ast.SelectorExpr:
+				checkNode(n.X)
+			case *ast.CallExpr:
+				checkNode(n.Fun)
+				if len(n.Args) == 1 {
+					checkNode(n.Args[0])
 				}
-				continue
+			case *ast.BinaryExpr:
+				ld = lineDirectiveOneLineLRSpace
+				needsParens = true
 			}
-			break
 		}
-		switch nn.(type) {
-		case *ast.BinaryExpr:
-			ld = lineDirectiveOneLineLRSpace
-			needsParens = true
-		}
+		checkNode(n.X)
 	}
 
 	if needsParens {
