@@ -688,8 +688,8 @@ func fuzzTypes(t *testing.T, fset *token.FileSet, f *ast.File, gofset *gotoken.F
 		if strings.Contains(tgoErr.Msg, "cannot use generic function") && strings.Contains(tgoErr.Msg, "without instantiation") {
 			for i, goErr := range goErrs {
 				if goErr.Line == tgoErr.Line && goErr.Col == tgoErr.Col &&
-					(strings.Contains(goErr.Msg, "in call to") && strings.Contains(goErr.Msg, "cannot infer")) ||
-					(strings.Contains(goErr.Msg, "does not satisfy") && strings.Contains(goErr.Msg, "missing in")) {
+					((strings.Contains(goErr.Msg, "in call to") && strings.Contains(goErr.Msg, "cannot infer")) ||
+						(strings.Contains(goErr.Msg, "does not satisfy") && strings.Contains(goErr.Msg, "missing in"))) {
 					goErrs = slices.Delete(goErrs, i, i+1)
 					delete(unreported, tgoErr)
 					if testing.Verbose() {
