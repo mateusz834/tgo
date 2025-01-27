@@ -1,0 +1,3 @@
+go test fuzz v1
+string("/")
+string("package A\nimport\"github.com/mateusz834/tgo\"\nfunc A(){0(func(tgo.Ctx)error{})}")

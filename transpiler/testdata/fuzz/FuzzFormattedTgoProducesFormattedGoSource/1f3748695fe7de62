@@ -1,0 +1,3 @@
+go test fuzz v1
+string("/tgofuncs\x12test(((((((_and_normal_import.tgd")
+string("package templates\n\nimport (\n\t. \"github.com/mateusz834/tgo\"\n\t error\"github.com/mateusz834/tgo\"\n)\n\nfunc test(Ctx) error { // ERROR: col(1): \"tgofunc\"\n}\n\nfunc test2(tgo.Ctx) error { // ERROR: col(1): \"tgofunc\"\n}\n\nfunc test3() {\n\t_ = func(Ctx) error { // ERROR: col(6): \"tgofunc\"\n\t}\n\t_ = func(tgo.Ctx) error { // ERROR: col(6): \"tgofunc\"\n\t}\n}\n\nfunc test4() {\n\tCtu := \"test\"\n\ttgo := \"test\"\n\t_ = func(Ctx) error {\n\t}\n\t_ = func(tgoCtx) error {\n\t}\n}\n")

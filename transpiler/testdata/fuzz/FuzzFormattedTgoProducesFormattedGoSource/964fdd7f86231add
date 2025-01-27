@@ -1,0 +1,3 @@
+go test fuzz v1
+string("/")
+string("package t\nimport(\"github.com/mateusz834/tgo\"\n\"\")\nvar(g=\"\"\nt=0\nt=0\ne='r'\nr t=\"\")\nconst(g=\"\"\nt=0\nu;nil\nt=0\ne='r'\nd t=\"\")\nconst(r=\"\"\nr=0\nr=0\nr='r')\nfunc _(tgo.Ctx)error{\"\\{\"\"}\\{t(\"\")}\"\n\"\"\n\"\"\n\"\"\nreturn}\nfunc _(tgo.Ctx)error{<div@r=\"\\{\"\"}\\{t(\"\")}\"@r=\"\"@r=\"\"@r=\"\"></div>\nreturn}\nfunc _(tgo.Ctx)error{\"\"\n\"\"\nreturn}\nfunc _[T t](_ tgo.Ctx,t T)error{var o T\n\"\"\n<div@r=\"\"></div>\nreturn}\nfunc _[T g](_ tgo.Ctx,t T)error{var o T\n\"\"\n<div@r=\"\"></div>\nreturn}\nfunc _(tgo.Ctx)error{type e g\n\"\\{/**/(\"\")}\"\nvar a e\n\"\\{a/**/()}\"\nreturn}")
