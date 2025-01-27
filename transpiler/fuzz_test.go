@@ -672,11 +672,24 @@ func fuzzTypes(t *testing.T, fset *token.FileSet, f *ast.File, gofset *gotoken.F
 	//	}
 	//
 	// Possibly because of https://go.dev/issue/59338
+	//
+	// And:
+	//
+	// Go: "func(__tgo_ctx tgo.Ctx, _ string) error does not satisfy tgo.DynamicWriteAllowed (func(__tgo_ctx tgo.Ctx, _ string) error missing
+	//  in string | rune | int | uint | github.com/mateusz834/tgo.UnsafeHTML) true"
+	// Tgo: "cannot use generic function t without instantiation"
+	//
+	//	func t[T n|string](_ tgo.Ctx, _ T) error {
+	//		var o T
+	//		"\{t}"
+	//		return nil
+	//	}
 	for tgoErr := range tgoErrs {
 		if strings.Contains(tgoErr.Msg, "cannot use generic function") && strings.Contains(tgoErr.Msg, "without instantiation") {
 			for i, goErr := range goErrs {
 				if goErr.Line == tgoErr.Line && goErr.Col == tgoErr.Col &&
-					strings.Contains(goErr.Msg, "in call to") && strings.Contains(goErr.Msg, "cannot infer") {
+					(strings.Contains(goErr.Msg, "in call to") && strings.Contains(goErr.Msg, "cannot infer")) ||
+					(strings.Contains(goErr.Msg, "does not satisfy") && strings.Contains(goErr.Msg, "missing in")) {
 					goErrs = slices.Delete(goErrs, i, i+1)
 					delete(unreported, tgoErr)
 					if testing.Verbose() {
