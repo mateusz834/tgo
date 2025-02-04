@@ -74,6 +74,8 @@ type transpilerCtx struct {
 
 	implicitBlockStmtCount            int
 	implicitBlockStmtForceCloseBefore int
+
+	needsNilAssert bool
 }
 
 type transpiler struct {
@@ -551,8 +553,15 @@ func (t *transpiler) transpile() {
 		}
 	}
 
-	if needsErrorAssert {
+	if needsErrorAssert && t.ctx.needsNilAssert {
+		t.appendSource("\n// Assert that no other file in this package overrides the error builtin interface and nil.\n")
+	} else if needsErrorAssert {
 		t.appendSource("\n// Assert that no other file in this package overrides the error builtin interface.\n")
+	} else if t.ctx.needsNilAssert {
+		t.appendSource("\n// Assert that no other file in this package overrides nil.\n")
+	}
+
+	if needsErrorAssert {
 		t.appendSource("var _ = (error)(")
 
 		// TODO: what if dot import?
@@ -560,8 +569,11 @@ func (t *transpiler) transpile() {
 			t.appendSource(t.ctx.info.UsableGlobalImport)
 			t.appendSource(".")
 		}
-		// TODO: nil can be shadowed XD.
 		t.appendSource("NilError())\n")
+	}
+
+	if t.ctx.needsNilAssert {
+		t.appendSource("var _, _ = (*struct{})(nil), (**struct{})(nil)\n")
 	}
 }
 
@@ -1053,6 +1065,7 @@ func (t *transpiler) dynamicWriteIndent(x *ast.TemplateLiteralExpr, n *ast.Templ
 		}
 		t.appendSource("NilError() {")
 	} else {
+		t.ctx.needsNilAssert = true
 		t.appendSource("); err != nil {")
 	}
 	t.indent()
@@ -1099,6 +1112,7 @@ func (t *transpiler) staticWriteIndent(n ast.Node, s string) {
 		}
 		t.tmpAppendSource("NilError() {")
 	} else {
+		t.ctx.needsNilAssert = true
 		t.tmpAppendSource("\"); err != nil {")
 	}
 	t.tmpIndent()

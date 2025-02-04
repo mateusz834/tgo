@@ -41,5 +41,6 @@ func template2(__tgo_ctx /*line :9:15*/ tgo.Ctx) error {
 //line :13:1
 }
 
-// Assert that no other file in this package overrides the error builtin interface.
+// Assert that no other file in this package overrides the error builtin interface and nil.
 var _ = (error)(tgo.NilError())
+var _, _ = (*struct{})(nil), (**struct{})(nil)

@@ -26,5 +26,6 @@ func test(__tgo_ctx /*line :5:10*/ Ctx) error {
 //line :7:1
 }
 
-// Assert that no other file in this package overrides the error builtin interface.
+// Assert that no other file in this package overrides the error builtin interface and nil.
 var _ = (error)(NilError())
+var _, _ = (*struct{})(nil), (**struct{})(nil)

@@ -37,5 +37,6 @@ func sth(func(tgo.Ctx) error) int {
 	return 3
 }
 
-// Assert that no other file in this package overrides the error builtin interface.
+// Assert that no other file in this package overrides the error builtin interface and nil.
 var _ = (error)(tgo.NilError())
+var _, _ = (*struct{})(nil), (**struct{})(nil)
