@@ -638,7 +638,7 @@ func fuzzTypes(t *testing.T, fset *token.FileSet, f *ast.File, gofset *gotoken.F
 	}
 
 	for _, v := range gof.Imports {
-		if v.Name.Name == "error" {
+		if v.Name != nil && v.Name.Name == "error" {
 			return
 		}
 	}
