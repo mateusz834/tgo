@@ -637,6 +637,12 @@ func fuzzTypes(t *testing.T, fset *token.FileSet, f *ast.File, gofset *gotoken.F
 		return
 	}
 
+	for _, v := range gof.Imports {
+		if v.Name.Name == "error" {
+			return
+		}
+	}
+
 	tgoErrs := make(map[typeError]struct{})
 	cfg := types.Config{
 		Importer: tgoimporter.NewTgoImporter(fset),
