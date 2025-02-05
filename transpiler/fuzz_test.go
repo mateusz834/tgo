@@ -669,6 +669,8 @@ func fuzzTypes(t *testing.T, fset *token.FileSet, f *ast.File, gofset *gotoken.F
 		return fset.File(f.FileStart).LineStart(line) + token.Pos(col)
 	}
 
+	// TODO: remove after go.1.24 upgrade of tgo-lang/lang, it seems to report an error on gotip.
+	//
 	// Ignore: tgo error: "cannot use generic function t without instantiation", inside template literal parts, when the error
 	// is missing in transpiled output, this can happen when one of the TypeParam type is undefined (invalid), like:
 	//
