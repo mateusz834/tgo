@@ -681,7 +681,7 @@ func fuzzTypes(t *testing.T, fset *token.FileSet, f *ast.File, gofset *gotoken.F
 			ast.Inspect(f, func(n ast.Node) bool {
 				switch n := n.(type) {
 				case *ast.FuncDecl:
-					if n.Type.TypeParams == nil {
+					if n.Type.TypeParams == nil || n.Body == nil {
 						return true
 					}
 
