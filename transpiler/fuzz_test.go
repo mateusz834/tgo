@@ -665,6 +665,60 @@ func fuzzTypes(t *testing.T, fset *token.FileSet, f *ast.File, gofset *gotoken.F
 
 	unreported := maps.Clone(tgoErrs)
 
+	tgoOffset := func(line, col int) token.Pos {
+		return fset.File(f.FileStart).LineStart(line) + token.Pos(col)
+	}
+
+	// Ignore: tgo error: "cannot use generic function t without instantiation", inside template literal parts, when the error
+	// is missing in transpiled output, this can happen when one of the TypeParam type is undefined (invalid), like:
+	//
+	//	func t[A *UndefinedType](tgo.Ctx) error {
+	//		"\{t}"
+	//		return nil
+	//	}
+	for tgoErr := range tgoErrs {
+		if strings.Contains(tgoErr.Msg, "undefined") {
+			ast.Inspect(f, func(n ast.Node) bool {
+				switch n := n.(type) {
+				case *ast.FuncDecl:
+					if n.Type.TypeParams == nil {
+						return true
+					}
+
+					start, end := n.Type.TypeParams.Pos(), n.Type.TypeParams.End()
+					for tgoErr := range tgoErrs {
+						if p := tgoOffset(tgoErr.Line, tgoErr.Col); p < start && p > end {
+							continue
+						}
+						if !strings.Contains(tgoErr.Msg, "cannot use generic function") || !strings.Contains(tgoErr.Msg, "without instantiation") {
+							continue
+						}
+
+						ast.Inspect(n.Body, func(n ast.Node) bool {
+							switch n.(type) {
+							case *ast.TemplateLiteralPart:
+								found := false
+								for _, goErr := range goErrs {
+									if goErr.Line == tgoErr.Line && goErr.Col == tgoErr.Col {
+										found = true
+									}
+								}
+								if !found {
+									if testing.Verbose() {
+										t.Logf("(tgo) ignoring err: %v", tgoErr)
+									}
+									delete(unreported, tgoErr)
+								}
+							}
+							return true
+						})
+					}
+				}
+				return true
+			})
+		}
+	}
+
 	// Treat:
 	//
 	// Go error: "in call to tgo.DynamicWrite, cannot infer T (tgo.go:183:19)"

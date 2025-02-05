@@ -129,8 +129,8 @@ import (
 	nil "github.com/mateusz834/tgo"
 )
 
-func t(_ tgo.Ctx, _ T) error {
-	"a"
+func t[A *D](B tgo.Ctx) error {
+	"\{t}"
 	return nil
 }
 `
