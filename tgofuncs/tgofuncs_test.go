@@ -34,8 +34,17 @@ func TestTgoFuncs(t *testing.T) {
 		t.Run(v.Name(), func(t *testing.T) {
 			fileName := filepath.Join(testdata, v.Name())
 			tgotest.Test(t, fileName, func(fset *token.FileSet, f *ast.File) []tgotest.Error {
-				info := Check(f)
+				info, err := Check(f)
 				errs := []tgotest.Error{}
+				if err != nil {
+					for _, v := range err.(Errors) {
+						errs = append(errs, tgotest.Error{
+							Msg:    fmt.Sprintf("ERR: %v", v.Msg),
+							Line:   fset.Position(v.Pos).Line,
+							Column: fset.Position(v.Pos).Column,
+						})
+					}
+				}
 				for v := range info.TgoFuncs {
 					errs = append(errs, tgotest.Error{
 						Msg:    "tgofunc",
@@ -171,7 +180,7 @@ func test() {
 			t.Fatal(err) // succesfully parsed by the Go parser, this should not happen.
 		}
 
-		got := Check(tgof)
+		got, _ := Check(tgof)
 
 		cfg := gotypes.Config{
 			Importer: funcImporter(func(path string) (*gotypes.Package, error) {

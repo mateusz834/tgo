@@ -101,7 +101,7 @@ func genNodeInfo[TOK fmt.Stringer, POS interface{ IsValid() bool }](
 }
 
 func tgoExpectedNodeInfos(f *ast.File, fset *token.FileSet) map[nodeInfo]struct{} {
-	info := tgofuncs.Check(f)
+	info, _ := tgofuncs.Check(f)
 
 	ctx := &nodeInfoAnalyzerContext{
 		fset:     fset,

@@ -1,0 +1,8 @@
+package templates
+
+import "github.com/mateusz834/tgo"
+
+func _[T string](T tgo.Ctx) error { // ERROR: col(1): "tgofunc" ERROR: col(8): "ERR: \tother declaration of T" ERROR: col(18): "ERR: T redeclared in this block"
+	"test"
+	return nil
+}

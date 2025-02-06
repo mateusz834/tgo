@@ -11,11 +11,11 @@ import (
 	"github.com/tgo-lang/lang/token"
 )
 
-func Analyze(fset *token.FileSet, f *ast.File) error {
+func Analyze(fset *token.FileSet, f *ast.File) (tgofuncs.Info, error) {
 	ctx := &analyzerContext{
 		fset: fset,
 	}
-	checkContext(ctx, f)
+	info := checkContext(ctx, f)
 	if len(ctx.errors) == 0 {
 		ast.Walk(&branchAnalyzer{
 			ctx: &branchAnalyzerContext{
@@ -26,13 +26,14 @@ func Analyze(fset *token.FileSet, f *ast.File) error {
 	}
 	checkDirectives(ctx, f)
 	if len(ctx.errors) != 0 {
-		return ctx.errors
+		return tgofuncs.Info{}, ctx.errors
 	}
-	return nil
+	return info, nil
 }
 
 type AnalyzeError struct {
-	Message          string
+	Message string
+	// TODO: remove EndPos, no need for it.
 	StartPos, EndPos token.Position
 }
 
@@ -67,14 +68,22 @@ func unlabel(v ast.Node) ast.Node {
 	}
 }
 
-func checkContext(ctx *analyzerContext, f *ast.File) {
+func checkContext(ctx *analyzerContext, f *ast.File) tgofuncs.Info {
 	// TODO: we are only "type-checking" one file, describe
 	// why it is safe to do, and why we went this way,
 	// not depending on go/types, go/packages, perf
 	// document that we do not support type aliases.
 	// But we can fuzz agaisnt go/types :).
 
-	info := tgofuncs.Check(f)
+	info, err := tgofuncs.Check(f)
+	if err != nil {
+		for _, v := range err.(tgofuncs.Errors) {
+			ctx.errors = append(ctx.errors, AnalyzeError{
+				Message:  v.Msg,
+				StartPos: ctx.fset.Position(v.Pos),
+			})
+		}
+	}
 	c := &contextAnalyzer{
 		ctx: &contextAnalyzerContext{
 			ctx:      ctx,
@@ -83,6 +92,8 @@ func checkContext(ctx *analyzerContext, f *ast.File) {
 		context: contextNotTgo,
 	}
 	ast.Walk(c, f)
+
+	return info
 }
 
 type contextAnalyzerContext struct {

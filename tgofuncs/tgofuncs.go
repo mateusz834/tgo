@@ -69,7 +69,7 @@ type Info struct {
 	UsableGlobalImport string
 }
 
-func Check(f *ast.File) Info {
+func Check(f *ast.File) (Info, error) {
 	var (
 		tgoImports   []string
 		hasDotImport bool
@@ -137,18 +137,25 @@ func Check(f *ast.File) Info {
 	}
 
 	ast.Walk(c, f)
+
 	usableGlobalImport := ""
 	if len(tgoImports) != 0 {
 		// TODO: can be shadowed, it might not matter.
 		usableGlobalImport = tgoImports[0]
 	}
+
+	var err error
+	if len(c.ctx.errors) != 0 {
+		err = Errors(c.ctx.errors)
+	}
+
 	return Info{
 		TgoFuncs:                  c.ctx.tgoFuncs,
 		SpecialTgoImportIdent:     c.ctx.specialTgoImport,
 		UsableImportForTemplate:   c.ctx.usableImportForTemplate,
 		NeedsSpecialNilErrorCheck: c.ctx.needsSpecialNilErrorCheck,
 		UsableGlobalImport:        usableGlobalImport,
-	}
+	}, err
 }
 
 type contextAnalyzerContext struct {
@@ -158,10 +165,32 @@ type contextAnalyzerContext struct {
 	usableImportForTemplate   map[*ast.TemplateLiteralExpr]ImportDetails
 	needsSpecialNilErrorCheck map[ast.Node]ImportDetails
 
-	tgoImports   []string
-	hasDotImport bool
-
+	tgoImports       []string
+	hasDotImport     bool
 	specialTgoImport string
+
+	errors []Error
+}
+
+type Errors []Error
+
+func (e Errors) Error() string {
+	switch len(e) {
+	case 0:
+		return "no errors"
+	case 1:
+		return e[0].Error()
+	}
+	return fmt.Sprintf("%s (and %d more errors)", e[0].Error(), len(e)-1)
+}
+
+type Error struct {
+	Pos token.Pos
+	Msg string
+}
+
+func (e *Error) Error() string {
+	return e.Msg
 }
 
 func (c *contextAnalyzerContext) specialImportIdent() string {
@@ -357,14 +386,55 @@ func (f *contextAnalyzer) checkFuncType(shadowedImports bitField, ft *ast.FuncTy
 			for i, importName := range f.ctx.tgoImports {
 				if ident.Name == importName && v.Sel.Name == "Ctx" && !shadowedBefore.isSetImport(i) {
 					tgoFunc = true
-					return
+					break
 				}
 			}
 		}
 	case *ast.Ident:
 		if f.ctx.hasDotImport && v.Name == "Ctx" && !shadowedBefore.isSetBit(bitTgoCtx) {
 			tgoFunc = true
-			return
+		}
+	}
+
+	// Report an errors for following case:
+	//
+	//	func t[A string](A tgo.Ctx) error {
+	//		"test"
+	//		return nil
+	//	}
+	//
+	// Here, after transpilation we will get something like:
+	//
+	//	func t[A string](A tgo.Ctx) error {
+	//		__tgo_ctx := A
+	//		if err := __tgo_ctx.WriteString("test"); err != nil {
+	//			return err
+	//		}
+	//	}
+	//
+	// Both of these code samples would fail while type-checking, but the transpiled output would get an
+	// additional error: "A (type) is not an expression", this happens because at the "__tgo_ctx := A"
+	// line A is beeing treated as a type-parameter, not a function argument (A tgo.Ctx). We don't want to produce
+	// errors that have would pointed to bogus ".tgo" file lines (through line directives), thus for this case
+	// we report the redeclared error directly in the transpiler.
+	if tgoFunc && ft.TypeParams != nil && ft.Params.List[0].Names != nil {
+		for _, tp := range ft.TypeParams.List {
+			if tp.Names != nil {
+				for _, name := range tp.Names {
+					ctxIndent := ft.Params.List[0].Names[0]
+					if name.Name == ctxIndent.Name {
+						f.ctx.errors = append(f.ctx.errors, Error{
+							Msg: fmt.Sprintf("%v redeclared in this block", ctxIndent.Name),
+							Pos: ctxIndent.Pos(),
+						})
+						f.ctx.errors = append(f.ctx.errors, Error{
+							Msg: fmt.Sprintf("\tother declaration of %v", name.Name),
+							Pos: name.Pos(),
+						})
+						return
+					}
+				}
+			}
 		}
 	}
 

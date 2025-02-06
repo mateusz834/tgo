@@ -23,7 +23,7 @@ func TestAnalyze(t *testing.T) {
 		t.Run(v.Name(), func(t *testing.T) {
 			fileName := filepath.Join(testdata, v.Name())
 			tgotest.Test(t, fileName, func(fset *token.FileSet, f *ast.File) []tgotest.Error {
-				if err := Analyze(fset, f); err != nil {
+				if _, err := Analyze(fset, f); err != nil {
 					t := []tgotest.Error{}
 					for _, v := range err.(AnalyzeErrors) {
 						t = append(t, tgotest.Error{

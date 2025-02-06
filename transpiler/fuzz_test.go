@@ -118,7 +118,8 @@ func fuzzSource(t *testing.T, name, src string) string {
 		return ""
 	}
 
-	if analyzer.Analyze(fset, f) != nil {
+	info, err := analyzer.Analyze(fset, f)
+	if err != nil {
 		return ""
 	}
 
@@ -195,7 +196,7 @@ func fuzzSource(t *testing.T, name, src string) string {
 		}
 	}
 
-	out := Transpile(f, fset, src)
+	out := Transpile(f, fset, info, src)
 
 	if testing.Verbose() {
 		t.Logf("transpiled output:\n%v", out)
@@ -547,6 +548,8 @@ func fuzzSource(t *testing.T, name, src string) string {
 	return ""
 }
 
+// TODO: are we fuzzying, to see whether tgofuncs and tgo-lang/types agree on a tgo-funcs definition?
+
 func fuzzTypes(t *testing.T, fset *token.FileSet, f *ast.File, gofset *gotoken.FileSet, gof *goast.File) {
 	name := fset.File(f.FileStart).Name()
 	// https://go.dev/issue/69689
@@ -587,6 +590,7 @@ func fuzzTypes(t *testing.T, fset *token.FileSet, f *ast.File, gofset *gotoken.F
 
 	prevInvalid := false
 	ignoreErr := func(n string, v typeError) bool {
+		// TODO: remove the "prevents reaching", it should not happen.
 		if !strings.HasPrefix(v.Msg, "\t") && (strings.Contains(v.Msg, "initialization cycle") ||
 			strings.Contains(v.Msg, " refers to") || strings.Contains(v.Msg, " prevents reaching")) {
 			if testing.Verbose() {
@@ -842,31 +846,6 @@ func fuzzTypes(t *testing.T, fset *token.FileSet, f *ast.File, gofset *gotoken.F
 	}
 
 	tgoCtxIdent := astutil.FileUniqueIdent(f, "__tgo_ctx")
-
-	for _, goErr := range goErrs {
-		if strings.Contains(goErr.Msg, "is not an expression") {
-			goast.Inspect(gof, func(n goast.Node) bool {
-				switch n := n.(type) {
-				case *goast.AssignStmt:
-					if len(n.Lhs) != 1 || len(n.Rhs) != 1 {
-						return true
-					}
-					if v, ok := n.Lhs[0].(*goast.Ident); ok && v.Name == tgoCtxIdent {
-						start, end := gofset.Position(n.Rhs[0].Pos()), gofset.Position(n.Rhs[0].End())
-						if goErr.Line >= start.Line && goErr.Line <= end.Line {
-							// TODO: fix:
-							// func t[T intstring](T tgo.Ctx) error {
-							//	"test"
-							// 	return nil
-							// }
-							t.Skip()
-						}
-					}
-				}
-				return true
-			})
-		}
-	}
 
 	for _, v := range goErrs {
 		possibleMsgs := []string{

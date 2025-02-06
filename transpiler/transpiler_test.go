@@ -123,9 +123,11 @@ import (
 //`
 
 const testSrc = `package A
+
 import "github.com/mateusz834/tgo"
-func t[A string](B tgo.Ctx) error {
-	"\{t}"
+
+func t[A string](A tgo.Ctx) error {
+	"\{"test"}"
 	return nil
 }
 `
@@ -147,11 +149,12 @@ func TestTest(t *testing.T) {
 
 	ast.Print(fset, f)
 
-	if err := analyzer.Analyze(fset, f); err != nil {
+	info, err := analyzer.Analyze(fset, f)
+	if err != nil {
 		t.Fatal(err)
 	}
 
-	out := Transpile(f, fset, testSrc)
+	out := Transpile(f, fset, info, testSrc)
 	t.Logf("transpiled:\n%s", out)
 	t.Logf("transpiled:\n%q", out)
 
@@ -217,7 +220,8 @@ func TestTranspile(t *testing.T) {
 				}
 			}
 
-			if err := analyzer.Analyze(fset, f); err != nil {
+			info, err := analyzer.Analyze(fset, f)
+			if err != nil {
 				for _, v := range err.(analyzer.AnalyzeErrors) {
 					t.Log(v)
 				}
@@ -236,13 +240,13 @@ func TestTranspile(t *testing.T) {
 						t.Fatal(err)
 					}
 				}
-				transpiled = Transpile(f, fset, tgo)
+				transpiled = Transpile(f, fset, info, tgo)
 				if err := os.WriteFile(file, []byte(tgo+"======\n"+transpiled), 0660); err != nil {
 					t.Fatal(err)
 				}
 			}
 
-			out := Transpile(f, fset, tgo)
+			out := Transpile(f, fset, info, tgo)
 
 			if fmt && s.String() != tgo {
 				t.Fatal("file not formatted (format with -update)")

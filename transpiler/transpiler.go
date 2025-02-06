@@ -30,9 +30,7 @@ func assert(b bool) {
 //L:
 //>
 
-func Transpile(f *ast.File, fs *token.FileSet, src string) string {
-	info := tgofuncs.Check(f)
-
+func Transpile(f *ast.File, fs *token.FileSet, info tgofuncs.Info, src string) string {
 	t := transpiler{
 		ctx: &transpilerCtx{
 			f:   f,
