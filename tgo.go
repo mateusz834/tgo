@@ -9,13 +9,27 @@ import (
 	"unicode/utf8"
 )
 
+var (
+	pool256 = sync.Pool{New: func() any { return &[256]byte{} }}
+	pool24  = sync.Pool{New: func() any { return &[24]byte{} }}
+	pool8   = sync.Pool{New: func() any { return &[8]byte{} }}
+)
+
 type stringWriter struct {
 	io.Writer
 }
 
 func (s stringWriter) WriteString(str string) (int, error) {
-	// TODO: avoid allocating, with sync.Pool
-	return s.Write([]byte(str))
+	buf := pool256.Get().(*[256]byte)
+	defer pool256.Put(buf)
+	for len(str) != 0 {
+		n := copy(buf[:], str)
+		if _, err := s.Write(buf[:n]); err != nil {
+			return 0, err
+		}
+		str = str[n:]
+	}
+	return 0, nil
 }
 
 type Ctx struct {
@@ -83,18 +97,6 @@ func (c *Ctx) writeStringEscaped(s string) error {
 		last = i + 1
 	}
 	return c.WriteString(s[last:])
-}
-
-var pool24 = sync.Pool{
-	New: func() any {
-		return &[24]byte{}
-	},
-}
-
-var pool8 = sync.Pool{
-	New: func() any {
-		return &[8]byte{}
-	},
 }
 
 func (c *Ctx) writeInt(num int) error {

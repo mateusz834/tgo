@@ -761,6 +761,29 @@ func fuzzTypes(t *testing.T, fset *token.FileSet, f *ast.File, gofset *gotoken.F
 					break
 				}
 			}
+
+			// After transpilation, if we get something like:
+			//
+			//	func t[A string](B tgo.Ctx) error {
+			//		return tgo.DynamicWrite(B, t)
+			//	}
+			//
+			// In this case there is only one type in type constrain (string), in these cases in the DynamicWrite we get two errors:
+			// "func[A string](B tgo.Ctx) error does not satisfy tgo.DynamicWriteAllowed (func[A string](B tgo.Ctx) error missing in string | rune | int | uint | github.com/mateusz834/tgo.UnsafeHTML"
+			// "cannot use t (value of type func(B tgo.Ctx) error) as func[A string](B tgo.Ctx) error value in argument to tgo.DynamicWrite"
+			for i, goErr := range goErrs {
+				if goErr.Line == tgoErr.Line && goErr.Col == tgoErr.Col &&
+					((strings.Contains(goErr.Msg, "cannot use") && strings.Contains(goErr.Msg, "(value of type")) ||
+						(strings.Contains(goErr.Msg, "in argument to") && strings.Contains(goErr.Msg, "DynamicWrite"))) {
+					goErrs = slices.Delete(goErrs, i, i+1)
+					delete(unreported, tgoErr)
+					if testing.Verbose() {
+						t.Logf("(go) ignoring err: %v", goErr)
+						t.Logf("(tgo) ignoring err: %v", tgoErr)
+					}
+					break
+				}
+			}
 		}
 	}
 

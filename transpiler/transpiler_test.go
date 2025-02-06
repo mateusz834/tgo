@@ -123,13 +123,8 @@ import (
 //`
 
 const testSrc = `package A
-
-import (
-	"github.com/mateusz834/tgo"
-	nil "github.com/mateusz834/tgo"
-)
-
-func t[A *D](B tgo.Ctx) error {
+import "github.com/mateusz834/tgo"
+func t[A string](B tgo.Ctx) error {
 	"\{t}"
 	return nil
 }
