@@ -682,8 +682,13 @@ func fuzzTypes(t *testing.T, fset *token.FileSet, f *ast.File, gofset *gotoken.F
 	//		"\{t}"
 	//		return nil
 	//	}
+	//
+	//	func t[_ string](B tgo.Ctx, A t) error {
+	//		"\{t}"
+	//		return nil
+	//	}
 	for tgoErr := range tgoErrs {
-		if strings.Contains(tgoErr.Msg, "undefined") {
+		if strings.Contains(tgoErr.Msg, "undefined") || strings.Contains(tgoErr.Msg, "is not a type") {
 			ast.Inspect(f, func(n ast.Node) bool {
 				switch n := n.(type) {
 				case *ast.FuncDecl:
@@ -691,7 +696,7 @@ func fuzzTypes(t *testing.T, fset *token.FileSet, f *ast.File, gofset *gotoken.F
 						return true
 					}
 
-					start, end := n.Type.TypeParams.Pos(), n.Type.TypeParams.End()
+					start, end := n.Type.Pos(), n.Type.End()
 					for tgoErr := range tgoErrs {
 						if p := tgoOffset(tgoErr.Line, tgoErr.Col); p < start && p > end {
 							continue
@@ -699,25 +704,18 @@ func fuzzTypes(t *testing.T, fset *token.FileSet, f *ast.File, gofset *gotoken.F
 						if !strings.Contains(tgoErr.Msg, "cannot use generic function") || !strings.Contains(tgoErr.Msg, "without instantiation") {
 							continue
 						}
-
-						ast.Inspect(n.Body, func(n ast.Node) bool {
-							switch n.(type) {
-							case *ast.TemplateLiteralPart:
-								found := false
-								for _, goErr := range goErrs {
-									if goErr.Line == tgoErr.Line && goErr.Col == tgoErr.Col {
-										found = true
-									}
-								}
-								if !found {
-									if testing.Verbose() {
-										t.Logf("(tgo) ignoring err: %v", tgoErr)
-									}
-									delete(unreported, tgoErr)
-								}
+						found := false
+						for _, goErr := range goErrs {
+							if goErr.Line == tgoErr.Line && goErr.Col == tgoErr.Col {
+								found = true
 							}
-							return true
-						})
+						}
+						if !found {
+							if testing.Verbose() {
+								t.Logf("(tgo) ignoring err: %v", tgoErr)
+							}
+							delete(unreported, tgoErr)
+						}
 					}
 				}
 				return true

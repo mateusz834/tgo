@@ -126,8 +126,8 @@ const testSrc = `package A
 
 import "github.com/mateusz834/tgo"
 
-func t[A string](A tgo.Ctx) error {
-	"\{"test"}"
+func t[_ string](B tgo.Ctx, A t) error {
+	"\{t}"
 	return nil
 }
 `
