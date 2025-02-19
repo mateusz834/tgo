@@ -856,6 +856,14 @@ func fuzzTypes(t *testing.T, fset *token.FileSet, f *ast.File, gofset *gotoken.F
 				", _ ", ", ",
 			),
 
+			strings.ReplaceAll(v.Msg, "]("+tgoCtxIdent+" ", "]("),   // func[_ any](__tgo_ctx tgo.Ctx) -> func[_ any](tgo.Ctx)
+			strings.ReplaceAll(v.Msg, "]("+tgoCtxIdent+" ", "](_ "), // func[_ any](__tgo_ctx tgo.Ctx) -> func[_ any](_ tgo.Ctx)
+			// func[_ any](__tgo_ctx tgo.Ctx, _ int) -> func[_ any](tgo.Ctx, int)
+			strings.ReplaceAll(
+				strings.ReplaceAll(v.Msg, "]("+tgoCtxIdent+" ", "]"),
+				", _ ", ", ",
+			),
+
 			// cannot use math.MaxUint (untyped int constant 18446744073709551615) as int value in argument to tgo.DynamicWrite (overflows)
 			// into:
 			// cannot use math.MaxUint (untyped int constant 18446744073709551615) as int value in template literal part (overflows)
