@@ -394,6 +394,7 @@ func (t *transpiler) writeLineDirective(ld lineDirective, pos token.Pos) {
 		p = t.ctx.fs.Position(pos)
 		p.Column -= 2
 		if p.Column < 1 {
+			// TODO: describe why we do this, insted of assert.
 			p.Column += 2
 			ld = lineDirectiveOneLineCommaLSpace
 		}
@@ -1042,6 +1043,7 @@ func (t *transpiler) dynamicWriteIndent(x *ast.TemplateLiteralExpr, n *ast.Templ
 	}
 
 	if needsParens {
+		// TODO: describe why n.X.Pos()
 		t.writeLineDirective(lineDirectiveOneLineLRSpaceWithComma, n.X.Pos())
 		t.appendSource("(")
 		t.writeLineDirective(ld, t.ctx.lastPosWritten)
