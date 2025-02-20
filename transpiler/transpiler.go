@@ -358,6 +358,7 @@ const (
 	lineDirectiveOneLineLRSpace // " /*line :line:col*/ "
 
 	lineDirectiveOneLineLRSpaceWithComma // " /*line :line:col*/, "
+	lineDirectiveOneLineCommaLSpace      // ", /*line :line:col*/"
 
 )
 
@@ -392,7 +393,11 @@ func (t *transpiler) writeLineDirective(ld lineDirective, pos token.Pos) {
 	case lineDirectiveOneLineLRSpaceWithComma:
 		p = t.ctx.fs.Position(pos)
 		p.Column -= 2
-		assert(p.Column >= 1)
+		if p.Column < 1 {
+			p.Column += 2
+			ld = lineDirectiveOneLineCommaLSpace
+		}
+		//assert(p.Column >= 1)
 	case lineDirectiveFullLine:
 		p = t.ctx.fs.Position(pos + 1)
 
@@ -413,6 +418,8 @@ func (t *transpiler) writeLineDirective(ld lineDirective, pos token.Pos) {
 		t.appendSource(" /*line :")
 	case lineDirectiveOneLineRSpace, lineDirectiveOneLine:
 		t.appendSource("/*line :")
+	case lineDirectiveOneLineCommaLSpace:
+		t.appendSource(", /*line :")
 	default:
 		t.appendSource("\n//line :")
 	}
@@ -426,7 +433,7 @@ func (t *transpiler) writeLineDirective(ld lineDirective, pos token.Pos) {
 		t.appendSource("*/ ")
 	case lineDirectiveOneLineLRSpaceWithComma:
 		t.appendSource("*/, ")
-	case lineDirectiveOneLineLSpace, lineDirectiveOneLine:
+	case lineDirectiveOneLineLSpace, lineDirectiveOneLine, lineDirectiveOneLineCommaLSpace:
 		t.appendSource("*/")
 	case lineDirectiveFullLineAdditonalLine:
 		t.appendSource("\n")
@@ -1000,8 +1007,6 @@ func (t *transpiler) dynamicWriteIndent(x *ast.TemplateLiteralExpr, n *ast.Templ
 	t.appendSource(t.ctx.tgoIdent)
 	t.skipSourceUpTo(n.LBrace + 1)
 
-	t.writeLineDirective(lineDirectiveOneLineLRSpaceWithComma, t.ctx.lastPosWritten)
-
 	needsParens := false
 	for v := range t.iterWhite(t.ctx.lastPosWritten, n.X.Pos()) {
 		if v.whiteType == whiteComment {
@@ -1037,8 +1042,11 @@ func (t *transpiler) dynamicWriteIndent(x *ast.TemplateLiteralExpr, n *ast.Templ
 	}
 
 	if needsParens {
+		t.writeLineDirective(lineDirectiveOneLineLRSpaceWithComma, n.X.Pos())
 		t.appendSource("(")
 		t.writeLineDirective(ld, t.ctx.lastPosWritten)
+	} else {
+		t.writeLineDirective(lineDirectiveOneLineLRSpaceWithComma, t.ctx.lastPosWritten)
 	}
 
 	// TODO: figure out whether t.ctx.lineDirectiveMangled behaves right with this.

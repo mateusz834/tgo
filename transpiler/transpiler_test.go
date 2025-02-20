@@ -129,10 +129,7 @@ import (
 )
 
 func A(tgo.Ctx) error {
-	"0\{t(t)}"
-}
-func t[A A](_ tgo.Ctx, A A) error {
-	""
+	"\{ new(int)}"
 }
 `
 
