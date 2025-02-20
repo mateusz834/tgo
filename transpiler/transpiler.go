@@ -357,8 +357,9 @@ const (
 	lineDirectiveOneLineRSpace  // "/*line :line:col*/ "
 	lineDirectiveOneLineLRSpace // " /*line :line:col*/ "
 
-	lineDirectiveOneLineLRSpaceWithComma // " /*line :line:col*/, "
-	lineDirectiveOneLineCommaLSpace      // ", /*line :line:col*/"
+	lineDirectiveOneLineLRSpaceWithComma       // " /*line :line:col*/, "
+	lineDirectiveOneLineLRSpaceWithCommaStrict // " /*line :line:col*/, "
+	lineDirectiveOneLineCommaLSpace            // ", /*line :line:col*/"
 
 )
 
@@ -390,16 +391,16 @@ func (t *transpiler) writeLineDirective(ld lineDirective, pos token.Pos) {
 			p.Column = 1
 			ld = lineDirectiveOneLine
 		}
-	case lineDirectiveOneLineLRSpaceWithComma:
+	case lineDirectiveOneLineLRSpaceWithComma, lineDirectiveOneLineLRSpaceWithCommaStrict:
 		p = t.ctx.fs.Position(pos)
 		p.Column -= 2
+		assert(ld == lineDirectiveOneLineLRSpaceWithComma || p.Column >= 1)
 		if p.Column < 1 {
 			// TODO: describe why we do this, insted of assert.
 			// TODO: check whether this can only happen in case of unformatted file.
 			p.Column += 2
 			ld = lineDirectiveOneLineCommaLSpace
 		}
-		//assert(p.Column >= 1)
 	case lineDirectiveFullLine:
 		p = t.ctx.fs.Position(pos + 1)
 
@@ -416,7 +417,8 @@ func (t *transpiler) writeLineDirective(ld lineDirective, pos token.Pos) {
 	}
 
 	switch ld {
-	case lineDirectiveOneLineLSpace, lineDirectiveOneLineLRSpace, lineDirectiveOneLineLRSpaceWithComma:
+	case lineDirectiveOneLineLSpace, lineDirectiveOneLineLRSpace,
+		lineDirectiveOneLineLRSpaceWithComma, lineDirectiveOneLineLRSpaceWithCommaStrict:
 		t.appendSource(" /*line :")
 	case lineDirectiveOneLineRSpace, lineDirectiveOneLine:
 		t.appendSource("/*line :")
@@ -433,7 +435,7 @@ func (t *transpiler) writeLineDirective(ld lineDirective, pos token.Pos) {
 	switch ld {
 	case lineDirectiveOneLineRSpace, lineDirectiveOneLineLRSpace:
 		t.appendSource("*/ ")
-	case lineDirectiveOneLineLRSpaceWithComma:
+	case lineDirectiveOneLineLRSpaceWithComma, lineDirectiveOneLineLRSpaceWithCommaStrict:
 		t.appendSource("*/, ")
 	case lineDirectiveOneLineLSpace, lineDirectiveOneLine, lineDirectiveOneLineCommaLSpace:
 		t.appendSource("*/")
@@ -1049,7 +1051,7 @@ func (t *transpiler) dynamicWriteIndent(x *ast.TemplateLiteralExpr, n *ast.Templ
 		t.appendSource("(")
 		t.writeLineDirective(ld, t.ctx.lastPosWritten)
 	} else {
-		t.writeLineDirective(lineDirectiveOneLineLRSpaceWithComma, t.ctx.lastPosWritten)
+		t.writeLineDirective(lineDirectiveOneLineLRSpaceWithCommaStrict, t.ctx.lastPosWritten)
 	}
 
 	// TODO: figure out whether t.ctx.lineDirectiveMangled behaves right with this.
