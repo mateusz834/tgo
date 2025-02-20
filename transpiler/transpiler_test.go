@@ -243,6 +243,13 @@ func TestTranspile(t *testing.T) {
 					if err != nil {
 						t.Fatal(err)
 					}
+					info, err = analyzer.Analyze(fset, f)
+					if err != nil {
+						for _, v := range err.(analyzer.AnalyzeErrors) {
+							t.Log(v)
+						}
+						t.Fatal(err)
+					}
 				}
 				transpiled = Transpile(f, fset, info, tgo)
 				if err := os.WriteFile(file, []byte(tgo+"======\n"+transpiled), 0660); err != nil {
