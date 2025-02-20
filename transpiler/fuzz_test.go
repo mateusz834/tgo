@@ -843,6 +843,33 @@ func fuzzTypes(t *testing.T, fset *token.FileSet, f *ast.File, gofset *gotoken.F
 		}
 	}
 
+	// Treat:
+	//
+	// Go error: "(A) (type) is not an expression"
+	// Tgo error: "A (type) is not an expression"
+	//
+	// as the same error, This can happen in following case:
+	//
+	//      func _[A any](tgo.Ctx) error {
+	//              "\{/*comment*/A}"
+	//      }
+	for tgoErr := range tgoErrs {
+		const errSuffix = " (type) is not an expression"
+		if i := strings.Index(tgoErr.Msg, errSuffix); i != -1 {
+			err := "(" + tgoErr.Msg[:i] + ")" + errSuffix
+			for i, goErr := range goErrs {
+				if goErr.Line == tgoErr.Line && goErr.Col == tgoErr.Col && goErr.Msg == err {
+					goErrs = slices.Delete(goErrs, i, i+1)
+					delete(unreported, tgoErr)
+					if testing.Verbose() {
+						t.Logf("(go) ignoring err: %v", goErr)
+						t.Logf("(tgo) ignoring err: %v", tgoErr)
+					}
+				}
+			}
+		}
+	}
+
 	tgoCtxIdent := astutil.FileUniqueIdent(f, "__tgo_ctx")
 
 	for _, v := range goErrs {
