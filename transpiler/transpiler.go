@@ -395,6 +395,7 @@ func (t *transpiler) writeLineDirective(ld lineDirective, pos token.Pos) {
 		p.Column -= 2
 		if p.Column < 1 {
 			// TODO: describe why we do this, insted of assert.
+			// TODO: check whether this can only happen in case of unformatted file.
 			p.Column += 2
 			ld = lineDirectiveOneLineCommaLSpace
 		}
