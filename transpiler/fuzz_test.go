@@ -890,6 +890,10 @@ func fuzzTypes(t *testing.T, fset *token.FileSet, f *ast.File, gofset *gotoken.F
 			return true
 		}
 
+		if body == nil {
+			return false
+		}
+
 		hasUnderscoreType := false
 		for _, p := range typ.Params.List {
 			if v, ok := p.Type.(*ast.Ident); ok && v.Name == "_" {
