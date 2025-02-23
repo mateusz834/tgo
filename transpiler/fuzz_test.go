@@ -462,7 +462,7 @@ func fuzzSource(t *testing.T, name, src string) string {
 					}
 				}
 
-				// See https://go.dev/cl/626758
+				// TODO: remove, once tgo-lang/lang has merged: https://github.com/golang/go/commit/ad7b46ee4ac1cee5095d64b01e8cf7fcda8bee5e
 				hasEllipsis := false
 				ast.Inspect(f, func(n ast.Node) bool {
 					switch n := n.(type) {
@@ -869,6 +869,64 @@ func fuzzTypes(t *testing.T, fset *token.FileSet, f *ast.File, gofset *gotoken.F
 			}
 		}
 	}
+
+	// In such code, the transpiled output is missing an: "cannot use generic function t without instantiation" error.
+	//
+	//	func t[A string](B tgo.Ctx, C _) error {
+	//		"\{t}"
+	//		return nil
+	//	}
+	ast.Inspect(f, func(n ast.Node) bool {
+		var typ *ast.FuncType
+		var body *ast.BlockStmt
+		switch n := n.(type) {
+		case *ast.FuncDecl:
+			typ = n.Type
+			body = n.Body
+		case *ast.FuncLit:
+			typ = n.Type
+			body = n.Body
+		default:
+			return true
+		}
+
+		hasUnderscoreType := false
+		for _, p := range typ.Params.List {
+			if v, ok := p.Type.(*ast.Ident); ok && v.Name == "_" {
+				hasUnderscoreType = true
+				break
+			}
+		}
+
+		if hasUnderscoreType {
+			ast.Inspect(body, func(n ast.Node) bool {
+				switch n.(type) {
+				case *ast.TemplateLiteralPart:
+					for tgoErr := range tgoErrs {
+						if strings.Contains(tgoErr.Msg, "cannot use generic function") && strings.Contains(tgoErr.Msg, "without instantiation") {
+							found := false
+							for _, goErr := range goErrs {
+								if goErr.Line == tgoErr.Line && goErr.Col == tgoErr.Col {
+									found = true
+									break
+								}
+							}
+							if !found {
+								if testing.Verbose() {
+									t.Logf("(tgo) ignoring err: %v", tgoErr)
+								}
+								delete(unreported, tgoErr)
+							}
+						}
+					}
+				case *ast.FuncLit:
+					return false
+				}
+				return true
+			})
+		}
+		return true
+	})
 
 	tgoCtxIdent := astutil.FileUniqueIdent(f, "__tgo_ctx")
 
