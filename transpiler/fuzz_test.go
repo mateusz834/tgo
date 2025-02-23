@@ -120,7 +120,7 @@ func fuzzSource(t *testing.T, name, src string) string {
 
 	info, err := analyzer.Analyze(fset, f)
 	if err != nil {
-		// TODO: fuzz that errors returned here would also be returned by go/types.
+		// TODO: fuzz that errors returned here would also be returned by tgo-lang/types.
 		return ""
 	}
 
