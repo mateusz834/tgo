@@ -728,7 +728,9 @@ func isTgo(n ast.Node, inTgoFunc bool) bool {
 	case *ast.ExprStmt:
 		x, isBasicLit := n.X.(*ast.BasicLit)
 		_, isTemplate := n.X.(*ast.TemplateLiteralExpr)
-		assert(isBasicLit || (isTemplate && inTgoFunc))
+		if isTemplate {
+			assert(inTgoFunc)
+		}
 		return (isBasicLit && x.Kind == token.STRING && inTgoFunc) || isTemplate
 	}
 	return false
