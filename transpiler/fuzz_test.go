@@ -877,6 +877,11 @@ func fuzzTypes(t *testing.T, fset *token.FileSet, f *ast.File, gofset *gotoken.F
 	//		"\{t}"
 	//		return nil
 	//	}
+	//
+	//	func t[A string](B tgo.Ctx, A _.A) error {
+	//		"\{t}"
+	//		return nil
+	//	}
 	ast.Inspect(f, func(n ast.Node) bool {
 		var typ *ast.FuncType
 		var body *ast.BlockStmt
@@ -897,10 +902,13 @@ func fuzzTypes(t *testing.T, fset *token.FileSet, f *ast.File, gofset *gotoken.F
 
 		hasUnderscoreType := false
 		for _, p := range typ.Params.List {
-			if v, ok := p.Type.(*ast.Ident); ok && v.Name == "_" {
-				hasUnderscoreType = true
-				break
-			}
+			ast.Inspect(p.Type, func(n ast.Node) bool {
+				if n, ok := n.(*ast.Ident); ok && n.Name == "_" {
+					hasUnderscoreType = true
+					return false
+				}
+				return true
+			})
 		}
 
 		if hasUnderscoreType {
