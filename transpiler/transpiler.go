@@ -721,6 +721,7 @@ func (t *transpiler) Visit(n ast.Node) ast.Visitor {
 func isTgo(n ast.Node, inTgoFunc bool) bool {
 	switch n := n.(type) {
 	case *ast.OpenTag, *ast.AttributeStmt, *ast.ElementBlockStmt:
+		assert(inTgoFunc)
 		return true
 	case *ast.EndTag:
 		panic("unreachable")
