@@ -688,8 +688,13 @@ func fuzzTypes(t *testing.T, fset *token.FileSet, f *ast.File, gofset *gotoken.F
 	//		"\{t}"
 	//		return nil
 	//	}
+	//
+	//	func t[A string](B tgo.Ctx, A t.A) error {
+	//		"\{t}"
+	//	}
 	for tgoErr := range tgoErrs {
-		if strings.Contains(tgoErr.Msg, "undefined") || strings.Contains(tgoErr.Msg, "is not a type") {
+		if strings.Contains(tgoErr.Msg, "undefined") || strings.Contains(tgoErr.Msg, "is not a type") ||
+			(strings.Contains(tgoErr.Msg, "cannot use generic function") && strings.Contains(tgoErr.Msg, "without instantiation")) {
 			ast.Inspect(f, func(n ast.Node) bool {
 				switch n := n.(type) {
 				case *ast.FuncDecl:

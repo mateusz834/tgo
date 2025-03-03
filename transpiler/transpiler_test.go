@@ -128,9 +128,8 @@ import (
 	"github.com/mateusz834/tgo"
 )
 
-func t[A string](B tgo.Ctx, C _) error {
+func t[A string](B tgo.Ctx, A t.A) error {
 	"\{t}"
-	return nil
 }
 `
 
