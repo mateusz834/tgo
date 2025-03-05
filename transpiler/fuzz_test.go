@@ -582,6 +582,25 @@ func fuzzTypes(t *testing.T, fset *token.FileSet, f *ast.File, gofset *gotoken.F
 		return
 	}
 
+	for _, v := range f.Imports {
+		if v.Path.Value == `"github.com/mateusz834/tgo"` {
+			continue
+		}
+		if strings.Contains(v.Path.Value, "tgo") {
+			// Skip cases like:
+			//
+			//	import (
+			//		"v5/tgo"
+			//		"github.com/mateusz834/tgo"
+			//	)
+			//
+			//	func t(tgo.Ctx) error {
+			//		"\{t}"
+			//	}
+			return
+		}
+	}
+
 	type typeError struct {
 		Line int
 		Col  int

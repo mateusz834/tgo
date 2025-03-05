@@ -125,10 +125,11 @@ import (
 const testSrc = `package A
 
 import (
+	"v5/tgo"
 	"github.com/mateusz834/tgo"
 )
 
-func t[A string](B tgo.Ctx, A t.A) error {
+func t(tgo.Ctx) error {
 	"\{t}"
 }
 `
