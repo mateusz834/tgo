@@ -554,6 +554,7 @@ func (t *transpiler) transpile() {
 	ast.Walk(t, t.ctx.f)
 	t.appendFromSource(t.ctx.f.FileEnd)
 
+	// TODO: remove we do the same thing already in tgofuncs.
 	needsErrorAssert := false
 	for v := range t.ctx.info.TgoFuncs {
 		if v, ok := v.Results.List[0].Type.(*ast.Ident); ok && v.Name == "error" {
