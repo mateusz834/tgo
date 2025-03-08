@@ -66,7 +66,8 @@ type Info struct {
 
 	// UsableGlobalImport is a identifier of a tgo import that can be used at the global scope.
 	// TODO: can it be a "shadowed"? Check it with go/types. This might be an issue with type asserts.
-	// TODO: document it is only now for IsError(), as it might be through dot-import.
+	// TODO: document it is only now for NilError(), as it might be through dot-import.
+	// TODO: change name.
 	UsableGlobalImport string
 }
 
@@ -108,7 +109,10 @@ func Check(f *ast.File) (Info, error) {
 	}
 
 	for _, ident := range tgoImports {
-		c.shadowedImports.setShadowed(c, ident)
+		// TODO: explain why we ignore other.
+		if nameToBit(ident) != 0 {
+			c.shadowedImports.setShadowed(c, ident)
+		}
 	}
 
 	for _, v := range f.Decls {
@@ -144,18 +148,20 @@ func Check(f *ast.File) (Info, error) {
 	ast.Walk(c, f)
 
 	usableGlobalImport := ""
-	for i, importName := range c.ctx.tgoImports {
-		if !c.shadowedImports.isSetImport(i) {
-			usableGlobalImport = importName
-			break
+	if c.ctx.needsErrorAssert {
+		for i, importName := range c.ctx.tgoImports {
+			if !c.shadowedImports.isSetImport(i) {
+				usableGlobalImport = importName
+				break
+			}
 		}
-	}
 
-	if usableGlobalImport == "" {
-		if hasDotImport && !c.shadowedImports.isSetBit(bitTgoNilError) {
-			usableGlobalImport = "" // keep dot import
-		} else {
-			usableGlobalImport = c.ctx.specialImportIdent()
+		if usableGlobalImport == "" {
+			if hasDotImport && !c.shadowedImports.isSetBit(bitTgoNilError) {
+				usableGlobalImport = "" // keep dot import
+			} else {
+				usableGlobalImport = c.ctx.specialImportIdent()
+			}
 		}
 	}
 
@@ -179,6 +185,7 @@ type contextAnalyzerContext struct {
 	tgoFuncs                  map[*ast.FuncType]struct{}
 	usableImportForTemplate   map[*ast.TemplateLiteralExpr]ImportDetails
 	needsSpecialNilErrorCheck map[ast.Node]ImportDetails
+	needsErrorAssert          bool
 
 	tgoImports       []string
 	hasDotImport     bool
@@ -373,9 +380,11 @@ func (f *contextAnalyzer) checkFuncType(shadowedImports bitField, ft *ast.FuncTy
 	}
 
 	okReturn := false
+	errRet := false
 	switch v := ast.Unparen(ft.Results.List[0].Type).(type) {
 	case *ast.Ident:
 		if v.Name == "error" && !shadowedBefore.isSetBit(bitBuiltinError) {
+			errRet = true
 			okReturn = true
 		} else if f.ctx.hasDotImport && v.Name == "Error" && !shadowedBefore.isSetBit(bitTgoError) {
 			okReturn = true
@@ -401,6 +410,7 @@ func (f *contextAnalyzer) checkFuncType(shadowedImports bitField, ft *ast.FuncTy
 			for i, importName := range f.ctx.tgoImports {
 				if ident.Name == importName && v.Sel.Name == "Ctx" && !shadowedBefore.isSetImport(i) {
 					tgoFunc = true
+					f.ctx.needsErrorAssert = errRet
 					break
 				}
 			}
@@ -408,6 +418,7 @@ func (f *contextAnalyzer) checkFuncType(shadowedImports bitField, ft *ast.FuncTy
 	case *ast.Ident:
 		if f.ctx.hasDotImport && v.Name == "Ctx" && !shadowedBefore.isSetBit(bitTgoCtx) {
 			tgoFunc = true
+			f.ctx.needsErrorAssert = errRet
 		}
 	}
 
@@ -607,19 +618,26 @@ func (b *bitField) setShadowed(c *contextAnalyzer, n string) {
 			b.setImport(i)
 		}
 	}
+	if bit := nameToBit(n); bit != 0 {
+		b.setBit(bit)
+	}
+}
 
+func nameToBit(n string) uint {
 	switch n {
 	case "Error":
-		b.setBit(bitTgoError)
+		return bitTgoError
 	case "DynamicWrite":
-		b.setBit(bitTgoDynamicWrite)
+		return bitTgoDynamicWrite
 	case "NilError":
-		b.setBit(bitTgoNilError)
+		return bitTgoNilError
 	case "Ctx":
-		b.setBit(bitTgoCtx)
+		return bitTgoCtx
 	case "error":
-		b.setBit(bitBuiltinError)
+		return bitBuiltinError
 	case "nil":
-		b.setBit(bitBuiltinNil)
+		return bitBuiltinNil
+	default:
+		return 0
 	}
 }

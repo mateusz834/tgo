@@ -124,13 +124,10 @@ import (
 
 const testSrc = `package A
 
-import (
-	. "github.com/mateusz834/tgo"
-	Error "github.com/mateusz834/tgo"
-)
+import "github.com/mateusz834/tgo"
 
-func t(Ctx) error {
-	"\{t}"
+func t(tgo.Ctx) error {
+	"hello"
 }
 `
 
