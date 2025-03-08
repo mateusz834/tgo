@@ -66,6 +66,7 @@ type Info struct {
 
 	// UsableGlobalImport is a identifier of a tgo import that can be used at the global scope.
 	// TODO: can it be a "shadowed"? Check it with go/types. This might be an issue with type asserts.
+	// TODO: document it is only now for IsError(), as it might be through dot-import.
 	UsableGlobalImport string
 }
 
@@ -106,6 +107,10 @@ func Check(f *ast.File) (Info, error) {
 		},
 	}
 
+	for _, ident := range tgoImports {
+		c.shadowedImports.setShadowed(c, ident)
+	}
+
 	for _, v := range f.Decls {
 		switch v := v.(type) {
 		case *ast.FuncDecl:
@@ -139,9 +144,19 @@ func Check(f *ast.File) (Info, error) {
 	ast.Walk(c, f)
 
 	usableGlobalImport := ""
-	if len(tgoImports) != 0 {
-		// TODO: can be shadowed, it might not matter.
-		usableGlobalImport = tgoImports[0]
+	for i, importName := range c.ctx.tgoImports {
+		if !c.shadowedImports.isSetImport(i) {
+			usableGlobalImport = importName
+			break
+		}
+	}
+
+	if usableGlobalImport == "" {
+		if hasDotImport && !c.shadowedImports.isSetBit(bitTgoNilError) {
+			usableGlobalImport = "" // keep dot import
+		} else {
+			usableGlobalImport = c.ctx.specialImportIdent()
+		}
 	}
 
 	var err error
