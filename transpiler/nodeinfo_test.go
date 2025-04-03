@@ -148,12 +148,12 @@ func (a *nodeInfoAnalyzer) Visit(n ast.Node) ast.Visitor {
 		return funcHandler(n.Type)
 	case *ast.FuncLit:
 		return funcHandler(n.Type)
-	case *ast.AttributeStmt:
-		if _, ok := n.Value.(*ast.TemplateLiteralExpr); ok {
+	case *ast.Attribute:
+		if _, ok := n.Value.(*ast.TemplateLiteral); ok {
 			ast.Walk(a, n.Value)
 		}
 		return nil
-	case *ast.ElementBlockStmt:
+	case *ast.Element:
 		ast.Walk(a, n.OpenTag)
 		for i, v := range n.Body {
 			unlabeled, _ := unlabel(v)
@@ -173,20 +173,13 @@ func (a *nodeInfoAnalyzer) Visit(n ast.Node) ast.Visitor {
 			ast.Walk(a, v)
 		}
 		return nil
-	case *ast.ExprStmt:
-		switch n := n.X.(type) {
-		case *ast.TemplateLiteralExpr:
-			return a
-		case *ast.BasicLit:
-			if a.inTgo && n.Kind == token.STRING {
-				return nil
-			}
-		}
+	case *ast.TemplateLiteral, *ast.Text:
+		return nil
 	case *ast.Ident:
 		if a.tgoFuncBlankCtxIdent == n {
 			return nil
 		}
-	case *ast.File, *ast.TemplateLiteralExpr, *ast.TemplateLiteralPart:
+	case *ast.File, *ast.TemplateLiteralPart:
 		return a
 	case *ast.EndTag, *ast.CommentGroup, *ast.Comment, nil:
 		return nil
@@ -222,7 +215,7 @@ func TestTgoExpectedNodeInfos(t *testing.T) {
 			tgo, nodeinfos, _ := strings.Cut(string(content), "======\n")
 
 			fset := token.NewFileSet()
-			f, err := parser.ParseFile(fset, "test.tgo", tgo, parser.ParseComments|parser.SkipObjectResolution)
+			f, err := parser.ParseFile(fset, "test.tgo", tgo, parser.ParseComments|parser.SkipObjectResolution|parser.ParseTgo)
 			if err != nil {
 				t.Fatal(err)
 			}

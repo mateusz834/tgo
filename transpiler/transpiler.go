@@ -597,7 +597,7 @@ func (t *transpiler) tgoFunc(funcType *ast.FuncType, body *ast.BlockStmt) {
 	if _, ok := t.ctx.info.TgoFuncs[funcType]; ok {
 		needsCtx := false
 		ast.Inspect(body, func(x ast.Node) bool {
-			if isTgo(x, true) {
+			if isTgo(x) {
 				needsCtx = true
 				return false
 			}
@@ -719,20 +719,13 @@ func (t *transpiler) Visit(n ast.Node) ast.Visitor {
 	return t
 }
 
-func isTgo(n ast.Node, inTgoFunc bool) bool {
-	switch n := n.(type) {
-	case *ast.OpenTag, *ast.AttributeStmt, *ast.ElementBlockStmt:
-		assert(inTgoFunc)
+func isTgo(n ast.Node) bool {
+	switch n.(type) {
+	case *ast.OpenTag, *ast.Attribute, *ast.Element,
+		*ast.Text, *ast.TemplateLiteral:
 		return true
 	case *ast.EndTag:
 		panic("unreachable")
-	case *ast.ExprStmt:
-		x, isBasicLit := n.X.(*ast.BasicLit)
-		_, isTemplate := n.X.(*ast.TemplateLiteralExpr)
-		if isTemplate {
-			assert(inTgoFunc)
-		}
-		return (isBasicLit && x.Kind == token.STRING && inTgoFunc) || isTemplate
 	}
 	return false
 }
@@ -832,7 +825,7 @@ func (t *transpiler) transpileList(list []ast.Stmt, name string) {
 			t.appendSource(" := ")
 			t.appendSource(name)
 
-			if !isTgo(n, t.inTgoFunc) {
+			if !isTgo(n) {
 				if lastIndent {
 					ld = lineDirectiveFullLine
 				} else if lastWhite {
@@ -863,7 +856,7 @@ func (t *transpiler) transpileList(list []ast.Stmt, name string) {
 
 // TODO: it would be nice to drop the ld parameter.
 func (t *transpiler) transpileStmt(ld lineDirective, n ast.Stmt) {
-	if isTgo(n, t.inTgoFunc) {
+	if isTgo(n) {
 		// When previous node was non-tgo and now we have a tgo node,
 		// preserve whitespace, comments and semicolons up to last newline
 		// (or up to n.Pos() if no newline found between prev and n).
@@ -890,7 +883,7 @@ func (t *transpiler) transpileStmt(ld lineDirective, n ast.Stmt) {
 	}
 
 	switch n := n.(type) {
-	case *ast.ElementBlockStmt:
+	case *ast.Element:
 		t.staticWriteIndent(n, "<")
 		t.staticWriteIndent(n, n.OpenTag.Name.Name)
 
@@ -933,37 +926,31 @@ func (t *transpiler) transpileStmt(ld lineDirective, n ast.Stmt) {
 		t.skipSourceUpTo(n.End())
 	case *ast.EndTag:
 		panic("unreachable")
-	case *ast.AttributeStmt:
+	case *ast.Attribute:
 		if n.Value != nil {
 			switch x := n.Value.(type) {
-			case *ast.BasicLit:
+			case *ast.Text:
 				t.staticWriteIndent(n, " ")
-				t.staticWriteIndent(n, n.AttrName.(*ast.Ident).Name)
+				t.staticWriteIndent(n, n.AttrName.Name)
 				t.staticWriteIndent(n, "=")
-				if x.Kind == token.STRING {
-					t.staticWriteIndentGoString(n, x.Value)
-				}
-			case *ast.TemplateLiteralExpr:
-				t.staticWriteIndent(n, " "+n.AttrName.(*ast.Ident).Name+"=")
+				t.staticWriteIndentGoString(n, x.Text)
+			case *ast.TemplateLiteral:
+				t.staticWriteIndent(n, " "+n.AttrName.Name+"=")
 				t.transpileTemplateLiteral(x)
 			}
 		} else {
 			t.staticWriteIndent(n, " ")
-			t.staticWriteIndent(n, n.AttrName.(*ast.Ident).Name)
+			t.staticWriteIndent(n, n.AttrName.Name)
 		}
 		t.skipSourceUpTo(n.End())
-	case *ast.ExprStmt:
-		if x, ok := n.X.(*ast.BasicLit); ok && x.Kind == token.STRING {
-			if t.inTgoFunc {
-				t.staticWriteIndentGoString(x, x.Value)
-				t.skipSourceUpTo(n.End())
-			} else {
-				t.appendFromSource(n.End())
-			}
-		} else if x, ok := n.X.(*ast.TemplateLiteralExpr); ok {
-			t.transpileTemplateLiteral(x)
+	case *ast.TemplateLiteral:
+		t.transpileTemplateLiteral(n)
+	case *ast.Text:
+		// TODO: no need for inTgoFunc? We would not have passed the analyzer.
+		if t.inTgoFunc {
+			t.staticWriteIndentGoString(n, n.Text)
+			t.skipSourceUpTo(n.End())
 		} else {
-			ast.Walk(t, n)
 			t.appendFromSource(n.End())
 		}
 	case *ast.CaseClause:
@@ -984,7 +971,7 @@ func (t *transpiler) transpileStmt(ld lineDirective, n ast.Stmt) {
 	}
 }
 
-func (t *transpiler) transpileTemplateLiteral(x *ast.TemplateLiteralExpr) {
+func (t *transpiler) transpileTemplateLiteral(x *ast.TemplateLiteral) {
 	for i := range x.Parts {
 		if i == 0 {
 			t.staticWriteIndentGoString(x, x.Strings[i]+"\"")
@@ -997,7 +984,7 @@ func (t *transpiler) transpileTemplateLiteral(x *ast.TemplateLiteralExpr) {
 	t.skipSourceUpTo(x.End())
 }
 
-func (t *transpiler) dynamicWriteIndent(x *ast.TemplateLiteralExpr, n *ast.TemplateLiteralPart) {
+func (t *transpiler) dynamicWriteIndent(x *ast.TemplateLiteral, n *ast.TemplateLiteralPart) {
 	t.indent()
 
 	t.appendSource("if err :=")

@@ -136,7 +136,7 @@ func TestTest(t *testing.T) {
 	return
 
 	fset := token.NewFileSet()
-	f, err := parser.ParseFile(fset, "0", testSrc, parser.SkipObjectResolution|parser.ParseComments)
+	f, err := parser.ParseFile(fset, "0", testSrc, parser.SkipObjectResolution|parser.ParseComments|parser.ParseTgo)
 	if err != nil {
 		ast.Print(fset, f)
 		t.Fatal(err)
@@ -204,7 +204,7 @@ func TestTranspile(t *testing.T) {
 			tgo, transpiled, _ := strings.Cut(string(content), "======\n")
 
 			fset := token.NewFileSet()
-			f, err := parser.ParseFile(fset, "test.tgo", tgo, parser.ParseComments|parser.SkipObjectResolution)
+			f, err := parser.ParseFile(fset, "test.tgo", tgo, parser.ParseComments|parser.SkipObjectResolution|parser.ParseTgo)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -234,7 +234,7 @@ func TestTranspile(t *testing.T) {
 				if fmt {
 					tgo = s.String()
 					fset = token.NewFileSet()
-					f, err = parser.ParseFile(fset, "test.tgo", tgo, parser.ParseComments|parser.SkipObjectResolution)
+					f, err = parser.ParseFile(fset, "test.tgo", tgo, parser.ParseComments|parser.SkipObjectResolution|parser.ParseTgo)
 					if err != nil {
 						t.Fatal(err)
 					}

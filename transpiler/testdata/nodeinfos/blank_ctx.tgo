@@ -24,7 +24,6 @@ func test(_ tgo.Ctx) error {
 {FieldList {5 22} {5 27} Opening:0:0;Closing:0:0}
 {Ident {5 22} {5 27} NamePos:5:22;Name:"error"}
 {BlockStmt {5 28} {10 2} Lbrace:5:28;Rbrace:10:1}
-{Ident {6 10} {6 14} NamePos:6:10;Name:"test"}
 {Ident {7 2} {7 3} NamePos:7:2;Name:"_"}
 {AssignStmt {7 2} {9 3} TokPos:7:4;Tok:=}
 {FuncType {7 6} {7 27} Func:7:6}
@@ -37,4 +36,3 @@ func test(_ tgo.Ctx) error {
 {FieldList {7 22} {7 27} Opening:0:0;Closing:0:0}
 {Ident {7 22} {7 27} NamePos:7:22;Name:"error"}
 {BlockStmt {7 28} {9 3} Lbrace:7:28;Rbrace:9:2}
-{Ident {8 11} {8 15} NamePos:8:11;Name:"test"}

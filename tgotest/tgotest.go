@@ -36,7 +36,7 @@ func Test(t *testing.T, path string, testFunc func(fset *token.FileSet, f *ast.F
 	}
 
 	fset := token.NewFileSet()
-	f, err := parser.ParseFile(fset, "test.tgo", contents, parser.SkipObjectResolution|parser.ParseComments)
+	f, err := parser.ParseFile(fset, "test.tgo", contents, parser.SkipObjectResolution|parser.ParseComments|parser.ParseTgo)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -47,9 +47,9 @@ func Test(t *testing.T, path string, testFunc func(fset *token.FileSet, f *ast.F
 	}
 
 	if *update {
-		// When -update then print and parse, so that postion info (column) is the same after another print.
+		// When -update then print and parse, so that position info (column) is the same after another print.
 		fset = token.NewFileSet()
-		f, err = parser.ParseFile(fset, "test.tgo", s.String(), parser.ParseComments|parser.SkipObjectResolution)
+		f, err = parser.ParseFile(fset, "test.tgo", s.String(), parser.ParseComments|parser.SkipObjectResolution|parser.ParseTgo)
 		if err != nil {
 			t.Fatal(err)
 		}

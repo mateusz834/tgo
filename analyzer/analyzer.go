@@ -141,18 +141,16 @@ func (f *contextAnalyzer) Visit(list ast.Node) ast.Visitor {
 		*ast.TypeSwitchStmt, *ast.LabeledStmt,
 		*ast.BlockStmt:
 		return f
-	case *ast.ExprStmt:
-		if x, ok := n.X.(*ast.BasicLit); ok && x.Kind == token.STRING {
-			if f.context != contextTgoBody {
-				f.ctx.ctx.errors = append(f.ctx.ctx.errors, AnalyzeError{
-					Message:  "string basic literal is not allowed in this context",
-					StartPos: f.ctx.ctx.fset.Position(n.Pos()),
-					EndPos:   f.ctx.ctx.fset.Position(n.End()),
-				})
-			}
+	case *ast.Text:
+		if f.context != contextTgoBody {
+			f.ctx.ctx.errors = append(f.ctx.ctx.errors, AnalyzeError{
+				Message:  "string basic literal is not allowed in this context",
+				StartPos: f.ctx.ctx.fset.Position(n.Pos()),
+				EndPos:   f.ctx.ctx.fset.Position(n.End()),
+			})
 		}
 		return f
-	case *ast.TemplateLiteralExpr:
+	case *ast.TemplateLiteral:
 		if f.context != contextTgoBody {
 			f.ctx.ctx.errors = append(f.ctx.ctx.errors, AnalyzeError{
 				Message:  "template literal is not allowed in this context",
@@ -161,7 +159,7 @@ func (f *contextAnalyzer) Visit(list ast.Node) ast.Visitor {
 			})
 		}
 		return &contextAnalyzer{context: contextNotTgo, ctx: f.ctx}
-	case *ast.ElementBlockStmt:
+	case *ast.Element:
 		return f
 	case *ast.OpenTag:
 		if f.context != contextTgoBody {
@@ -181,7 +179,7 @@ func (f *contextAnalyzer) Visit(list ast.Node) ast.Visitor {
 			})
 		}
 		return nil
-	case *ast.AttributeStmt:
+	case *ast.Attribute:
 		if f.context != contextTgoTag {
 			f.ctx.ctx.errors = append(f.ctx.ctx.errors, AnalyzeError{
 				Message:  "attribute is not allowed in this context",
@@ -189,7 +187,7 @@ func (f *contextAnalyzer) Visit(list ast.Node) ast.Visitor {
 				EndPos:   f.ctx.ctx.fset.Position(n.End()),
 			})
 		}
-		if v, ok := n.Value.(*ast.TemplateLiteralExpr); ok {
+		if v, ok := n.Value.(*ast.TemplateLiteral); ok {
 			a := &contextAnalyzer{context: contextNotTgo, ctx: f.ctx}
 			for _, v := range v.Parts {
 				ast.Walk(a, v)
@@ -206,7 +204,7 @@ func (f *contextAnalyzer) Visit(list ast.Node) ast.Visitor {
 
 type scope struct {
 	f   ast.Node // *ast.FuncDecl or *ast.FuncLit
-	tag *ast.ElementBlockStmt
+	tag *ast.Element
 }
 
 type labelScopeAnalyzer struct {
@@ -218,7 +216,7 @@ func (f *labelScopeAnalyzer) Visit(n ast.Node) ast.Visitor {
 	switch n := n.(type) {
 	case *ast.FuncDecl, *ast.FuncLit:
 		return &labelScopeAnalyzer{out: f.out, cur: scope{f: n}}
-	case *ast.ElementBlockStmt:
+	case *ast.Element:
 		return &labelScopeAnalyzer{out: f.out, cur: scope{f: f.cur.f, tag: n}}
 	case *ast.LabeledStmt:
 		f.out[f.cur] = append(f.out[f.cur], n.Label.Name)
@@ -242,7 +240,7 @@ type branchAnalyzer struct {
 	breakDepth      int
 	continueDepth   int
 	labeledDepth    map[string]int
-	curElementBlock *ast.ElementBlockStmt
+	curElementBlock *ast.Element
 	f               ast.Node // *ast.FuncDecl or *ast.FuncLit
 }
 
@@ -292,7 +290,7 @@ func (f *branchAnalyzer) Visit(node ast.Node) ast.Visitor {
 		}
 		b.labeledDepth[n.Label.Name] = 0
 		return b
-	case *ast.ElementBlockStmt:
+	case *ast.Element:
 		return &branchAnalyzer{
 			ctx:             f.ctx,
 			breakDepth:      0,

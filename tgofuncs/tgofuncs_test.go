@@ -112,6 +112,7 @@ func fuzzAddDir(f *testing.F, testdata string) {
 	}
 }
 
+// TODO: remove? I think we will catch all the same cases in the transpiler's fuzzer.
 func FuzzTgoFuncs(f *testing.F) {
 	//fuzzAddDir(f, "./testdata")
 	//fuzzAddDir(f, ".")

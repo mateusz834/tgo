@@ -68,7 +68,6 @@ func _(ctx tgo.Ctx) error {
 {Ident {8 7} {8 8} NamePos:8:7;Name:"i"}
 {BasicLit {8 18} {8 19} ValuePos:8:18;Kind:INT;Value:"3"}
 {BlockStmt {8 20} {40 4} Lbrace:8:20;Rbrace:40:3}
-{Ident {9 12} {9 13} NamePos:9:12;Name:"i"}
 {IfStmt {11 4} {13 5} If:11:4}
 {Ident {11 7} {11 8} NamePos:11:7;Name:"i"}
 {BinaryExpr {11 7} {11 13} OpPos:11:9;Op:==}
@@ -82,23 +81,17 @@ func _(ctx tgo.Ctx) error {
 {Ident {17 5} {17 8} NamePos:17:5;Name:"one"}
 {AssignStmt {17 5} {17 17} TokPos:17:9;Tok::=}
 {BasicLit {17 12} {17 17} ValuePos:17:12;Kind:STRING;Value:"\"one\""}
-{Ident {19 8} {19 11} NamePos:19:8;Name:"one"}
 {CaseClause {20 4} {-1 -1} Case:20:4;Colon:20:11}
 {Ident {21 5} {21 9} NamePos:21:5;Name:"test"}
 {AssignStmt {21 5} {21 23} TokPos:21:10;Tok::=}
 {BasicLit {21 13} {21 23} ValuePos:21:13;Kind:STRING;Value:"\"sth else\""}
-{Ident {23 8} {23 12} NamePos:23:8;Name:"test"}
 {SelectStmt {26 4} {39 5} Select:26:4}
 {BlockStmt {26 11} {39 5} Lbrace:26:11;Rbrace:39:4}
 {CommClause {27 4} {-1 -1} Case:27:4;Colon:27:12}
 {ExprStmt {27 9} {27 12} }
 {UnaryExpr {27 9} {27 12} OpPos:27:9;Op:<-}
 {Ident {27 11} {27 12} NamePos:27:11;Name:"a"}
-{Ident {29 19} {29 23} NamePos:29:19;Name:"val1"}
-{Ident {31 9} {31 14} NamePos:31:9;Name:"test1"}
 {CommClause {33 4} {-1 -1} Case:33:4;Colon:33:11}
-{Ident {35 19} {35 23} NamePos:35:19;Name:"val2"}
-{Ident {37 9} {37 14} NamePos:37:9;Name:"test2"}
 {Ident {43 2} {43 3} NamePos:43:2;Name:"_"}
 {AssignStmt {43 2} {45 3} TokPos:43:4;Tok:=}
 {FuncType {43 6} {43 29} Func:43:6}
@@ -112,4 +105,3 @@ func _(ctx tgo.Ctx) error {
 {FieldList {43 24} {43 29} Opening:0:0;Closing:0:0}
 {Ident {43 24} {43 29} NamePos:43:24;Name:"error"}
 {BlockStmt {43 30} {45 3} Lbrace:43:30;Rbrace:45:2}
-{Ident {44 11} {44 15} NamePos:44:11;Name:"test"}

@@ -57,7 +57,7 @@ type Info struct {
 
 	// UsableImportForTemplate contains every TemplateLiteralExpr found in a file with
 	// a corresponding (non-shadowed) import to use.
-	UsableImportForTemplate map[*ast.TemplateLiteralExpr]ImportDetails
+	UsableImportForTemplate map[*ast.TemplateLiteral]ImportDetails
 
 	// UsableImportForTemplate contains every tgo-node found in a file, that
 	// has the nil builtin shadowed, thus the transpiled code needs to use different
@@ -102,7 +102,7 @@ func Check(f *ast.File) (Info, error) {
 			f:                         f,
 			tgoImports:                tgoImports,
 			tgoFuncs:                  map[*ast.FuncType]struct{}{},
-			usableImportForTemplate:   make(map[*ast.TemplateLiteralExpr]ImportDetails),
+			usableImportForTemplate:   make(map[*ast.TemplateLiteral]ImportDetails),
 			needsSpecialNilErrorCheck: make(map[ast.Node]ImportDetails),
 			hasDotImport:              hasDotImport,
 		},
@@ -183,7 +183,7 @@ type contextAnalyzerContext struct {
 	f *ast.File
 
 	tgoFuncs                  map[*ast.FuncType]struct{}
-	usableImportForTemplate   map[*ast.TemplateLiteralExpr]ImportDetails
+	usableImportForTemplate   map[*ast.TemplateLiteral]ImportDetails
 	needsSpecialNilErrorCheck map[ast.Node]ImportDetails
 	needsErrorAssert          bool
 
@@ -440,7 +440,7 @@ func (f *contextAnalyzer) checkFuncType(shadowedImports bitField, ft *ast.FuncTy
 	//
 	// Both of these code samples would fail while type-checking, but the transpiled output would get an
 	// additional error: "A (type) is not an expression", this happens because at the "__tgo_ctx := A"
-	// line A is beeing treated as a type-parameter, not a function argument (A tgo.Ctx). We don't want to produce
+	// line A is being treated as a type-parameter, not a function argument (A tgo.Ctx). We don't want to produce
 	// errors that have would pointed to bogus ".tgo" file lines (through line directives), thus for this case
 	// we report the redeclared error directly in the transpiler.
 	if tgoFunc && ft.TypeParams != nil && ft.Params.List[0].Names != nil {
@@ -469,7 +469,7 @@ func (f *contextAnalyzer) checkFuncType(shadowedImports bitField, ft *ast.FuncTy
 
 func (f *contextAnalyzer) Visit(list ast.Node) ast.Visitor {
 	switch n := list.(type) {
-	case *ast.ElementBlockStmt:
+	case *ast.Element:
 		f.setNilUsableness(n)
 		ast.Walk(f, n.OpenTag)
 		f.analyzeStmts(n.Body)
@@ -479,13 +479,11 @@ func (f *contextAnalyzer) Visit(list ast.Node) ast.Visitor {
 		f.setNilUsableness(n)
 		f.analyzeStmts(n.Body)
 		return nil
-	case *ast.EndTag, *ast.AttributeStmt:
+	case *ast.EndTag, *ast.Attribute:
 		f.setNilUsableness(n)
 		return f
-	case *ast.ExprStmt:
-		if n, ok := n.X.(*ast.BasicLit); ok && n.Kind == token.STRING {
-			f.setNilUsableness(n)
-		}
+	case *ast.Text:
+		f.setNilUsableness(n)
 		return f
 	case *ast.BlockStmt:
 		f.analyzeStmts(n.List)
@@ -521,7 +519,7 @@ func (f *contextAnalyzer) Visit(list ast.Node) ast.Visitor {
 			ctx:             f.ctx,
 			shadowedImports: shadowed,
 		}
-	case *ast.TemplateLiteralExpr:
+	case *ast.TemplateLiteral:
 		f.setNilUsableness(n)
 
 		if f.ctx.hasDotImport && !f.shadowedImports.isSetBit(bitTgoDynamicWrite) {
